@@ -1,5 +1,3 @@
-import math
-
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -35,6 +33,7 @@ def plot_frame(i, goal, config, traj, ax):
     ax.axis("equal")
     ax.grid(True)
 
+
 def better_gym():
     # input [forward speed, yaw_rate]
     env = BetterRobotArena(RobotArena((0, 0)))
@@ -47,7 +46,7 @@ def better_gym():
     print("Simulation Started")
     for _ in range(100):
         u = np.array([1, 0.1])
-        s, r, terminal, truncated, info = env.step(s,u)
+        s, r, terminal, truncated, info = env.step(s, u)
         trajectory = np.vstack((trajectory, s.x))  # store state history
         if terminal: break
 
@@ -65,5 +64,6 @@ def better_gym():
     )
     ani.save("prova.gif", dpi=300, fps=15)
     print("Done")
+
 
 better_gym()

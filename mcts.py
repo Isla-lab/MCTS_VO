@@ -14,12 +14,14 @@ class BetterFrozenLake(BetterGym):
     def get_actions(self, state):
         return np.arange(0, self.gym_env.action_space.n)
 
+
 @dataclass
 class Tree:
     state: Any
     id: int
     num_visits_actions: np.ndarray
     a_values: np.ndarray
+
 
 class Mcts:
     def __init__(self, num_sim: int, c: Union[float, int], s0: Any, environment: BetterGym, computational_budget: int,
@@ -46,6 +48,7 @@ class Mcts:
         self.num_visits_states = np.append(self.num_visits_states, 0)
         for sn in range(self.num_sim):
             self.__simulate(state_id=root_id)
+
     def __simulate(self, state_id: int):
         self.num_visits_states[state_id] += 1
         current_state = self.id_to_state[state_id]
@@ -80,7 +83,6 @@ class Mcts:
         # otherwise the next state will be a node which id already exist
         # TODO: fix
         # PROBLEM: a state can be repeated within the tree so the mapping state -> id might be problematic
-
 
         if new_state_id is None:
             state_id += 1

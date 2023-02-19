@@ -1,10 +1,13 @@
 from abc import abstractmethod
-from typing import TypeVar, SupportsFloat, Any, Union
+from typing import Any, Union
+
 import gymnasium as gym
+
 
 class BetterGym:
     def __init__(self, env: gym.Env):
         self.gym_env = env
+
     def step(self, state, action) -> tuple[Any, Union[float, int], bool, bool, Union[dict[str, Any]]]:
         """
         A transition function that works by
@@ -23,10 +26,10 @@ class BetterGym:
         :return:
         """
         pass
+
     @abstractmethod
     def get_actions(self, state):
         pass
 
     def __getattr__(self, attr):
         return getattr(self.gym_env, attr)
-

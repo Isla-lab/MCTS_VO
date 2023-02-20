@@ -1,10 +1,10 @@
+import math
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
-from gymnasium.core import RenderFrame
 
 import gymnasium as gym
 import numpy as np
-import math
+from gymnasium.core import RenderFrame
 
 
 @dataclass
@@ -33,14 +33,15 @@ class Config:
 
     right_limit = 10.5
     left_limit = -0.5
+    obs_size = 0.2
 
     # obstacles [x(m) y(m), ....]
     ob = np.array([
-        [4.0, 5.0],
-        [5.0, 4.0],
+        [4.5, 5.0],
+        [5.0, 4.5],
         [5.0, 5.0],
-        [5.0, 6.0],
-        [6.0, 5.0],
+        [5.0, 5.5],
+        [5.5, 5.0],
     ])
 
 
@@ -50,6 +51,7 @@ class RobotArenaState:
     x: np.ndarray
     # x(m), y(m)
     goal: np.ndarray
+
 
 class RobotArena(gym.Env):
     def __init__(self, initial_position: Union[Tuple, List, np.ndarray], config: Config = Config()):
@@ -85,10 +87,10 @@ class RobotArena(gym.Env):
         x_pos, y_pos = state.x[:2]
         c = self.config
         # Right and Left Map Limit
-        if x_pos+c.robot_radius > c.right_limit or x_pos-c.robot_radius < c.left_limit:
+        if x_pos + c.robot_radius > c.right_limit or x_pos - c.robot_radius < c.left_limit:
             return True
         # Upper and Bottom Map Limit
-        if y_pos+c.robot_radius > c.upper_limit or y_pos-c.robot_radius < c.bottom_limit:
+        if y_pos + c.robot_radius > c.upper_limit or y_pos - c.robot_radius < c.bottom_limit:
             return True
 
         return False
@@ -104,7 +106,7 @@ class RobotArena(gym.Env):
         obs = self.config.ob
         tmp = np.expand_dims(x[:2], axis=0) - obs
         dist_to_obs = np.linalg.norm(tmp, axis=1)
-        if np.any(dist_to_obs <= config.robot_radius):
+        if np.any(dist_to_obs <= config.robot_radius+self.config.obs_size):
             return True
         return False
 
@@ -117,11 +119,15 @@ class RobotArena(gym.Env):
         """
         dt = self.config.dt
         new_x = x.copy()
-
+        # x
         new_x[0] += u[0] * math.cos(x[2]) * dt
+        # y
         new_x[1] += u[0] * math.sin(x[2]) * dt
+        # angle
         new_x[2] += u[1] * dt
+        # vel lineare
         new_x[3] = u[0]
+        # vel angolare
         new_x[4] = u[1]
 
         return new_x
@@ -143,7 +149,8 @@ class RobotArena(gym.Env):
     def render(self) -> RenderFrame | list[RenderFrame] | None:
         pass
 
-    def reward(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool, out_boundaries: bool) -> float:
+    def reward(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
+               out_boundaries: bool) -> float:
         """
         Defines the reward the agent receives
         :param state: current robot state

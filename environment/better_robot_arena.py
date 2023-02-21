@@ -1,8 +1,8 @@
 import numpy as np
 from gymnasium.spaces import Box
 
-from better_gym import BetterGym
-from robot_arena_gym import RobotArenaState
+from environment.better_gym import BetterGym
+from environment.robot_arena_gym import RobotArenaState
 
 
 class BetterRobotArena(BetterGym):

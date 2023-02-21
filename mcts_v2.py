@@ -1,15 +1,15 @@
-from dataclasses import dataclass
-from typing import Union, Any
+from dataclasses import dataclass, field
+from typing import Union, Any, Dict
 
 import gymnasium as gym
 import numpy as np
 
-from better_gym import BetterGym
+from environment.better_gym import BetterGym
 
 
 class BetterFrozenLake(BetterGym):
     def set_state(self, state) -> None:
-        self.gym_env.s = state
+        self.gym_env.s = self.gym_env.unwrapped.s = state
 
     def get_actions(self, state):
         return np.arange(0, self.gym_env.action_space.n)
@@ -18,64 +18,68 @@ class BetterFrozenLake(BetterGym):
 @dataclass
 class ActionNode:
     action: Any
-    # num_visits_states: np.ndarray
-    id_to_state = {}
-    state_to_id = {}
+    state_to_id: Dict[Any, int] = field(default_factory=dict)
 
 
 @dataclass
 class StateNode:
     state: Any
     id: int
-    actions: tuple
+    actions: list
     num_visits_actions: np.ndarray
     a_values: np.ndarray
+    num_visits: int = 0
 
     def __init__(self, environment, state, node_id):
         self.id = node_id
-        actions = environment.get_actions(state)
-        self.actions = tuple(ActionNode(a) for a in actions)
-        self.num_visits_actions = np.array([np.zeros(len(actions), dtype=np.float64)])
-        self.a_values = np.array([np.zeros(len(actions), dtype=np.float64)])
+        self.state = state
+        acts = environment.get_actions(state)
+        self.actions = [ActionNode(a) for a in acts]
+        self.num_visits_actions = np.zeros_like(self.actions, dtype=np.float64)
+        self.a_values = np.zeros_like(self.actions, dtype=np.float64)
 
 
 class Mcts:
-    def __init__(self, num_sim: int, c: float | int, s0: Any, environment: BetterGym, computational_budget: int,
+    def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int,
                  discount: float | int = 1):
         self.id_to_state_node: dict[int, StateNode] = {}
         self.num_sim: int = num_sim
         self.c: float | int = c
-        self.s0: Any = s0
         self.environment: BetterGym = environment
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
 
         self.num_visits_actions = np.array([], dtype=np.float64)
         self.a_values = np.array([])
-
-        self.num_visits_states = np.array([], dtype=np.float64)
-        # self.id_to_state_node = {}
-        # self.state_to_id = {}
         self.state_actions = {}
+        self.last_id = -1
+
+    def get_id(self):
+        self.last_id += 1
+        return self.last_id
 
     def plan(self, initial_state: Any):
-        root_id = 0
+        root_id = self.get_id()
         root_node = StateNode(self.environment, initial_state, root_id)
         self.id_to_state_node[root_id] = root_node
-        # self.state_to_id[initial_state] = root_id
-        self.num_visits_states = np.append(self.num_visits_states, 0)
         for sn in range(self.num_sim):
-            self.__simulate(state_id=root_id)
+            self.simulate(state_id=root_id)
 
-    def __simulate(self, state_id: int):
+        q_vals = root_node.a_values / root_node.num_visits_actions
+        # randomly choose between actions which have the maximum ucb value
+        action_idx = np.random.choice(np.flatnonzero(q_vals == np.max(q_vals)))
+        action = root_node.actions[action_idx].action
+        return action
+
+    def simulate(self, state_id: int):
         node = self.id_to_state_node[state_id]
-        self.num_visits_states[state_id] += 1
+        node.num_visits += 1
         current_state = node.state
 
         # UCB
         # Q + c * sqrt(ln(Parent_Visit)/Child_visit)
         ucb_scores = node.a_values / node.num_visits_actions + self.c * np.sqrt(
-            np.log(self.num_visits_states[state_id]) / node.num_visits_actions
+            np.log(node.num_visits) / node.num_visits_actions
         )
         ucb_scores[np.isnan(ucb_scores)] = np.inf
         # randomly choose between actions which have the maximum ucb value
@@ -86,51 +90,76 @@ class Mcts:
         # increase action visits
         node.num_visits_actions[action_idx] += 1
 
-        current_state, r, terminal, _, _ = env.step(current_state, action)
+        current_state, r, terminal, _, _ = self.environment.step(current_state, action)
         new_state_id = action_node.state_to_id.get(current_state, None)
 
         if new_state_id is None:
-            state_id += 1
+            # Leaf Node
+            state_id = self.get_id()
             # Initialize State Data
             node = StateNode(self.environment, current_state, state_id)
             self.id_to_state_node[state_id] = node
             action_node.state_to_id[current_state] = state_id
-            self.num_visits_states = np.append(self.num_visits_states, 0)
+            node.num_visits += 1
             # Do Rollout
             disc_rollout_value = self.discount * self.rollout(current_state)
             node.a_values[action_idx] += disc_rollout_value
             return disc_rollout_value
         else:
+            # Node in the tree
             state_id = new_state_id
+            node = self.id_to_state_node[state_id]
             if terminal:
                 return 0
             else:
-                disc_value = self.discount * self.__simulate(state_id)
-                node.a_values[state_id][action_idx] += disc_value
+                disc_value = self.discount * self.simulate(state_id)
+                # BackPropagate
+                # since I only need action nodes for action selection I don't care about the value of State nodes
+                node.a_values[action_idx] += disc_value
                 return disc_value
 
     def rollout(self, current_state) -> Union[int, float]:
         terminal = False
         r = 0
-        while terminal or self.computational_budget == 0:
+        budget = self.computational_budget
+        while not terminal and budget != 0:
             # random policy
             actions = self.environment.get_actions(current_state)
             chosen_action = np.random.choice(actions)
-            current_state, r, terminal, _, _ = env.step(current_state, chosen_action)
+            current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
+            budget -= 1
         return r
 
 
-if __name__ == '__main__':
-    env = BetterFrozenLake(
+def main():
+    real_env = BetterFrozenLake(
+        gym.make("FrozenLake-v1", render_mode="human").unwrapped
+    )
+    sim_env = BetterFrozenLake(
         gym.make("FrozenLake-v1").unwrapped
     )
-    s, _ = env.reset()
+    sim_env.reset()
+    s, _ = real_env.reset()
     planner = Mcts(
-        num_sim=100,
+        num_sim=1000,
         c=1,
-        s0=s,
-        environment=env,
-        computational_budget=100,
+        environment=sim_env,
+        computational_budget=1000,
         discount=0.9
     )
-    planner.plan(s)
+    terminal = False
+    act_names = {
+        0: "LEFT",
+        1: "DOWN",
+        2: "RIGHT",
+        3: "UP"
+    }
+    while not terminal:
+        a = planner.plan(s)
+        s1, r, terminal, truncated, _ = real_env.step(s, a)
+        print(f"s: {s}, a: {act_names[a]}, s1: {s1}, r: {r}")
+    # env.gym_env.render()
+
+
+if __name__ == '__main__':
+    main()

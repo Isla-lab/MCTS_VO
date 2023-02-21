@@ -2,8 +2,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from better_robot_arena import BetterRobotArena
-from robot_arena_gym import RobotArena
+from environment.better_robot_arena import BetterRobotArena
+from environment.robot_arena_gym import RobotArena
 
 
 def plot_robot(x, y, yaw, config, ax):
@@ -48,7 +48,8 @@ def better_gym():
         u = np.array([1, 0.1])
         s, r, terminal, truncated, info = env.step(s, u)
         trajectory = np.vstack((trajectory, s.x))  # store state history
-        if terminal: break
+        if terminal:
+            break
 
     fig, ax = plt.subplots()
     ax.set_xlim([config.left_limit, config.right_limit])

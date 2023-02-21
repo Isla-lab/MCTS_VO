@@ -4,7 +4,7 @@ from typing import Union, Any
 import gymnasium as gym
 import numpy as np
 
-from better_gym import BetterGym
+from environment.better_gym import BetterGym
 
 
 class BetterFrozenLake(BetterGym):

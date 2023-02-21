@@ -5,14 +5,26 @@ import gymnasium as gym
 import numpy as np
 
 from environment.better_gym import BetterGym
+from environment.recycling_robot import RecyclingRobot
 
 
-class BetterFrozenLake(BetterGym):
+# class BetterFrozenLake(BetterGym):
+#     def set_state(self, state) -> None:
+#         self.gym_env.s = self.gym_env.unwrapped.s = state
+#
+#     def get_actions(self, state):
+#         return np.arange(0, self.gym_env.action_space.n)
+
+class BetterRecyclingRobot(BetterGym):
     def set_state(self, state) -> None:
-        self.gym_env.s = self.gym_env.unwrapped.s = state
+        self.gym_env.state = state
 
     def get_actions(self, state):
-        return np.arange(0, self.gym_env.action_space.n)
+        # HIGH
+        if state == 0:
+            return np.array([0, 1])
+        else:  # LOW
+            return np.array([0, 1, 2])
 
 
 @dataclass
@@ -93,6 +105,7 @@ class Mcts:
         current_state, r, terminal, _, _ = self.environment.step(current_state, action)
         new_state_id = action_node.state_to_id.get(current_state, None)
 
+        prev_node = node
         if new_state_id is None:
             # Leaf Node
             state_id = self.get_id()
@@ -103,7 +116,7 @@ class Mcts:
             node.num_visits += 1
             # Do Rollout
             disc_rollout_value = self.discount * self.rollout(current_state)
-            node.a_values[action_idx] += disc_rollout_value
+            prev_node.a_values[action_idx] += disc_rollout_value
             return disc_rollout_value
         else:
             # Node in the tree
@@ -115,7 +128,7 @@ class Mcts:
                 disc_value = self.discount * self.simulate(state_id)
                 # BackPropagate
                 # since I only need action nodes for action selection I don't care about the value of State nodes
-                node.a_values[action_idx] += disc_value
+                prev_node.a_values[action_idx] += disc_value
                 return disc_value
 
     def rollout(self, current_state) -> Union[int, float]:
@@ -132,32 +145,27 @@ class Mcts:
 
 
 def main():
-    real_env = BetterFrozenLake(
-        gym.make("FrozenLake-v1", render_mode="human").unwrapped
+    real_env = BetterRecyclingRobot(
+        RecyclingRobot()
     )
-    sim_env = BetterFrozenLake(
-        gym.make("FrozenLake-v1").unwrapped
+    sim_env = BetterRecyclingRobot(
+        RecyclingRobot()
     )
     sim_env.reset()
-    s, _ = real_env.reset()
+    s = real_env.reset()
     planner = Mcts(
         num_sim=1000,
-        c=1,
+        c=0.5,
         environment=sim_env,
         computational_budget=1000,
-        discount=0.9
+        discount=0.8
     )
-    terminal = False
-    act_names = {
-        0: "LEFT",
-        1: "DOWN",
-        2: "RIGHT",
-        3: "UP"
-    }
-    while not terminal:
+    act_names = {0: 'SEARCH', 1: 'WAIT', 2: 'RECHARGE'}
+    states_names = {0: 'HIGH', 1: 'LOW'}
+    for _ in range(100):
         a = planner.plan(s)
         s1, r, terminal, truncated, _ = real_env.step(s, a)
-        print(f"s: {s}, a: {act_names[a]}, s1: {s1}, r: {r}")
+        print(f"s: {states_names[s]}, a: {act_names[a]}, s1: {states_names[s1]}, r: {r}")
     # env.gym_env.render()
 
 

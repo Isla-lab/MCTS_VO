@@ -1,9 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
-
-from environment.better_robot_arena import BetterRobotArena
-from environment.robot_arena_gym import RobotArena
+from environment.robot_arena_gym import RobotArena, BetterRobotArena
 
 
 def plot_robot(x, y, yaw, config, ax):

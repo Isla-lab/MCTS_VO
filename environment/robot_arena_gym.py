@@ -5,6 +5,9 @@ from typing import Any, Union, Tuple, List
 import gymnasium as gym
 import numpy as np
 from gymnasium.core import RenderFrame
+from gymnasium.spaces import Box
+
+from environment.better_gym import BetterGym
 
 
 @dataclass
@@ -106,7 +109,7 @@ class RobotArena(gym.Env):
         obs = self.config.ob
         tmp = np.expand_dims(x[:2], axis=0) - obs
         dist_to_obs = np.linalg.norm(tmp, axis=1)
-        if np.any(dist_to_obs <= config.robot_radius+self.config.obs_size):
+        if np.any(dist_to_obs <= config.robot_radius + self.config.obs_size):
             return True
         return False
 
@@ -173,3 +176,15 @@ class RobotArena(gym.Env):
         x_state = state.x
 
         return STEP_REWARD
+
+
+class BetterRobotArena(BetterGym):
+    def get_actions(self, state: RobotArenaState):
+        config = self.gym_env.config
+        return Box(
+            low=np.array([config.min_speed, -config.max_yaw_rate]),
+            high=np.array([config.max_speed, config.max_yaw_rate])
+        )
+
+    def set_state(self, state) -> None:
+        self.gym_env.state = state

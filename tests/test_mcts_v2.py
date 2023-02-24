@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from mcts_v2 import Mcts
+from agents.mcts_v2 import MctsV2
 
 
 class UnitTestMcts(TestCase):
@@ -17,7 +17,7 @@ class UnitTestMcts(TestCase):
         # s', r, terminal, truncated, info
         env.step.return_value = (1, expected_reward, True, None, None)
 
-        planner = Mcts(
+        planner = MctsV2(
             num_sim=100,
             c=1,
             s0=s,
@@ -45,7 +45,7 @@ class UnitTestMcts(TestCase):
             (1, 3, False, None, None),
         ]
 
-        planner = Mcts(
+        planner = MctsV2(
             num_sim=100,
             c=1,
             s0=s,
@@ -71,7 +71,7 @@ class UnitTestMcts(TestCase):
             (1, 3, False, None, None),
         ]
 
-        planner = Mcts(
+        planner = MctsV2(
             num_sim=100,
             c=1,
             s0=s,

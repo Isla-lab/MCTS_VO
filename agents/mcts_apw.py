@@ -1,36 +1,33 @@
+import math
 from dataclasses import dataclass, field
-from typing import Union, Any, Dict
+from typing import Union, Any, Dict, Callable
 
-import gymnasium as gym
 import numpy as np
+from gymnasium import Space
 
+from agents.planner import Planner
 from environment.better_gym import BetterGym
-from environment.recycling_robot import RecyclingRobot
-
-
-# class BetterFrozenLake(BetterGym):
-#     def set_state(self, state) -> None:
-#         self.gym_env.s = self.gym_env.unwrapped.s = state
-#
-#     def get_actions(self, state):
-#         return np.arange(0, self.gym_env.action_space.n)
-
-class BetterRecyclingRobot(BetterGym):
-    def set_state(self, state) -> None:
-        self.gym_env.state = state
-
-    def get_actions(self, state):
-        # HIGH
-        if state == 0:
-            return np.array([0, 1])
-        else:  # LOW
-            return np.array([0, 1, 2])
 
 
 @dataclass
 class ActionNode:
-    action: Any
+    action: np.ndarray
+    action_bytes: bytes | None = None
     state_to_id: Dict[Any, int] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.action_bytes = self.action.tobytes()
+
+    def __hash__(self):
+        return hash(self.action_bytes)
+
+    def __repr__(self):
+        return np.array2string(self.action)
+
+    def __eq__(self, other):
+        if isinstance(other, ActionNode) and hash(self) == hash(other):
+            return True
+        return False
 
 
 @dataclass
@@ -45,21 +42,34 @@ class StateNode:
     def __init__(self, environment, state, node_id):
         self.id = node_id
         self.state = state
-        acts = environment.get_actions(state)
-        self.actions = [ActionNode(a) for a in acts]
-        self.num_visits_actions = np.zeros_like(self.actions, dtype=np.float64)
-        self.a_values = np.zeros_like(self.actions, dtype=np.float64)
+        self.actions = []
+        self.num_visits_actions = np.array([], dtype=np.float64)
+        self.a_values = np.array([], dtype=np.float64)
 
 
-class Mcts:
+class MctsV2Apw(Planner):
     def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int,
-                 discount: float | int = 1):
+                 k: float | int, alpha: float | int, action_expansion_function: Callable, discount: float | int = 1):
+        """
+        Mcts algorithm with Action Progressive Widening
+        :param num_sim: number of simulations
+        :param c: exploration constant of the UCB
+        :param environment: the simulated environment
+        :param computational_budget: maximum rollout depth
+        :param k: first parameter of the action progressive widening
+        :param alpha: second parameter of the action progressive widening
+        :param action_expansion_function: function to choose which action to add to the tree
+        :param discount: the discount factor of the mdp
+        """
         self.id_to_state_node: dict[int, StateNode] = {}
         self.num_sim: int = num_sim
         self.c: float | int = c
         self.environment: BetterGym = environment
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
+        self.k = k
+        self.alpha = alpha
+        self.action_expansion_function = action_expansion_function
 
         self.num_visits_actions = np.array([], dtype=np.float64)
         self.a_values = np.array([])
@@ -88,9 +98,39 @@ class Mcts:
         node.num_visits += 1
         current_state = node.state
 
+        if len(node.actions) == 0:
+            # Since we don't have actions in the node, we'll sample one at random
+            available_actions: Space = self.environment.get_actions(current_state)
+            new_action: np.ndarray = available_actions.sample()
+            # add child
+            new_action_node = ActionNode(new_action)
+            node.actions.append(new_action_node)
+            node.num_visits_actions = np.append(node.num_visits_actions, 0)
+            node.a_values = np.append(node.a_values, 0)
+
+        elif len(node.actions) <= math.ceil(self.k * (node.num_visits ** self.alpha)):
+            # self.action_expansion_function(current_state, self)
+            # ACTION EXPANSION FUNCTION - RANDOM
+            available_actions: Space = self.environment.get_actions(current_state)
+            new_action: np.ndarray = available_actions.sample()
+
+            # add child
+            new_action_node = ActionNode(new_action)
+            node.actions.append(new_action_node)
+            # remove duplicate nodes
+            node.actions = list(dict.fromkeys(node.actions))
+
+            if len(node.num_visits_actions) != len(node.actions):
+                # the node we added was a duplicate node
+                node.num_visits_actions = np.append(node.num_visits_actions, 0)
+                node.a_values = np.append(node.a_values, 0)
+
         # UCB
         # Q + c * sqrt(ln(Parent_Visit)/Child_visit)
-        ucb_scores = node.a_values / node.num_visits_actions + self.c * np.sqrt(
+        q_vals = node.a_values / node.num_visits_actions
+        q_vals[np.isnan(q_vals)] = np.inf
+
+        ucb_scores = q_vals + self.c * np.sqrt(
             np.log(node.num_visits) / node.num_visits_actions
         )
         ucb_scores[np.isnan(ucb_scores)] = np.inf
@@ -121,7 +161,6 @@ class Mcts:
         else:
             # Node in the tree
             state_id = new_state_id
-            node = self.id_to_state_node[state_id]
             if terminal:
                 return 0
             else:
@@ -137,37 +176,8 @@ class Mcts:
         budget = self.computational_budget
         while not terminal and budget != 0:
             # random policy
-            actions = self.environment.get_actions(current_state)
-            chosen_action = np.random.choice(actions)
+            available_actions: Space = self.environment.get_actions(current_state)
+            chosen_action = available_actions.sample()
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
             budget -= 1
         return r
-
-
-def main():
-    real_env = BetterRecyclingRobot(
-        RecyclingRobot()
-    )
-    sim_env = BetterRecyclingRobot(
-        RecyclingRobot()
-    )
-    sim_env.reset()
-    s = real_env.reset()
-    planner = Mcts(
-        num_sim=1000,
-        c=0.5,
-        environment=sim_env,
-        computational_budget=1000,
-        discount=0.8
-    )
-    act_names = {0: 'SEARCH', 1: 'WAIT', 2: 'RECHARGE'}
-    states_names = {0: 'HIGH', 1: 'LOW'}
-    for _ in range(100):
-        a = planner.plan(s)
-        s1, r, terminal, truncated, _ = real_env.step(s, a)
-        print(f"s: {states_names[s]}, a: {act_names[a]}, s1: {states_names[s1]}, r: {r}")
-    # env.gym_env.render()
-
-
-if __name__ == '__main__':
-    main()

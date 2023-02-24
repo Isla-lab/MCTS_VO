@@ -11,8 +11,8 @@ class BetterGym:
     def step(self, state, action) -> tuple[Any, Union[float, int], bool, bool, Union[dict[str, Any]]]:
         """
         A transition function that works by
-        :param state: the state of the environment
-        :param action: action to perform into the environment to transition to next state
+        :param state: the state of the environments
+        :param action: action to perform into the environments to transition to next state
         :return:
         """
         self.set_state(state)
@@ -21,8 +21,8 @@ class BetterGym:
     @abstractmethod
     def set_state(self, state) -> None:
         """
-        set the state of the environment
-        :param state: the state of the environment
+        set the state of the environments
+        :param state: the state of the environments
         :return:
         """
         pass

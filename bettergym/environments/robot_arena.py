@@ -7,7 +7,7 @@ import numpy as np
 from gymnasium.core import RenderFrame
 from gymnasium.spaces import Box
 
-from environment.better_gym import BetterGym
+from bettergym.better_gym import BetterGym
 
 
 @dataclass
@@ -179,6 +179,9 @@ class RobotArena(gym.Env):
 
 
 class BetterRobotArena(BetterGym):
+    def __init__(self, initial_position: Union[Tuple, List, np.ndarray]):
+        super().__init__(RobotArena(initial_position))
+
     def get_actions(self, state: RobotArenaState):
         config = self.gym_env.config
         return Box(

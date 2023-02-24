@@ -1,8 +1,21 @@
+import os
+import random
+
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
-from environment.robot_arena_gym import RobotArena, BetterRobotArena
 
+from bettergym.agents.planner_mcts_apw import MctsApw
+from bettergym.better_gym import BetterGym
+from bettergym.environments.robot_arena import RobotArena, BetterRobotArena
+
+
+def seed_everything(real_env: BetterGym, sim_env: BetterGym, seed_value: int):
+    real_env.gym_env.seed(seed_value)
+    sim_env.gym_env.seed(seed_value)
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    os.environ['PYTHONHASHSEED'] = str(seed_value)
 
 def plot_robot(x, y, yaw, config, ax):
     circle = plt.Circle((x, y), config.robot_radius, color="b")
@@ -32,19 +45,29 @@ def plot_frame(i, goal, config, traj, ax):
     ax.grid(True)
 
 
-def better_gym():
+def main():
     # input [forward speed, yaw_rate]
-    env = BetterRobotArena(RobotArena((0, 0)))
-    s0, _ = env.reset()
+    real_env = BetterRobotArena((0, 0))
+    s0, _ = real_env.reset()
     trajectory = np.array(s0.x)
-    config = env.config
+    config = real_env.config
     goal = s0.goal
 
     s = s0
+    planner = MctsApw(
+        num_sim=10000,
+        c=0.5,
+        environment=real_env,
+        computational_budget=200,
+        k=15,
+        alpha=0,
+        action_expansion_function=None
+    )
+
     print("Simulation Started")
     for _ in range(100):
-        u = np.array([1, 0.1])
-        s, r, terminal, truncated, info = env.step(s, u)
+        u = planner.plan(s)
+        s, r, terminal, truncated, info = real_env.step(s, u)
         trajectory = np.vstack((trajectory, s.x))  # store state history
         if terminal:
             break
@@ -65,4 +88,4 @@ def better_gym():
     print("Done")
 
 
-better_gym()
+main()

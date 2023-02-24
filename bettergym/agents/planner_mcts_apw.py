@@ -5,8 +5,8 @@ from typing import Union, Any, Dict, Callable
 import numpy as np
 from gymnasium import Space
 
-from agents.planner import Planner
-from environment.better_gym import BetterGym
+from bettergym.agents.planner import Planner
+from bettergym.better_gym import BetterGym
 
 
 @dataclass
@@ -47,14 +47,14 @@ class StateNode:
         self.a_values = np.array([], dtype=np.float64)
 
 
-class MctsV2Apw(Planner):
+class MctsApw(Planner):
     def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int,
                  k: float | int, alpha: float | int, action_expansion_function: Callable, discount: float | int = 1):
         """
         Mcts algorithm with Action Progressive Widening
         :param num_sim: number of simulations
         :param c: exploration constant of the UCB
-        :param environment: the simulated environment
+        :param environment: the simulated environments
         :param computational_budget: maximum rollout depth
         :param k: first parameter of the action progressive widening
         :param alpha: second parameter of the action progressive widening

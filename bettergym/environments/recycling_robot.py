@@ -7,15 +7,15 @@ import numpy as np
 
 class RecyclingRobot(gym.Env):
     """
-    Class that implements the environment Recycling Robot of the book: 'Reinforcement
+    Class that implements the environments Recycling Robot of the book: 'Reinforcement
     Learning: an introduction, Sutton & Barto'. Example 3.3 page 52 (second edition).
 
     Attributes
     ----------
         observation_space : int
-            define the number of possible actions of the environment
+            define the number of possible actions of the environments
         action_space: int
-            define the number of possible states of the environment
+            define the number of possible states of the environments
         actions: dict
             a dictionary that translate the 'action code' in human languages
         states: dict
@@ -24,12 +24,12 @@ class RecyclingRobot(gym.Env):
     Methods
     -------
         reset( self )
-            method that reset the environment to an initial state; returns the state
+            method that reset the environments to an initial state; returns the state
         step( self, action )
             method that perform the action given in input, computes the next state and the reward; returns
             next_state and reward
         render( self )
-            method that print the internal state of the environment
+            method that print the internal state of the environments
     """
 
     def __init__(self):
@@ -39,7 +39,7 @@ class RecyclingRobot(gym.Env):
         self.r_search = 0.5
         self.r_wait = 0.2
 
-        # Defining the environment variables
+        # Defining the environments variables
         self.observation_space = 2
         self.action_space = 3
         self.actions = {0: 'SEARCH', 1: 'WAIT', 2: 'RECHARGE'}
@@ -109,15 +109,15 @@ class RecyclingRobot(gym.Env):
 
 class RecyclingRobot2(gym.Env):
     """
-    Class that implements the environment Recycling Robot of the book: 'Reinforcement
+    Class that implements the environments Recycling Robot of the book: 'Reinforcement
     Learning: an introduction, Sutton & Barto'. Example 3.3 page 52 (second edition).
 
     Attributes
     ----------
         observation_space : int
-            define the number of possible actions of the environment
+            define the number of possible actions of the environments
         action_space: int
-            define the number of possible states of the environment
+            define the number of possible states of the environments
         actions: dict
             a dictionary that translate the 'action code' in human languages
         states: dict
@@ -126,12 +126,12 @@ class RecyclingRobot2(gym.Env):
     Methods
     -------
         reset( self )
-            method that reset the environment to an initial state; returns the state
+            method that reset the environments to an initial state; returns the state
         step( self, action )
             method that perform the action given in input, computes the next state and the reward; returns
             next_state and reward
         render( self )
-            method that print the internal state of the environment
+            method that print the internal state of the environments
     """
 
     def __init__(self):
@@ -141,7 +141,7 @@ class RecyclingRobot2(gym.Env):
         self.r_search = 0.5
         self.r_wait = 0.2
 
-        # Defining the environment variables
+        # Defining the environments variables
         self.observation_space = 2
         self.action_space = 3
         self.actions = {0: 'SEARCH', 1: 'WAIT', 2: 'RECHARGE'}

@@ -3,8 +3,8 @@ from typing import Union, Any, Dict
 
 import numpy as np
 
-from agents.planner import Planner
-from environment.better_gym import BetterGym
+from bettergym.agents.planner import Planner
+from bettergym.better_gym import BetterGym
 
 
 @dataclass

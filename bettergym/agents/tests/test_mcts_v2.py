@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from agents.mcts_v2 import MctsV2
+from bettergym.agents.planner_mcts import MctsV2
 
 
 class UnitTestMcts(TestCase):

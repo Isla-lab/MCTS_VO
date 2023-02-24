@@ -4,15 +4,16 @@ import random
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+from tqdm import tqdm
 
 from bettergym.agents.planner_mcts_apw import MctsApw
+from bettergym.agents.utils.action_expansion_functions import uniform
 from bettergym.better_gym import BetterGym
 from bettergym.environments.robot_arena import RobotArena, BetterRobotArena
 
 
-def seed_everything(real_env: BetterGym, sim_env: BetterGym, seed_value: int):
-    real_env.gym_env.seed(seed_value)
-    sim_env.gym_env.seed(seed_value)
+def seed_everything(real_env: BetterGym, seed_value: int):
+    real_env.seed(seed_value)
     random.seed(seed_value)
     np.random.seed(seed_value)
     os.environ['PYTHONHASHSEED'] = str(seed_value)
@@ -41,7 +42,11 @@ def plot_frame(i, goal, config, traj, ax):
     sub_traj = traj[:i]
     ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")
 
-    ax.axis("equal")
+    # ax.plot([70, 70], [100, 250], 'k-', lw=2)
+
+    ax.set_xlim([config.left_limit, config.right_limit])
+    ax.set_ylim([config.bottom_limit, config.upper_limit])
+    # ax.axis("equal")
     ax.grid(True)
 
 
@@ -49,33 +54,34 @@ def main():
     # input [forward speed, yaw_rate]
     real_env = BetterRobotArena((0, 0))
     s0, _ = real_env.reset()
+    seed_everything(real_env, 1)
     trajectory = np.array(s0.x)
     config = real_env.config
     goal = s0.goal
 
     s = s0
     planner = MctsApw(
-        num_sim=10000,
+        num_sim=1000,
         c=0.5,
         environment=real_env,
         computational_budget=200,
-        k=15,
+        k=20,
         alpha=0,
-        action_expansion_function=None
+        action_expansion_function=uniform
     )
 
     print("Simulation Started")
-    for _ in range(100):
+    cum_reward = 0
+    for _ in tqdm(range(100)):
         u = planner.plan(s)
         s, r, terminal, truncated, info = real_env.step(s, u)
+        cum_reward += r
         trajectory = np.vstack((trajectory, s.x))  # store state history
         if terminal:
             break
 
     fig, ax = plt.subplots()
-    ax.set_xlim([config.left_limit, config.right_limit])
-    ax.set_ylim([config.bottom_limit, config.upper_limit])
-    print("Simulation Ended")
+    print(f"Simulation Ended with Reward: {cum_reward}")
 
     print("Creating Gif...")
     ani = FuncAnimation(

@@ -1,4 +1,3 @@
-from dataclasses import dataclass, field
 from typing import Union, Any, Dict
 
 import numpy as np
@@ -7,21 +6,13 @@ from bettergym.agents.planner import Planner
 from bettergym.better_gym import BetterGym
 
 
-@dataclass
 class ActionNode:
-    action: Any
-    state_to_id: Dict[Any, int] = field(default_factory=dict)
+    def __init__(self, action: Any):
+        self.action: Any = action
+        self.state_to_id: Dict[Any, int] = {}
 
 
-@dataclass
 class StateNode:
-    state: Any
-    id: int
-    actions: list
-    num_visits_actions: np.ndarray
-    a_values: np.ndarray
-    num_visits: int = 0
-
     def __init__(self, environment, state, node_id):
         self.id = node_id
         self.state = state
@@ -29,15 +20,16 @@ class StateNode:
         self.actions = [ActionNode(a) for a in acts]
         self.num_visits_actions = np.zeros_like(self.actions, dtype=np.float64)
         self.a_values = np.zeros_like(self.actions, dtype=np.float64)
+        self.num_visits: int = 0
 
 
 class MctsV2(Planner):
     def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int,
                  discount: float | int = 1):
+        super().__init__(environment)
         self.id_to_state_node: dict[int, StateNode] = {}
         self.num_sim: int = num_sim
         self.c: float | int = c
-        self.environment: BetterGym = environment
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
 

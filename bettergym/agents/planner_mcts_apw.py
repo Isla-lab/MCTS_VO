@@ -9,14 +9,11 @@ from bettergym.agents.planner import Planner
 from bettergym.better_gym import BetterGym
 
 
-@dataclass
 class ActionNode:
-    action: np.ndarray
-    action_bytes: bytes | None = None
-    state_to_id: Dict[Any, int] = field(default_factory=dict)
-
-    def __post_init__(self):
-        self.action_bytes = self.action.tobytes()
+    def __init__(self, action: np.ndarray):
+        self.action = action
+        self.action_bytes = action.tobytes()
+        self.state_to_id: Dict[Any, int] = {}
 
     def __hash__(self):
         return hash(self.action_bytes)
@@ -30,26 +27,19 @@ class ActionNode:
         return False
 
 
-@dataclass
 class StateNode:
-    state: Any
-    id: int
-    actions: list
-    num_visits_actions: np.ndarray
-    a_values: np.ndarray
-    num_visits: int = 0
-
     def __init__(self, environment, state, node_id):
         self.id = node_id
         self.state = state
         self.actions = []
         self.num_visits_actions = np.array([], dtype=np.float64)
         self.a_values = np.array([], dtype=np.float64)
+        self.num_visits: int = 0
 
 
 class MctsApw(Planner):
-    def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int,
-                 k: float | int, alpha: float | int, action_expansion_function: Callable, discount: float | int = 1):
+    def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int, k: float | int,
+                 alpha: float | int, action_expansion_function: Callable, discount: float | int = 1):
         """
         Mcts algorithm with Action Progressive Widening
         :param num_sim: number of simulations
@@ -61,10 +51,10 @@ class MctsApw(Planner):
         :param action_expansion_function: function to choose which action to add to the tree
         :param discount: the discount factor of the mdp
         """
+        super().__init__(environment)
         self.id_to_state_node: dict[int, StateNode] = {}
         self.num_sim: int = num_sim
         self.c: float | int = c
-        self.environment: BetterGym = environment
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
         self.k = k
@@ -109,10 +99,7 @@ class MctsApw(Planner):
             node.a_values = np.append(node.a_values, 0)
 
         elif len(node.actions) <= math.ceil(self.k * (node.num_visits ** self.alpha)):
-            # self.action_expansion_function(current_state, self)
-            # ACTION EXPANSION FUNCTION - RANDOM
-            available_actions: Space = self.environment.get_actions(current_state)
-            new_action: np.ndarray = available_actions.sample()
+            new_action: np.ndarray = self.action_expansion_function(current_state, self)
 
             # add child
             new_action_node = ActionNode(new_action)

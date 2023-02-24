@@ -1,4 +1,6 @@
 import math
+import random
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
@@ -10,7 +12,7 @@ from gymnasium.spaces import Box
 from bettergym.better_gym import BetterGym
 
 
-@dataclass
+@dataclass(frozen=True)
 class Config:
     """
     simulation parameter class
@@ -48,12 +50,15 @@ class Config:
     ])
 
 
-@dataclass
 class RobotArenaState:
-    # x, y, angle ,vel_lin, vel_ang
-    x: np.ndarray
-    # x(m), y(m)
-    goal: np.ndarray
+    def __init__(self, x: np.ndarray, goal: np.ndarray):
+        # x, y, angle ,vel_lin, vel_ang
+        self.x: np.ndarray = x
+        # x(m), y(m)
+        self.goal: np.ndarray = goal
+
+    def __hash__(self):
+        return hash(self.x.tobytes())
 
 
 class RobotArena(gym.Env):
@@ -63,9 +68,10 @@ class RobotArena(gym.Env):
             goal=np.array([10.0, 10.0])
         )
         self.config = config
+        self.seed_value = random.randint(0, 1000)
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[RobotArenaState, Any]:
-        return self.state, None
+        return deepcopy(self.state), None
 
     def check_goal(self, state: RobotArenaState) -> bool:
         """
@@ -121,7 +127,7 @@ class RobotArena(gym.Env):
         :return: the new robot state
         """
         dt = self.config.dt
-        new_x = x.copy()
+        new_x = np.copy(x)
         # x
         new_x[0] += u[0] * math.cos(x[2]) * dt
         # y
@@ -147,7 +153,7 @@ class RobotArena(gym.Env):
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(self.state, action, collision, goal, out_boundaries)
         # observation, reward, terminal, truncated, info
-        return self.state, reward, collision or goal or out_boundaries, False, None
+        return deepcopy(self.state), reward, collision or goal or out_boundaries, False, None
 
     def render(self) -> RenderFrame | list[RenderFrame] | None:
         pass
@@ -177,6 +183,9 @@ class RobotArena(gym.Env):
 
         return STEP_REWARD
 
+    def seed(self, seed_value: int):
+        self.seed_value = seed_value
+
 
 class BetterRobotArena(BetterGym):
     def __init__(self, initial_position: Union[Tuple, List, np.ndarray]):
@@ -185,9 +194,10 @@ class BetterRobotArena(BetterGym):
     def get_actions(self, state: RobotArenaState):
         config = self.gym_env.config
         return Box(
-            low=np.array([config.min_speed, -config.max_yaw_rate]),
-            high=np.array([config.max_speed, config.max_yaw_rate])
+            low=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
+            high=np.array([config.max_speed, config.max_yaw_rate], dtype=np.float64),
+            seed=self.gym_env.seed_value
         )
 
     def set_state(self, state) -> None:
-        self.gym_env.state = state
+        self.gym_env.state = deepcopy(state)

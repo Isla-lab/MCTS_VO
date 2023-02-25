@@ -7,6 +7,7 @@ from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
 
 from bettergym.agents.planner_mcts_apw import MctsApw
+from bettergym.agents.planner_random import RandomPlanner
 from bettergym.agents.utils.action_expansion_functions import uniform
 from bettergym.better_gym import BetterGym
 from bettergym.environments.robot_arena import RobotArena, BetterRobotArena
@@ -62,26 +63,31 @@ def main():
     s = s0
     planner = MctsApw(
         num_sim=1000,
-        c=0.5,
+        c=0,
         environment=real_env,
         computational_budget=200,
         k=20,
         alpha=0,
+        discount=0.99,
         action_expansion_function=uniform
     )
+    # planner = RandomPlanner(
+    #     real_env
+    # )
 
     print("Simulation Started")
-    cum_reward = 0
-    for _ in tqdm(range(100)):
+    terminal = False
+    rewards = []
+    while not terminal:
         u = planner.plan(s)
         s, r, terminal, truncated, info = real_env.step(s, u)
-        cum_reward += r
+        rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
-        if terminal:
-            break
 
     fig, ax = plt.subplots()
-    print(f"Simulation Ended with Reward: {cum_reward}")
+    print(f"Simulation Ended with Reward: {sum(rewards)}")
+    print(f"Max Reward: {max(rewards)}")
+    print(f"Min Reward: {min(rewards)}")
 
     print("Creating Gif...")
     ani = FuncAnimation(

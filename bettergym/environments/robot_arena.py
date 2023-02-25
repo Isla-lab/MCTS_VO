@@ -1,13 +1,11 @@
 import math
-import random
-from copy import deepcopy
+from copy import copy
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
 import gymnasium as gym
 import numpy as np
 from gymnasium.core import RenderFrame
-from gymnasium.spaces import Box
 
 from bettergym.better_gym import BetterGym
 
@@ -60,6 +58,12 @@ class RobotArenaState:
     def __hash__(self):
         return hash(self.x.tobytes())
 
+    def __copy__(self):
+        return RobotArenaState(
+            np.copy(self.x),
+            self.goal
+        )
+
 
 class RobotArena(gym.Env):
     def __init__(self, initial_position: Union[Tuple, List, np.ndarray], config: Config = Config()):
@@ -68,10 +72,9 @@ class RobotArena(gym.Env):
             goal=np.array([10.0, 10.0])
         )
         self.config = config
-        self.seed_value = random.randint(0, 1000)
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[RobotArenaState, Any]:
-        return deepcopy(self.state), None
+        return copy(self.state), None
 
     def check_goal(self, state: RobotArenaState) -> bool:
         """
@@ -153,7 +156,7 @@ class RobotArena(gym.Env):
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(self.state, action, collision, goal, out_boundaries)
         # observation, reward, terminal, truncated, info
-        return deepcopy(self.state), reward, collision or goal or out_boundaries, False, None
+        return copy(self.state), reward, collision or goal or out_boundaries, False, None
 
     def render(self) -> RenderFrame | list[RenderFrame] | None:
         pass
@@ -187,17 +190,28 @@ class RobotArena(gym.Env):
         self.seed_value = seed_value
 
 
+class UniformActionSpace:
+    def __init__(self, low, high):
+        self.low = low
+        self.high = high
+
+    def sample(self):
+        return np.random.uniform(
+            low=self.low,
+            high=self.high
+        )
+
+
 class BetterRobotArena(BetterGym):
     def __init__(self, initial_position: Union[Tuple, List, np.ndarray]):
         super().__init__(RobotArena(initial_position))
 
     def get_actions(self, state: RobotArenaState):
         config = self.gym_env.config
-        return Box(
+        return UniformActionSpace(
             low=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
-            high=np.array([config.max_speed, config.max_yaw_rate], dtype=np.float64),
-            seed=self.gym_env.seed_value
+            high=np.array([config.max_speed, config.max_yaw_rate], dtype=np.float64)
         )
 
-    def set_state(self, state) -> None:
-        self.gym_env.state = deepcopy(state)
+    def set_state(self, state: RobotArenaState) -> None:
+        self.gym_env.state = copy(state)

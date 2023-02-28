@@ -3,9 +3,11 @@ from copy import copy
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
+from numba import jit, njit
 import gymnasium as gym
 import numpy as np
 from gymnasium.core import RenderFrame
+from scipy.spatial.distance import cdist
 
 from bettergym.better_gym import BetterGym
 
@@ -28,7 +30,7 @@ class Config:
     max_delta_yaw_rate = 40.0 * math.pi / 180.0  # [rad/ss]
 
     # yaw_rate_resolution = 0.1 * math.pi / 180.0  # [rad/s]
-    dt = 0.1  # [s] Time tick for motion prediction
+    dt = 0.4  # [s] Time tick for motion prediction
     robot_radius = 0.3  # [m] for collision check
 
     bottom_limit = -0.5
@@ -60,7 +62,7 @@ class RobotArenaState:
 
     def __copy__(self):
         return RobotArenaState(
-            np.copy(self.x),
+            np.array(self.x, copy=True),
             self.goal
         )
 
@@ -107,20 +109,18 @@ class RobotArena(gym.Env):
 
         return False
 
-    def check_collision(self, state: RobotArenaState) -> bool:
+    def check_collision(self, x: np.ndarray) -> bool:
         """
         Check if the robot is colliding with some obstacle
-        :param state: state of the robot
+        :param x: state of the robot
         :return:
         """
-        x = state.x
+        x = x[:2]
         config = self.config
         obs = self.config.ob
-        tmp = np.expand_dims(x[:2], axis=0) - obs
-        dist_to_obs = np.linalg.norm(tmp, axis=1)
-        if np.any(dist_to_obs <= config.robot_radius + self.config.obs_size):
-            return True
-        return False
+        x = x[np.newaxis, ...]
+        dist_to_obs: np.ndarray = cdist(x, obs, 'euclidean')
+        return np.any(dist_to_obs <= config.robot_radius + self.config.obs_size)
 
     def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """
@@ -130,7 +130,7 @@ class RobotArena(gym.Env):
         :return: the new robot state
         """
         dt = self.config.dt
-        new_x = np.copy(x)
+        new_x = np.array(x, copy=True)
         # x
         new_x[0] += u[0] * math.cos(x[2]) * dt
         # y
@@ -151,7 +151,7 @@ class RobotArena(gym.Env):
         :return:
         """
         self.state.x = self.motion(self.state.x, action)
-        collision = self.check_collision(self.state)
+        collision = self.check_collision(self.state.x)
         goal = self.check_goal(self.state)
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(self.state, action, collision, goal, out_boundaries)
@@ -179,15 +179,12 @@ class RobotArena(gym.Env):
         if is_goal:
             return GOAL_REWARD
 
-        if is_collision:
+        if is_collision or out_boundaries:
             return COLLISION_REWARD
 
         x_state = state.x
 
         return STEP_REWARD
-
-    def seed(self, seed_value: int):
-        self.seed_value = seed_value
 
 
 class UniformActionSpace:

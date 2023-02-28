@@ -1,23 +1,22 @@
 import os
 import random
+import time
 
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
-from tqdm import tqdm
+from numpy import mean, std
 
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.planner_random import RandomPlanner
 from bettergym.agents.utils.action_expansion_functions import uniform
-from bettergym.better_gym import BetterGym
-from bettergym.environments.robot_arena import RobotArena, BetterRobotArena
+from bettergym.environments.robot_arena import BetterRobotArena
 
 
-def seed_everything(real_env: BetterGym, seed_value: int):
-    real_env.seed(seed_value)
+def seed_everything(seed_value: int):
     random.seed(seed_value)
     np.random.seed(seed_value)
     os.environ['PYTHONHASHSEED'] = str(seed_value)
+
 
 def plot_robot(x, y, yaw, config, ax):
     circle = plt.Circle((x, y), config.robot_radius, color="b")
@@ -55,7 +54,7 @@ def main():
     # input [forward speed, yaw_rate]
     real_env = BetterRobotArena((0, 0))
     s0, _ = real_env.reset()
-    seed_everything(real_env, 1)
+    seed_everything(3)
     trajectory = np.array(s0.x)
     config = real_env.config
     goal = s0.goal
@@ -63,7 +62,7 @@ def main():
     s = s0
     planner = MctsApw(
         num_sim=1000,
-        c=0,
+        c=4,
         environment=real_env,
         computational_budget=200,
         k=20,
@@ -78,8 +77,17 @@ def main():
     print("Simulation Started")
     terminal = False
     rewards = []
+    times = []
+    step_n = 0
     while not terminal:
+        step_n += 1
+        if step_n == 500:
+            break
+        print(f"Step Number {step_n}")
+        initial_time = time.time()
         u = planner.plan(s)
+        final_time = time.time() - initial_time
+        times.append(final_time)
         s, r, terminal, truncated, info = real_env.step(s, u)
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
@@ -88,6 +96,7 @@ def main():
     print(f"Simulation Ended with Reward: {sum(rewards)}")
     print(f"Max Reward: {max(rewards)}")
     print(f"Min Reward: {min(rewards)}")
+    print(f"Avg Step Time: {mean(times)}±{std(times)}")
 
     print("Creating Gif...")
     ani = FuncAnimation(
@@ -96,7 +105,7 @@ def main():
         fargs=(goal, config, trajectory, ax),
         frames=len(trajectory)
     )
-    ani.save("prova.gif", dpi=300, fps=15)
+    ani.save("prova.gif", dpi=300, fps=150)
     print("Done")
 
 

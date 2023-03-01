@@ -3,11 +3,10 @@ from copy import copy
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
-from numba import jit, njit
 import gymnasium as gym
 import numpy as np
 from gymnasium.core import RenderFrame
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import cdist, euclidean
 
 from bettergym.better_gym import BetterGym
 
@@ -19,18 +18,19 @@ class Config:
     """
     # robot parameter
     # Max U[0]
-    max_speed = 1.0  # [m/s]
+    max_speed = 0.3  # [m/s]
     # Min U[0]
-    min_speed = -0.5  # [m/s]
+    min_speed = -0.1  # [m/s]
     # Max and Min U[1]
-    max_yaw_rate = 40.0 * math.pi / 180.0  # [rad/s]
+    # max_yaw_rate = 40.0 * math.pi / 180.0  # [rad/s]
+    max_yaw_rate = 1.9  # [rad/s]
 
     # The action can be the relative change in speed -0.2 to 0.2
-    max_accel = 0.2  # [m/ss]
-    max_delta_yaw_rate = 40.0 * math.pi / 180.0  # [rad/ss]
+    # max_accel = 0.2  # [m/ss]
+    # max_delta_yaw_rate = 40.0 * math.pi / 180.0  # [rad/ss]
 
     # yaw_rate_resolution = 0.1 * math.pi / 180.0  # [rad/s]
-    dt = 0.4  # [s] Time tick for motion prediction
+    dt = 0.2  # [s] Time tick for motion prediction
     robot_radius = 0.3  # [m] for collision check
 
     bottom_limit = -0.5
@@ -68,12 +68,17 @@ class RobotArenaState:
 
 
 class RobotArena(gym.Env):
-    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], config: Config = Config()):
+    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], config: Config = Config(),
+                 gradient: bool = True):
         self.state = RobotArenaState(
             x=np.array([initial_position[0], initial_position[1], math.pi / 8.0, 0.0, 0.0]),
             goal=np.array([10.0, 10.0])
         )
         self.config = config
+        if gradient:
+            self.reward = self.reward_grad
+        else:
+            self.reward = self.reward_no_grad
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[RobotArenaState, Any]:
         return copy(self.state), None
@@ -88,9 +93,7 @@ class RobotArena(gym.Env):
         config = self.config
         goal = state.goal
         dist_to_goal = math.hypot(x[0] - goal[0], x[1] - goal[1])
-        if dist_to_goal <= config.robot_radius:
-            return True
-        return False
+        return dist_to_goal <= config.robot_radius
 
     def check_out_boundaries(self, state: RobotArenaState) -> bool:
         """
@@ -161,8 +164,8 @@ class RobotArena(gym.Env):
     def render(self) -> RenderFrame | list[RenderFrame] | None:
         pass
 
-    def reward(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
-               out_boundaries: bool) -> float:
+    def reward_no_grad(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
+                       out_boundaries: bool) -> float:
         """
         Defines the reward the agent receives
         :param state: current robot state
@@ -186,6 +189,28 @@ class RobotArena(gym.Env):
 
         return STEP_REWARD
 
+    def reward_grad(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
+                    out_boundaries: bool) -> float:
+        """
+        Defines the reward the agent receives
+        :param state: current robot state
+        :param action: action performed by the agent
+        :param is_collision: boolean value indicating if the robot is colliding
+        :param is_goal: boolean value indicating if the robot has reached the goal
+        :param out_boundaries: boolean value indicating if the robot is out of the map
+        :return: The numerical reward of the agent
+        """
+        GOAL_REWARD: float = 1.0
+        COLLISION_REWARD: float = -5.0
+
+        if is_goal:
+            return GOAL_REWARD
+
+        if is_collision or out_boundaries:
+            return COLLISION_REWARD
+
+        return -euclidean(state.x, state.goal)
+
 
 class UniformActionSpace:
     def __init__(self, low, high):
@@ -200,8 +225,8 @@ class UniformActionSpace:
 
 
 class BetterRobotArena(BetterGym):
-    def __init__(self, initial_position: Union[Tuple, List, np.ndarray]):
-        super().__init__(RobotArena(initial_position))
+    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], gradient: bool = True):
+        super().__init__(RobotArena(initial_position=initial_position, gradient=gradient))
 
     def get_actions(self, state: RobotArenaState):
         config = self.gym_env.config

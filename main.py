@@ -7,8 +7,7 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from numpy import mean, std
 
-from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.action_expansion_functions import uniform
+from bettergym.agents.planner_random import RandomPlanner
 from bettergym.environments.robot_arena import BetterRobotArena
 
 
@@ -31,7 +30,7 @@ def plot_frame(i, goal, config, traj, ax):
     ob = config.ob
     ax.clear()
     # ROBOT POSITION
-    plt.plot(x[0], x[1], "xr")
+    ax.plot(x[0], x[1], "xr")
     # GOAL POSITION
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
@@ -60,19 +59,20 @@ def main():
     goal = s0.goal
 
     s = s0
-    planner = MctsApw(
-        num_sim=1000,
-        c=4,
-        environment=real_env,
-        computational_budget=200,
-        k=20,
-        alpha=0,
-        discount=0.99,
-        action_expansion_function=uniform
-    )
-    # planner = RandomPlanner(
-    #     real_env
+    # planner = MctsApw(
+    #     num_sim=1000,
+    #     c=4,
+    #     environment=real_env,
+    #     computational_budget=100,
+    #     k=20,
+    #     alpha=0,
+    #     discount=0.99,
+    #     action_expansion_function=uniform,
+    #     rollout_policy=towards_goal
     # )
+    planner = RandomPlanner(
+        real_env
+    )
 
     print("Simulation Started")
     terminal = False
@@ -81,8 +81,6 @@ def main():
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 500:
-            break
         print(f"Step Number {step_n}")
         initial_time = time.time()
         u = planner.plan(s)
@@ -94,10 +92,8 @@ def main():
 
     fig, ax = plt.subplots()
     print(f"Simulation Ended with Reward: {sum(rewards)}")
-    print(f"Max Reward: {max(rewards)}")
-    print(f"Min Reward: {min(rewards)}")
-    print(f"Avg Step Time: {mean(times)}±{std(times)}")
-
+    print(f"Avg Step Time: {round(mean(times), 2)}±{round(std(times), 2)}")
+    print(f"Total Time: {sum(times)}")
     print("Creating Gif...")
     ani = FuncAnimation(
         fig,

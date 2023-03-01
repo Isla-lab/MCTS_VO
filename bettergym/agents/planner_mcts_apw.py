@@ -1,5 +1,4 @@
 import math
-from dataclasses import dataclass, field
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
@@ -39,7 +38,8 @@ class StateNode:
 
 class MctsApw(Planner):
     def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int, k: float | int,
-                 alpha: float | int, action_expansion_function: Callable, discount: float | int = 1):
+                 alpha: float | int, action_expansion_function: Callable, rollout_policy: Callable,
+                 discount: float | int = 1):
         """
         Mcts algorithm with Action Progressive Widening
         :param num_sim: number of simulations
@@ -60,6 +60,7 @@ class MctsApw(Planner):
         self.k = k
         self.alpha = alpha
         self.action_expansion_function = action_expansion_function
+        self.rollout_policy = rollout_policy
 
         self.num_visits_actions = np.array([], dtype=np.float64)
         self.a_values = np.array([])
@@ -163,8 +164,7 @@ class MctsApw(Planner):
         budget = self.computational_budget
         while not terminal and budget != 0:
             # random policy
-            available_actions: Space = self.environment.get_actions(current_state)
-            chosen_action = available_actions.sample()
+            chosen_action = self.rollout_policy(current_state, self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
             budget -= 1
         return r

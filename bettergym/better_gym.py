@@ -1,11 +1,9 @@
 from abc import abstractmethod
 from typing import Any, Union
 
-import gymnasium as gym
-
 
 class BetterGym:
-    def __init__(self, env: gym.Env):
+    def __init__(self, env):
         self.gym_env = env
 
     def step(self, state, action) -> tuple[Any, Union[float, int], bool, bool, Union[dict[str, Any]]]:

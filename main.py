@@ -7,7 +7,8 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from numpy import mean, std
 
-from bettergym.agents.planner_random import RandomPlanner
+from bettergym.agents.planner_mcts_apw import MctsApw
+from bettergym.agents.utils.utils import uniform, towards_goal
 from bettergym.environments.robot_arena import BetterRobotArena
 
 
@@ -53,26 +54,26 @@ def main():
     # input [forward speed, yaw_rate]
     real_env = BetterRobotArena((0, 0))
     s0, _ = real_env.reset()
-    seed_everything(3)
+    seed_everything(1)
     trajectory = np.array(s0.x)
     config = real_env.config
     goal = s0.goal
 
     s = s0
-    # planner = MctsApw(
-    #     num_sim=1000,
-    #     c=4,
-    #     environment=real_env,
-    #     computational_budget=100,
-    #     k=20,
-    #     alpha=0,
-    #     discount=0.99,
-    #     action_expansion_function=uniform,
-    #     rollout_policy=towards_goal
-    # )
-    planner = RandomPlanner(
-        real_env
+    planner = MctsApw(
+        num_sim=1000,
+        c=4,
+        environment=real_env,
+        computational_budget=100,
+        k=20,
+        alpha=0,
+        discount=0.99,
+        action_expansion_function=uniform,
+        rollout_policy=towards_goal
     )
+    # planner = RandomPlanner(
+    #     real_env
+    # )
 
     print("Simulation Started")
     terminal = False
@@ -81,6 +82,8 @@ def main():
     step_n = 0
     while not terminal:
         step_n += 1
+        if step_n == 500:
+            break
         print(f"Step Number {step_n}")
         initial_time = time.time()
         u = planner.plan(s)

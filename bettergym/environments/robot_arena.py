@@ -3,9 +3,7 @@ from copy import copy
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
-import gymnasium as gym
 import numpy as np
-from gymnasium.core import RenderFrame
 from scipy.spatial.distance import cdist, euclidean
 
 from bettergym.better_gym import BetterGym
@@ -67,13 +65,14 @@ class RobotArenaState:
         )
 
 
-class RobotArena(gym.Env):
+class RobotArena:
     def __init__(self, initial_position: Union[Tuple, List, np.ndarray], config: Config = Config(),
                  gradient: bool = True):
         self.state = RobotArenaState(
             x=np.array([initial_position[0], initial_position[1], math.pi / 8.0, 0.0, 0.0]),
             goal=np.array([10.0, 10.0])
         )
+        self.max_eudist = euclidean(self.state.x[:2], self.state.goal)
         self.config = config
         if gradient:
             self.reward = self.reward_grad
@@ -161,9 +160,6 @@ class RobotArena(gym.Env):
         # observation, reward, terminal, truncated, info
         return copy(self.state), reward, collision or goal or out_boundaries, False, None
 
-    def render(self) -> RenderFrame | list[RenderFrame] | None:
-        pass
-
     def reward_no_grad(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
                        out_boundaries: bool) -> float:
         """
@@ -209,7 +205,7 @@ class RobotArena(gym.Env):
         if is_collision or out_boundaries:
             return COLLISION_REWARD
 
-        return -euclidean(state.x, state.goal)
+        return -euclidean(state.x[:2], state.goal) / self.max_eudist
 
 
 class UniformActionSpace:

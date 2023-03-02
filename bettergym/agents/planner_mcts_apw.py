@@ -2,7 +2,6 @@ import math
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
-from gymnasium import Space
 
 from bettergym.agents.planner import Planner
 from bettergym.better_gym import BetterGym
@@ -91,7 +90,7 @@ class MctsApw(Planner):
 
         if len(node.actions) == 0:
             # Since we don't have actions in the node, we'll sample one at random
-            available_actions: Space = self.environment.get_actions(current_state)
+            available_actions = self.environment.get_actions(current_state)
             new_action: np.ndarray = available_actions.sample()
             # add child
             new_action_node = ActionNode(new_action)

@@ -16,11 +16,9 @@ def towards_goal(current_state, planner: Planner):
     goal = current_state.goal
     x = current_state.x
     config = planner.environment.config
-    y = goal[1] - x[1]
-    x = goal[0] - x[0]
-    mean_angle = arctan2(y, x)
-    std_angle = config.max_yaw_rate/10
-    angular_velocity = np.random.normal(mean_angle, std_angle)
+    mean_angle = arctan2(goal[1] - x[1], goal[0] - x[0])
+    var_angle = config.max_yaw_rate / 10
+    angular_velocity = np.random.normal(mean_angle, var_angle)
     linear_velocity = np.random.uniform(
         low=config.min_speed,
         high=config.max_speed

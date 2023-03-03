@@ -9,7 +9,7 @@ from scipy.spatial.distance import cdist, euclidean
 from bettergym.better_gym import BetterGym
 
 
-@dataclass(frozen=True)
+@dataclass
 class Config:
     """
     simulation parameter class
@@ -231,13 +231,14 @@ class BetterRobotArena(BetterGym):
     def get_actions(self, state):
         pass
 
-    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], gradient: bool = True, discrete: bool = False):
+    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], gradient: bool = True, discrete: bool = False,
+                 config: Config = Config()):
         if discrete:
             self.get_actions = self.get_actions_discrete
         else:
             self.get_actions = self.get_actions_continuous
 
-        super().__init__(RobotArena(initial_position=initial_position, gradient=gradient))
+        super().__init__(RobotArena(initial_position=initial_position, gradient=gradient, config=config))
 
     def get_actions_continuous(self, state: RobotArenaState):
         config = self.gym_env.config

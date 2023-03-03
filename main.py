@@ -5,11 +5,14 @@ import time
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+from notify_run import Notify
 from numpy import mean, std
 
-from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import uniform, towards_goal
-from bettergym.environments.robot_arena import BetterRobotArena
+from bettergym.agents.planner_mcts import Mcts
+from bettergym.agents.utils.utils import uniform_discrete
+from bettergym.environments.robot_arena import BetterRobotArena, Config
+
+notify = Notify()
 
 
 def seed_everything(seed_value: int):
@@ -50,31 +53,46 @@ def plot_frame(i, goal, config, traj, ax):
     ax.grid(True)
 
 
-def main():
+def print_and_notify(message: str):
+    print(message)
+    notify.send(message)
+
+
+def run_experiment(seed_val, rollout_policy, num_actions):
     # input [forward speed, yaw_rate]
+    c = Config()
+    c.num_discrete_actions = num_actions
     real_env = BetterRobotArena(
         initial_position=(0, 0),
         gradient=True,
-        discrete=True
+        discrete=True,
+        config=c
     )
     s0, _ = real_env.reset()
-    seed_val = 3
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
     config = real_env.config
     goal = s0.goal
 
     s = s0
-    planner = MctsApw(
+    # planner = MctsApw(
+    #     num_sim=1000,
+    #     c=4,
+    #     environment=real_env,
+    #     computational_budget=100,
+    #     k=20,
+    #     alpha=0,
+    #     discount=0.99,
+    #     action_expansion_function=uniform,
+    #     rollout_policy=towards_goal
+    # )
+    planner = Mcts(
         num_sim=1000,
         c=4,
         environment=real_env,
         computational_budget=100,
-        k=20,
-        alpha=0,
         discount=0.99,
-        action_expansion_function=uniform,
-        rollout_policy=towards_goal
+        rollout_policy=rollout_policy
     )
 
     print("Simulation Started")
@@ -84,7 +102,7 @@ def main():
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 500:
+        if step_n == 1000:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -96,9 +114,9 @@ def main():
         trajectory = np.vstack((trajectory, s.x))  # store state history
 
     fig, ax = plt.subplots()
-    print(f"Simulation Ended with Reward: {sum(rewards)}")
-    print(f"Avg Step Time: {round(mean(times), 2)}±{round(std(times), 2)}")
-    print(f"Total Time: {sum(times)}")
+    print_and_notify(f"Simulation Ended with Reward: {sum(rewards)}")
+    print_and_notify(f"Avg Step Time: {round(mean(times), 2)}±{round(std(times), 2)}")
+    print_and_notify(f"Total Time: {sum(times)}")
     print("Creating Gif...")
     ani = FuncAnimation(
         fig,
@@ -106,8 +124,14 @@ def main():
         fargs=(goal, config, trajectory, ax),
         frames=len(trajectory)
     )
-    ani.save(f"prova_{seed_val}.gif", dpi=300, fps=150)
+    ani.save(f"trajectory_{seed_val}_{rollout_policy.__name__}_actions {num_actions}.gif", dpi=300, fps=150)
     print("Done")
 
 
-main()
+def main():
+    for p, na in [(uniform_discrete, 5), (uniform_discrete, 10), (uniform_discrete, 20)]:
+        run_experiment(0, p, na)
+
+
+if __name__ == '__main__':
+    main()

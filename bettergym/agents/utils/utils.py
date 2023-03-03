@@ -12,6 +12,11 @@ def uniform(current_state: Any, planner: Planner):
     return available_actions.sample()
 
 
+def uniform_discrete(current_state: Any, planner: Planner):
+    actions = planner.environment.get_actions(current_state)
+    return actions[np.random.choice(len(actions))]
+
+
 def towards_goal(current_state, planner: Planner):
     goal = current_state.goal
     x = current_state.x

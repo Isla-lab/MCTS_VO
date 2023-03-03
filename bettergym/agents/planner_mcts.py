@@ -1,4 +1,4 @@
-from typing import Union, Any, Dict
+from typing import Union, Any, Dict, Callable
 
 import numpy as np
 
@@ -25,13 +25,15 @@ class StateNode:
 
 class Mcts(Planner):
     def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int,
-                 discount: float | int = 1):
+                 rollout_policy: Callable, discount: float | int = 1):
         super().__init__(environment)
         self.id_to_state_node: dict[int, StateNode] = {}
         self.num_sim: int = num_sim
         self.c: float | int = c
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
+
+        self.rollout_policy = rollout_policy
 
         self.num_visits_actions = np.array([], dtype=np.float64)
         self.a_values = np.array([])
@@ -111,8 +113,20 @@ class Mcts(Planner):
         budget = self.computational_budget
         while not terminal and budget != 0:
             # random policy
-            actions = self.environment.get_actions(current_state)
-            chosen_action = np.random.choice(actions)
+            # actions = self.environment.get_actions(current_state)
+            # chosen_action = np.random.choice(actions)
+            chosen_action = self.rollout_policy(current_state, self)
+            current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
+            budget -= 1
+        return r
+
+    def rollout(self, current_state) -> Union[int, float]:
+        terminal = False
+        r = 0
+        budget = self.computational_budget
+        while not terminal and budget != 0:
+            # random policy
+            chosen_action = self.rollout_policy(current_state, self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
             budget -= 1
         return r

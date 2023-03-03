@@ -52,9 +52,14 @@ def plot_frame(i, goal, config, traj, ax):
 
 def main():
     # input [forward speed, yaw_rate]
-    real_env = BetterRobotArena((0, 0))
+    real_env = BetterRobotArena(
+        initial_position=(0, 0),
+        gradient=True,
+        discrete=True
+    )
     s0, _ = real_env.reset()
-    seed_everything(1)
+    seed_val = 3
+    seed_everything(seed_val)
     trajectory = np.array(s0.x)
     config = real_env.config
     goal = s0.goal
@@ -71,9 +76,6 @@ def main():
         action_expansion_function=uniform,
         rollout_policy=towards_goal
     )
-    # planner = RandomPlanner(
-    #     real_env
-    # )
 
     print("Simulation Started")
     terminal = False
@@ -104,7 +106,7 @@ def main():
         fargs=(goal, config, trajectory, ax),
         frames=len(trajectory)
     )
-    ani.save("prova.gif", dpi=300, fps=150)
+    ani.save(f"prova_{seed_val}.gif", dpi=300, fps=150)
     print("Done")
 
 

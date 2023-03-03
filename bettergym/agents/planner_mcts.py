@@ -23,7 +23,7 @@ class StateNode:
         self.num_visits: int = 0
 
 
-class MctsV2(Planner):
+class Mcts(Planner):
     def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int,
                  discount: float | int = 1):
         super().__init__(environment)

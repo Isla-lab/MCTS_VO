@@ -38,6 +38,8 @@ class Config:
     left_limit = -0.5
     obs_size = 0.2
 
+    num_discrete_actions = 5
+
     # obstacles [x(m) y(m), ....]
     ob = np.array([
         [4.5, 5.0],
@@ -74,6 +76,12 @@ class RobotArena:
         )
         self.max_eudist = euclidean(self.state.x[:2], self.state.goal)
         self.config = config
+        self.discrete_actions = np.linspace(
+            start=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
+            stop=np.array([config.max_speed, config.max_yaw_rate], dtype=np.float64),
+            num=config.num_discrete_actions
+        )
+
         if gradient:
             self.reward = self.reward_grad
         else:
@@ -119,10 +127,9 @@ class RobotArena:
         """
         x = x[:2]
         config = self.config
-        obs = self.config.ob
         x = x[np.newaxis, ...]
-        dist_to_obs: np.ndarray = cdist(x, obs, 'euclidean')
-        return np.any(dist_to_obs <= config.robot_radius + self.config.obs_size)
+        dist_to_obs: np.ndarray = cdist(x, config.ob, 'euclidean')
+        return np.any(dist_to_obs <= config.robot_radius + config.obs_size)
 
     def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """
@@ -221,15 +228,26 @@ class UniformActionSpace:
 
 
 class BetterRobotArena(BetterGym):
-    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], gradient: bool = True):
+    def get_actions(self, state):
+        pass
+
+    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], gradient: bool = True, discrete: bool = False):
+        if discrete:
+            self.get_actions = self.get_actions_discrete
+        else:
+            self.get_actions = self.get_actions_continuous
+
         super().__init__(RobotArena(initial_position=initial_position, gradient=gradient))
 
-    def get_actions(self, state: RobotArenaState):
+    def get_actions_continuous(self, state: RobotArenaState):
         config = self.gym_env.config
         return UniformActionSpace(
             low=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
             high=np.array([config.max_speed, config.max_yaw_rate], dtype=np.float64)
         )
+
+    def get_actions_discrete(self, state: RobotArenaState):
+        return self.gym_env.discrete_actions
 
     def set_state(self, state: RobotArenaState) -> None:
         self.gym_env.state = copy(state)

@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from bettergym.agents.planner_mcts import MctsV2
+from bettergym.agents.planner_mcts import Mcts
 
 
 class UnitTestMcts(TestCase):
@@ -17,7 +17,7 @@ class UnitTestMcts(TestCase):
         # s', r, terminal, truncated, info
         env.step.return_value = (1, expected_reward, True, None, None)
 
-        planner = MctsV2(
+        planner = Mcts(
             num_sim=100,
             c=1,
             s0=s,
@@ -45,7 +45,7 @@ class UnitTestMcts(TestCase):
             (1, 3, False, None, None),
         ]
 
-        planner = MctsV2(
+        planner = Mcts(
             num_sim=100,
             c=1,
             s0=s,
@@ -71,7 +71,7 @@ class UnitTestMcts(TestCase):
             (1, 3, False, None, None),
         ]
 
-        planner = MctsV2(
+        planner = Mcts(
             num_sim=100,
             c=1,
             s0=s,

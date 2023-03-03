@@ -1,3 +1,5 @@
-numpy~=1.22
+numpy~=1.21.0
 matplotlib~=3.7.0
 scipy~=1.10.1
+pandas~=1.5.3
+seaborn~=0.12.2

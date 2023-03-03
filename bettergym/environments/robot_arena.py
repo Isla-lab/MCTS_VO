@@ -131,6 +131,28 @@ class RobotArena:
         dist_to_obs: np.ndarray = cdist(x, config.ob, 'euclidean')
         return np.any(dist_to_obs <= config.robot_radius + config.obs_size)
 
+    # def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+    #     """
+    #     Describes how the robot moves
+    #     :param x: current robot state
+    #     :param u: action performed by the robot
+    #     :return: the new robot state
+    #     """
+    #     dt = self.config.dt
+    #     new_x = np.array(x, copy=True)
+    #     # x
+    #     new_x[0] += u[0] * math.cos(x[2]) * dt
+    #     # y
+    #     new_x[1] += u[0] * math.sin(x[2]) * dt
+    #     # angle
+    #     new_x[2] += u[1] * dt
+    #     # vel lineare
+    #     new_x[3] = u[0]
+    #     # vel angolare
+    #     new_x[4] = u[1]
+    #
+    #     return new_x
+
     def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """
         Describes how the robot moves
@@ -140,16 +162,16 @@ class RobotArena:
         """
         dt = self.config.dt
         new_x = np.array(x, copy=True)
-        # x
-        new_x[0] += u[0] * math.cos(x[2]) * dt
-        # y
-        new_x[1] += u[0] * math.sin(x[2]) * dt
         # angle
         new_x[2] += u[1] * dt
         # vel lineare
         new_x[3] = u[0]
         # vel angolare
         new_x[4] = u[1]
+        # x
+        new_x[0] += u[0] * math.cos(new_x[2]) * dt
+        # y
+        new_x[1] += u[0] * math.sin(new_x[2]) * dt
 
         return new_x
 

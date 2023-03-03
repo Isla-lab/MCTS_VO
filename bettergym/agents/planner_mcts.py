@@ -39,6 +39,11 @@ class Mcts(Planner):
         self.a_values = np.array([])
         self.state_actions = {}
         self.last_id = -1
+        self.info = {
+            "trajectories": [],
+            "q_values": [],
+            "actions": []
+        }
 
     def get_id(self):
         self.last_id += 1
@@ -49,13 +54,17 @@ class Mcts(Planner):
         root_node = StateNode(self.environment, initial_state, root_id)
         self.id_to_state_node[root_id] = root_node
         for sn in range(self.num_sim):
+            self.info["trajectories"].append(np.array([initial_state.x]))
             self.simulate(state_id=root_id)
 
         q_vals = root_node.a_values / root_node.num_visits_actions
+        # DEBUG INFORMATION
+        self.info["q_values"] = q_vals
+        self.info["actions"] = root_node.actions
         # randomly choose between actions which have the maximum ucb value
         action_idx = np.random.choice(np.flatnonzero(q_vals == np.max(q_vals)))
         action = root_node.actions[action_idx].action
-        return action
+        return action, self.info
 
     def simulate(self, state_id: int):
         node = self.id_to_state_node[state_id]
@@ -81,6 +90,7 @@ class Mcts(Planner):
 
         current_state, r, terminal, _, _ = self.environment.step(current_state, action)
         new_state_id = action_node.state_to_id.get(current_state, None)
+        self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], current_state.x))
 
         prev_node = node
         if new_state_id is None:
@@ -109,24 +119,14 @@ class Mcts(Planner):
 
     def rollout(self, current_state) -> Union[int, float]:
         terminal = False
+        trajectory = []
         r = 0
         budget = self.computational_budget
         while not terminal and budget != 0:
-            # random policy
-            # actions = self.environment.get_actions(current_state)
-            # chosen_action = np.random.choice(actions)
             chosen_action = self.rollout_policy(current_state, self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
+            trajectory.append(current_state.x)  # store state history
             budget -= 1
-        return r
 
-    def rollout(self, current_state) -> Union[int, float]:
-        terminal = False
-        r = 0
-        budget = self.computational_budget
-        while not terminal and budget != 0:
-            # random policy
-            chosen_action = self.rollout_policy(current_state, self)
-            current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
-            budget -= 1
+        self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], np.array(trajectory)))
         return r

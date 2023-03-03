@@ -5,57 +5,18 @@ import time
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
-from notify_run import Notify
 from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.utils.utils import uniform_discrete
 from bettergym.environments.robot_arena import BetterRobotArena, Config
-
-notify = Notify()
+from utils import print_and_notify, plot_frame, plot_tree_trajectory, plot_action_evolution
 
 
 def seed_everything(seed_value: int):
     random.seed(seed_value)
     np.random.seed(seed_value)
     os.environ['PYTHONHASHSEED'] = str(seed_value)
-
-
-def plot_robot(x, y, yaw, config, ax):
-    circle = plt.Circle((x, y), config.robot_radius, color="b")
-    ax.add_artist(circle)
-    out_x, out_y = (np.array([x, y]) +
-                    np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius)
-    ax.plot([x, out_x], [y, out_y], "-k")
-
-
-def plot_frame(i, goal, config, traj, ax):
-    x = traj[i, :]
-    ob = config.ob
-    ax.clear()
-    # ROBOT POSITION
-    ax.plot(x[0], x[1], "xr")
-    # GOAL POSITION
-    ax.plot(goal[0], goal[1], "xb")
-    # OBSTACLES
-    ax.plot(ob[:, 0], ob[:, 1], "ok")
-    # BOX AROUND ROBOT
-    plot_robot(x[0], x[1], x[2], config, ax)
-    # TRAJECTORY
-    sub_traj = traj[:i]
-    ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")
-
-    # ax.plot([70, 70], [100, 250], 'k-', lw=2)
-
-    ax.set_xlim([config.left_limit, config.right_limit])
-    ax.set_ylim([config.bottom_limit, config.upper_limit])
-    # ax.axis("equal")
-    ax.grid(True)
-
-
-def print_and_notify(message: str):
-    print(message)
-    notify.send(message)
 
 
 def run_experiment(seed_val, rollout_policy, num_actions):
@@ -72,6 +33,9 @@ def run_experiment(seed_val, rollout_policy, num_actions):
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
     config = real_env.config
+    infos = []
+    actions = []
+
     goal = s0.goal
 
     s = s0
@@ -106,30 +70,45 @@ def run_experiment(seed_val, rollout_policy, num_actions):
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
-        u = planner.plan(s)
+        u, info = planner.plan(s)
+
+        actions.append(u)
+        infos.append(info)
+
         final_time = time.time() - initial_time
         times.append(final_time)
-        s, r, terminal, truncated, info = real_env.step(s, u)
+        s, r, terminal, truncated, env_info = real_env.step(s, u)
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
 
-    fig, ax = plt.subplots()
     print_and_notify(f"Simulation Ended with Reward: {sum(rewards)}")
     print_and_notify(f"Avg Step Time: {round(mean(times), 2)}±{round(std(times), 2)}")
     print_and_notify(f"Total Time: {sum(times)}")
     print("Creating Gif...")
+    fig, ax = plt.subplots()
     ani = FuncAnimation(
         fig,
         plot_frame,
         fargs=(goal, config, trajectory, ax),
         frames=len(trajectory)
     )
-    ani.save(f"trajectory_{seed_val}_{rollout_policy.__name__}_actions {num_actions}.gif", dpi=300, fps=150)
+    ani.save(f"debug/trajectory_{seed_val}_{rollout_policy.__name__}_actions {num_actions}.gif", dpi=300, fps=150)
+
+    fig2, ax2 = plt.subplots()
+    ani_tree_traj = FuncAnimation(
+        fig2,
+        plot_tree_trajectory,
+        fargs=(infos, ax2),
+        frames=len(infos)
+    )
+    ani_tree_traj.save(f"debug/tree_trajectory.mp4", fps=15)
+    plot_action_evolution(np.array(actions))
+
     print("Done")
 
 
 def main():
-    for p, na in [(uniform_discrete, 5), (uniform_discrete, 10), (uniform_discrete, 20)]:
+    for p, na in [(uniform_discrete, 5), (uniform_discrete, 10)]:
         run_experiment(0, p, na)
 
 

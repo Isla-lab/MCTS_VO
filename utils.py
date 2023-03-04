@@ -2,9 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from notify_run import Notify
-
-notify = Notify()
+# from notify_run import Notify
+#
+# notify = Notify()
 
 
 def plot_robot(x, y, yaw, config, ax):
@@ -39,7 +39,8 @@ def plot_frame(i, goal, config, traj, ax):
     ax.grid(True)
 
 
-def plot_tree_trajectory(i, infos, ax):
+def plot_tree_trajectory(i, infos, file_name):
+    fig, ax = plt.subplots()
     trajectories = infos[i]["trajectories"]
     x = trajectories[0][0]
     ax.clear()
@@ -53,6 +54,8 @@ def plot_tree_trajectory(i, infos, ax):
     plt.text(plt.gca().get_xlim()[0] - 0.3, plt.gca().get_ylim()[1] - 0.2, str(i), fontsize=20)
     # ROBOT POSITION
     ax.plot(x[0], x[1], "xg")
+    fig.savefig(file_name)
+    plt.close(fig)
 
 
 def plot_action_evolution(actions: np.ndarray):
@@ -69,13 +72,23 @@ def plot_action_evolution(actions: np.ndarray):
             "Angular Velocity": actions[:, 1]
         }
     )
-    plot(df.iloc[:100])
-    plot(df.iloc[:200])
+    # plot(df.iloc[:100])
+    # plot(df.iloc[:200])
     plot(df)
     np.save("actions", actions)
     sns.reset_orig()
 
 
 def print_and_notify(message: str):
-    print(message)
-    notify.send(message)
+    global i
+    i = 0
+
+    def do_stuff():
+        global i
+        print(message)
+        # notify.send(message)
+        with open('debug/{i}', 'w') as f:
+            f.write(message)
+        i += 1
+
+    return do_stuff

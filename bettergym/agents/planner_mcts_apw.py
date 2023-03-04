@@ -26,7 +26,7 @@ class ActionNode:
 
 
 class StateNode:
-    def __init__(self, environment, state, node_id):
+    def __init__(self, state, node_id):
         self.id = node_id
         self.state = state
         self.actions = []
@@ -72,7 +72,7 @@ class MctsApw(Planner):
 
     def plan(self, initial_state: Any):
         root_id = self.get_id()
-        root_node = StateNode(self.environment, initial_state, root_id)
+        root_node = StateNode(initial_state, root_id)
         self.id_to_state_node[root_id] = root_node
         for sn in range(self.num_sim):
             self.simulate(state_id=root_id)
@@ -81,7 +81,7 @@ class MctsApw(Planner):
         # randomly choose between actions which have the maximum ucb value
         action_idx = np.random.choice(np.flatnonzero(q_vals == np.max(q_vals)))
         action = root_node.actions[action_idx].action
-        return action
+        return action, {}
 
     def simulate(self, state_id: int):
         node = self.id_to_state_node[state_id]
@@ -99,7 +99,7 @@ class MctsApw(Planner):
             node.a_values = np.append(node.a_values, 0)
 
         elif len(node.actions) <= math.ceil(self.k * (node.num_visits ** self.alpha)):
-            new_action: np.ndarray = self.action_expansion_function(current_state, self)
+            new_action: np.ndarray = self.action_expansion_function(node, self)
 
             # add child
             new_action_node = ActionNode(new_action)
@@ -114,13 +114,13 @@ class MctsApw(Planner):
 
         # UCB
         # Q + c * sqrt(ln(Parent_Visit)/Child_visit)
-        q_vals = node.a_values / node.num_visits_actions
-        q_vals[np.isnan(q_vals)] = np.inf
+        q_vals = np.divide(node.a_values, node.num_visits_actions, out=np.full_like(node.a_values, np.inf),
+                           where=node.num_visits_actions != 0)
 
         ucb_scores = q_vals + self.c * np.sqrt(
-            np.log(node.num_visits) / node.num_visits_actions
+            np.divide(np.log(node.num_visits), node.num_visits_actions, out=np.full_like(node.num_visits_actions, np.inf),
+                      where=node.num_visits_actions != 0)
         )
-        ucb_scores[np.isnan(ucb_scores)] = np.inf
         # randomly choose between actions which have the maximum ucb value
         action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
         # get action corresponding to the index
@@ -137,7 +137,7 @@ class MctsApw(Planner):
             # Leaf Node
             state_id = self.get_id()
             # Initialize State Data
-            node = StateNode(self.environment, current_state, state_id)
+            node = StateNode(current_state, state_id)
             self.id_to_state_node[state_id] = node
             action_node.state_to_id[current_state] = state_id
             node.num_visits += 1
@@ -158,12 +158,13 @@ class MctsApw(Planner):
                 return disc_value
 
     def rollout(self, current_state) -> Union[int, float]:
+        # TODO: add debug utils
         terminal = False
         r = 0
         budget = self.computational_budget
         while not terminal and budget != 0:
             # random policy
-            chosen_action = self.rollout_policy(current_state, self)
+            chosen_action = self.rollout_policy(StateNode(current_state, -1), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
             budget -= 1
         return r

@@ -73,13 +73,15 @@ class Mcts(Planner):
 
         # UCB
         # Q + c * sqrt(ln(Parent_Visit)/Child_visit)
-        q_vals = node.a_values / node.num_visits_actions
-        q_vals[np.isnan(q_vals)] = np.inf
+        q_vals = np.divide(node.a_values, node.num_visits_actions, out=np.full_like(node.a_values, np.inf),
+                           where=node.num_visits_actions != 0)
 
         ucb_scores = q_vals + self.c * np.sqrt(
-            np.log(node.num_visits) / node.num_visits_actions
+            np.divide(np.log(node.num_visits), node.num_visits_actions,
+                      out=np.full_like(node.num_visits_actions, np.inf),
+                      where=node.num_visits_actions != 0)
         )
-        ucb_scores[np.isnan(ucb_scores)] = np.inf
+
         # randomly choose between actions which have the maximum ucb value
         action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
         # get action corresponding to the index

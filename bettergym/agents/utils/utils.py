@@ -7,17 +7,20 @@ from numpy import arctan2
 from bettergym.agents.planner import Planner
 
 
-def uniform(current_state: Any, planner: Planner):
+def uniform(node: Any, planner: Planner):
+    current_state = node.state
     available_actions = planner.environment.get_actions(current_state)
     return available_actions.sample()
 
 
-def uniform_discrete(current_state: Any, planner: Planner):
+def uniform_discrete(node: Any, planner: Planner):
+    current_state = node.state
     actions = planner.environment.get_actions(current_state)
     return actions[np.random.choice(len(actions))]
 
 
-def towards_goal(current_state, planner: Planner):
+def towards_goal(node: Any, planner: Planner):
+    current_state = node.state
     goal = current_state.goal
     x = current_state.x
     config = planner.environment.config
@@ -31,19 +34,29 @@ def towards_goal(current_state, planner: Planner):
     return np.array([linear_velocity, angular_velocity])
 
 
-def epsilon_greedy(eps: float, other_func: Callable, current_state: Any, planner: Planner):
+def epsilon_greedy(eps: float, other_func: Callable, node: Any, planner: Planner):
     """
+    :param node:
     :param eps: defines the probability of acting according to other_func
     :param other_func:
-    :param current_state:
     :param planner:
     :return:
     """
     prob = random.random()
-    if prob <= eps:
-        other_func(current_state, planner)
+    if prob <= 1-eps:
+        other_func(node, planner)
     else:
-        uniform(current_state, planner)
+        uniform(node, planner)
+
+
+def binary_policy(node: Any, planner: Planner):
+    if len(node.actions) == 1:
+        return uniform(node, planner)
+    else:
+        sorted_actions = [a for _, a in sorted(zip(node.a_values, node.actions))]
+        return np.mean([sorted_actions[0], sorted_actions[1]], axis=0)
+
+
 
 
 def voo(current_state: Any, planner: Planner):

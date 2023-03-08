@@ -99,7 +99,7 @@ class MctsApw(Planner):
             node.a_values = np.append(node.a_values, 0)
 
         elif len(node.actions) <= math.ceil(self.k * (node.num_visits ** self.alpha)):
-            new_action: np.ndarray = self.action_expansion_function(node, self)
+            new_action: np.ndarray = self.action_expansion_function(node=node, planner=self)
 
             # add child
             new_action_node = ActionNode(new_action)

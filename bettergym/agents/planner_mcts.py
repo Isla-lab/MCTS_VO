@@ -125,7 +125,7 @@ class Mcts(Planner):
         r = 0
         budget = self.computational_budget
         while not terminal and budget != 0:
-            chosen_action = self.rollout_policy(current_state, self)
+            chosen_action = self.rollout_policy(StateNode(self.environment, current_state, -1), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
             trajectory.append(current_state.x)  # store state history
             budget -= 1

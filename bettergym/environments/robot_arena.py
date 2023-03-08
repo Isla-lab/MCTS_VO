@@ -32,9 +32,9 @@ class Config:
     robot_radius = 0.3  # [m] for collision check
 
     bottom_limit = -0.5
-    upper_limit = 10.5
+    upper_limit = 11.5
 
-    right_limit = 10.5
+    right_limit = 11.5
     left_limit = -0.5
     obs_size = 0.2
 
@@ -131,28 +131,6 @@ class RobotArena:
         dist_to_obs: np.ndarray = cdist(x, config.ob, 'euclidean')
         return np.any(dist_to_obs <= config.robot_radius + config.obs_size)
 
-    # def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
-    #     """
-    #     Describes how the robot moves
-    #     :param x: current robot state
-    #     :param u: action performed by the robot
-    #     :return: the new robot state
-    #     """
-    #     dt = self.config.dt
-    #     new_x = np.array(x, copy=True)
-    #     # x
-    #     new_x[0] += u[0] * math.cos(x[2]) * dt
-    #     # y
-    #     new_x[1] += u[0] * math.sin(x[2]) * dt
-    #     # angle
-    #     new_x[2] += u[1] * dt
-    #     # vel lineare
-    #     new_x[3] = u[0]
-    #     # vel angolare
-    #     new_x[4] = u[1]
-    #
-    #     return new_x
-
     def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """
         Describes how the robot moves
@@ -183,6 +161,7 @@ class RobotArena:
         """
         self.state.x = self.motion(self.state.x, action)
         collision = self.check_collision(self.state.x)
+        # collision = False
         goal = self.check_goal(self.state)
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(self.state, action, collision, goal, out_boundaries)

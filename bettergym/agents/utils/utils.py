@@ -44,17 +44,17 @@ def epsilon_greedy(eps: float, other_func: Callable, node: Any, planner: Planner
     """
     prob = random.random()
     if prob <= 1-eps:
-        other_func(node, planner)
+        return other_func(node, planner)
     else:
-        uniform(node, planner)
+        return uniform(node, planner)
 
 
 def binary_policy(node: Any, planner: Planner):
     if len(node.actions) == 1:
         return uniform(node, planner)
     else:
-        sorted_actions = [a for _, a in sorted(zip(node.a_values, node.actions))]
-        return np.mean([sorted_actions[0], sorted_actions[1]], axis=0)
+        sorted_actions = [a for _, a in sorted(zip(node.a_values, node.actions), key=lambda pair: pair[0])]
+        return np.mean([sorted_actions[0].action, sorted_actions[1].action], axis=0)
 
 
 

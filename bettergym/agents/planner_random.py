@@ -10,4 +10,4 @@ class RandomPlanner(Planner):
 
     def plan(self, initial_state: Any):
         available_actions = self.environment.get_actions(initial_state)
-        return available_actions.sample()
+        return available_actions.sample(), {}

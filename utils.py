@@ -2,9 +2,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-# from notify_run import Notify
-#
-# notify = Notify()
+
+
+from notify_run import Notify
+
+notify = Notify()
 
 
 def plot_robot(x, y, yaw, config, ax):
@@ -58,12 +60,13 @@ def plot_tree_trajectory(i, infos, file_name):
     plt.close(fig)
 
 
-def plot_action_evolution(actions: np.ndarray):
+def plot_action_evolution(actions: np.ndarray, exp_num: int):
+
     def plot(data):
         fig, axs = plt.subplots(2, sharex=True)
         sns.lineplot(data=data, x=data.index, y="Linear Velocity", ax=axs[0], color='#4c72b0')
         sns.lineplot(data=data, x=data.index, y="Angular Velocity", ax=axs[1], color='#c44e52')
-        fig.savefig(f'debug/action_evolution_{len(data)}.svg')
+        fig.savefig(f'debug/action_evolution_{len(data)}_e{exp_num}.svg')
 
     sns.set_theme()
     df = pd.DataFrame(
@@ -72,23 +75,15 @@ def plot_action_evolution(actions: np.ndarray):
             "Angular Velocity": actions[:, 1]
         }
     )
-    # plot(df.iloc[:100])
-    # plot(df.iloc[:200])
+    plot(df.iloc[:100])
+    plot(df.iloc[:200])
     plot(df)
-    np.save("actions", actions)
+    np.save(f"debug/actions_{exp_num}", actions)
     sns.reset_orig()
 
 
-def print_and_notify(message: str):
-    global i
-    i = 0
-
-    def do_stuff():
-        global i
-        print(message)
-        # notify.send(message)
-        with open('debug/{i}', 'w') as f:
-            f.write(message)
-        i += 1
-
-    return do_stuff
+def print_and_notify(message: str, exp_num: int):
+    print(message)
+    notify.send(message)
+    with open(f'debug/{exp_num}.txt', 'w') as f:
+        f.write(message)

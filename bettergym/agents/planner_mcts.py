@@ -55,7 +55,8 @@ class Mcts(Planner):
         self.id_to_state_node[root_id] = root_node
         for sn in range(self.num_sim):
             self.info["trajectories"].append(np.array([initial_state.x]))
-            self.simulate(state_id=root_id)
+            # root should be at depth 0
+            self.simulate(state_id=root_id, depth=0)
 
         q_vals = root_node.a_values / root_node.num_visits_actions
         # DEBUG INFORMATION
@@ -66,7 +67,7 @@ class Mcts(Planner):
         action = root_node.actions[action_idx].action
         return action, self.info
 
-    def simulate(self, state_id: int):
+    def simulate(self, state_id: int, depth: int):
         node = self.id_to_state_node[state_id]
         node.num_visits += 1
         current_state = node.state
@@ -104,31 +105,33 @@ class Mcts(Planner):
             action_node.state_to_id[current_state] = state_id
             node.num_visits += 1
             # Do Rollout
-            disc_rollout_value = self.discount * self.rollout(current_state)
-            prev_node.a_values[action_idx] += disc_rollout_value
-            return disc_rollout_value
+            # the value returned by the rollout is already discounted
+            total_rwrd = r + self.rollout(current_state, depth + 1)
+            prev_node.a_values[action_idx] += total_rwrd
+            return total_rwrd
         else:
             # Node in the tree
             state_id = new_state_id
             if terminal:
                 return 0
             else:
-                disc_value = self.discount * self.simulate(state_id)
+                total_rwrd = r + self.discount * self.simulate(state_id, depth + 1)
                 # BackPropagate
                 # since I only need action nodes for action selection I don't care about the value of State nodes
-                prev_node.a_values[action_idx] += disc_value
-                return disc_value
+                prev_node.a_values[action_idx] += total_rwrd
+                return total_rwrd
 
-    def rollout(self, current_state) -> Union[int, float]:
+    def rollout(self, current_state, curr_depth) -> Union[int, float]:
         terminal = False
         trajectory = []
-        r = 0
-        budget = self.computational_budget
-        while not terminal and budget != 0:
+        total_reward = 0
+        # budget = self.computational_budget
+        while not terminal and curr_depth != self.computational_budget:
             chosen_action = self.rollout_policy(StateNode(self.environment, current_state, -1), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
+            total_reward += r * self.discount ** curr_depth
             trajectory.append(current_state.x)  # store state history
-            budget -= 1
+            curr_depth += 1
 
         self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], np.array(trajectory)))
-        return r
+        return total_reward

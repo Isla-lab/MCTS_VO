@@ -140,6 +140,11 @@ class RobotArena:
         """
         dt = self.config.dt
         new_x = np.array(x, copy=True)
+        u[:2] = np.clip(
+            a=u[:2],
+            a_min=[self.config.min_speed, -self.config.max_yaw_rate],
+            a_max=[self.config.max_speed, self.config.max_yaw_rate]
+        )
         # angle
         new_x[2] += u[1] * dt
         # vel lineare

@@ -144,7 +144,7 @@ class MctsApw(Planner):
             node.num_visits += 1
             # Do Rollout
             # the value returned by the rollout is already discounted
-            total_rwrd = r + self.rollout(current_state, depth + 1)
+            total_rwrd = r + self.discount * self.rollout(current_state, depth + 1)
             prev_node.a_values[action_idx] += total_rwrd
             return total_rwrd
         else:
@@ -163,10 +163,11 @@ class MctsApw(Planner):
         # TODO: add debug utils
         terminal = False
         total_reward = 0
+        starting_depth = curr_depth
         while not terminal and curr_depth != self.computational_budget:
             # random policy
             chosen_action = self.rollout_policy(StateNode(current_state, -1), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
-            total_reward += r * self.discount ** curr_depth
+            total_reward += r * self.discount ** curr_depth-starting_depth
             curr_depth += 1
         return total_reward

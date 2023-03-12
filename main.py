@@ -8,10 +8,11 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from numpy import mean, std
 
+from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import uniform, binary_policy, epsilon_greedy
+from bettergym.agents.utils.utils import uniform, binary_policy, epsilon_greedy, uniform_discrete
 from bettergym.environments.robot_arena import BetterRobotArena, Config
-from utils import print_and_notify, plot_frame, plot_action_evolution
+from utils import print_and_notify, plot_frame
 
 
 def seed_everything(seed_value: int):
@@ -20,15 +21,15 @@ def seed_everything(seed_value: int):
     os.environ['PYTHONHASHSEED'] = str(seed_value)
 
 
-def run_experiment(seed_val, rollout_policy, num_actions):
+def run_experiment(seed_val, num_actions=1, policy=None, discrete=False):
     global exp_num
     # input [forward speed, yaw_rate]
     c = Config()
     c.num_discrete_actions = num_actions
     real_env = BetterRobotArena(
-        initial_position=(8, 8),
+        initial_position=(1, 1),
         gradient=True,
-        discrete=False,
+        discrete=discrete,
         config=c
     )
     s0, _ = real_env.reset()
@@ -41,25 +42,27 @@ def run_experiment(seed_val, rollout_policy, num_actions):
     goal = s0.goal
 
     s = s0
-    planner = MctsApw(
+    # planner = RandomPlanner(real_env)
+    planner_apw = MctsApw(
         num_sim=1000,
-        c=4,
+        c=6,
         environment=real_env,
         computational_budget=100,
         k=20,
         alpha=0,
         discount=0.99,
-        action_expansion_function=uniform,
-        rollout_policy=rollout_policy
+        action_expansion_function=policy,
+        rollout_policy=uniform
     )
-    # planner = Mcts(
-    #     num_sim=1000,
-    #     c=4,
-    #     environment=real_env,
-    #     computational_budget=100,
-    #     discount=0.99,
-    #     rollout_policy=rollout_policy
-    # )
+    planner_mcts = Mcts(
+        num_sim=1000,
+        c=6,
+        environment=real_env,
+        computational_budget=100,
+        discount=0.99,
+        rollout_policy=policy
+    )
+    planner = planner_apw if not discrete else planner_mcts
 
     print("Simulation Started")
     terminal = False
@@ -68,28 +71,33 @@ def run_experiment(seed_val, rollout_policy, num_actions):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 200:
+        if step_n == 1000:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
         u, info = planner.plan(s)
 
+        final_time = time.time() - initial_time
         actions.append(u)
         infos.append(info)
 
-        final_time = time.time() - initial_time
         times.append(final_time)
         s, r, terminal, truncated, env_info = real_env.step(s, u)
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
 
     print_and_notify(
-        f"Simulation Ended with Reward: {sum(rewards)}\n" +
-        f"Avg Step Time: {round(mean(times), 2)}±{round(std(times), 2)}\n" +
-        f"Total Time: {sum(times)}"
+        f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n" +
+        f"Discrete: {discrete}\n"
+        f"Number of Steps: {step_n}\n" +
+        f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
+        f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n" +
+        f"Total Time: {sum(times)}",
+        exp_num
     )
     print("Creating Gif...")
     fig, ax = plt.subplots()
+
     ani = FuncAnimation(
         fig,
         plot_frame,
@@ -97,17 +105,7 @@ def run_experiment(seed_val, rollout_policy, num_actions):
         frames=len(trajectory)
     )
     ani.save(f"debug/trajectory_{exp_num}.gif", fps=150)
-    plot_action_evolution(np.array(actions))
-    # trjs = [info["trajectories"] for info in infos]
-    # np.savez_compressed(f"debug/tree_trajectory/tree_trajectories", *trjs)
-
-    # with imageio.get_writer('tree_trajectory.gif', mode='i') as writer:
-    # for i in range(len(infos)):
-    #     file_name = f'debug/tree_trajectory/{i}.png'
-    #     plot_tree_trajectory(i, infos, file_name)
-    # image = imageio.v3.imread(file_name)
-    # writer.append_data(image)
-    # os.remove(file_name)
+    # plot_action_evolution(np.array(actions), exp_num)
 
     print("Done")
 
@@ -115,9 +113,20 @@ def run_experiment(seed_val, rollout_policy, num_actions):
 def main():
     global exp_num
     exp_num = 0
-    for p, na in [(uniform, 1), (binary_policy, 1),
-                  (partial(epsilon_greedy, eps=0.2, other_func=binary_policy), 1)]:
-        run_experiment(0, p, na)
+
+    # for p, na in [(uniform_discrete, 5)]:
+    #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=True)
+    #     exp_num += 1
+
+    # DISCRETE
+    for p, na in [(uniform_discrete, 5), (uniform_discrete, 10)]:
+        run_experiment(seed_val=1, policy=p, num_actions=na, discrete=True)
+        exp_num += 1
+
+    # CONTINUOUS
+    for p, na in [(partial(epsilon_greedy, eps=0.2, other_func=binary_policy), 1), (binary_policy, 1), (uniform, 1)]:
+        run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False)
+        exp_num += 1
 
 
 if __name__ == '__main__':

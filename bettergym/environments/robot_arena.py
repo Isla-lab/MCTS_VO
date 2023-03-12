@@ -1,6 +1,6 @@
 import math
 import random
-from copy import copy
+# from copy import copy
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
@@ -60,7 +60,7 @@ class RobotArenaState:
     def __hash__(self):
         return hash(self.x.tobytes())
 
-    def __copy__(self):
+    def copy(self):
         return RobotArenaState(
             np.array(self.x, copy=True),
             self.goal
@@ -90,7 +90,7 @@ class RobotArena:
             self.reward = self.reward_no_grad
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[RobotArenaState, Any]:
-        return copy(self.state), None
+        return self.state.copy(), None
 
     def check_goal(self, state: RobotArenaState) -> bool:
         """
@@ -193,7 +193,7 @@ class RobotArena:
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(self.state, action, collision, goal, out_boundaries)
         # observation, reward, terminal, truncated, info
-        return copy(self.state), reward, collision or goal or out_boundaries, False, None
+        return self.state.copy(), reward, collision or goal or out_boundaries, False, None
 
     def reward_no_grad(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
                        out_boundaries: bool) -> float:
@@ -280,4 +280,4 @@ class BetterRobotArena(BetterGym):
         return self.gym_env.discrete_actions
 
     def set_state(self, state: RobotArenaState) -> None:
-        self.gym_env.state = copy(state)
+        self.gym_env.state = state.copy()

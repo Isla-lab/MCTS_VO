@@ -125,14 +125,14 @@ class Mcts(Planner):
         terminal = False
         trajectory = []
         total_reward = 0
-        starting_depth = curr_depth
+        starting_depth = 0
         # budget = self.computational_budget
-        while not terminal and curr_depth != self.computational_budget:
+        while not terminal and curr_depth+starting_depth != self.computational_budget:
             chosen_action = self.rollout_policy(StateNode(self.environment, current_state, -1), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
-            total_reward += r * self.discount ** curr_depth-starting_depth
+            total_reward += r * pow(self.discount, starting_depth)
             trajectory.append(current_state.x)  # store state history
-            curr_depth += 1
+            starting_depth += 1
 
         self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], np.array(trajectory)))
         return total_reward

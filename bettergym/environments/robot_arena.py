@@ -74,7 +74,7 @@ class RobotArena:
             x=np.array([initial_position[0], initial_position[1], math.pi / 8.0, 0.0, 0.0]),
             goal=np.array([10.0, 10.0])
         )
-        self.max_eudist = euclidean(self.state.x[:2], self.state.goal)
+        self.max_eudist = euclidean(np.array([config.bottom_limit, config.left_limit]), self.state.goal)
         self.config = config
         self.discrete_actions = np.linspace(
             start=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
@@ -234,8 +234,6 @@ class UniformActionSpace:
 
 
 class BetterRobotArena(BetterGym):
-    def get_actions(self, state):
-        pass
 
     def __init__(self, initial_position: Union[Tuple, List, np.ndarray], gradient: bool = True, discrete: bool = False,
                  config: Config = Config()):

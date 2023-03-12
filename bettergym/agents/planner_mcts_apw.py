@@ -163,11 +163,11 @@ class MctsApw(Planner):
         # TODO: add debug utils
         terminal = False
         total_reward = 0
-        starting_depth = curr_depth
-        while not terminal and curr_depth != self.computational_budget:
+        starting_depth = 0
+        while not terminal and curr_depth+starting_depth != self.computational_budget:
             # random policy
             chosen_action = self.rollout_policy(StateNode(current_state, -1), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
-            total_reward += r * self.discount ** curr_depth-starting_depth
-            curr_depth += 1
+            total_reward += r * pow(self.discount, starting_depth)
+            starting_depth += 1
         return total_reward

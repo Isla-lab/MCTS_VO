@@ -1,10 +1,10 @@
 import math
+import random
 from copy import copy
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
 import numpy as np
-from scipy.spatial.distance import cdist, euclidean
 
 from bettergym.better_gym import BetterGym
 
@@ -74,7 +74,9 @@ class RobotArena:
             x=np.array([initial_position[0], initial_position[1], math.pi / 8.0, 0.0, 0.0]),
             goal=np.array([10.0, 10.0])
         )
-        self.max_eudist = euclidean(np.array([config.bottom_limit, config.left_limit]), self.state.goal)
+        # self.max_eudist = euclidean(np.array([config.bottom_limit, config.left_limit]), self.state.goal)
+        bl_corner = np.array([config.bottom_limit, config.left_limit])
+        self.max_eudist = math.hypot(self.state.goal[0] - bl_corner[0], self.state.goal[1] - bl_corner[1])
         self.config = config
         self.discrete_actions = np.linspace(
             start=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
@@ -119,17 +121,30 @@ class RobotArena:
 
         return False
 
+    # def check_collision(self, x: np.ndarray) -> bool:
+    #     """
+    #     Check if the robot is colliding with some obstacle
+    #     :param x: state of the robot
+    #     :return:
+    #     """
+    #     x = x[:2]
+    #     config = self.config
+    #     x = x[np.newaxis, ...]
+    #     dist_to_obs: np.ndarray = cdist(x, config.ob, 'euclidean')
+    #     return np.any(dist_to_obs <= config.robot_radius + config.obs_size)
+
     def check_collision(self, x: np.ndarray) -> bool:
         """
         Check if the robot is colliding with some obstacle
         :param x: state of the robot
         :return:
         """
-        x = x[:2]
         config = self.config
-        x = x[np.newaxis, ...]
-        dist_to_obs: np.ndarray = cdist(x, config.ob, 'euclidean')
-        return np.any(dist_to_obs <= config.robot_radius + config.obs_size)
+        for ob in config.ob:
+            dist_to_ob = math.hypot(ob[0] - x[0], ob[1] - x[1])
+            if dist_to_ob <= config.robot_radius + config.obs_size:
+                return True
+        return False
 
     def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """
@@ -140,11 +155,18 @@ class RobotArena:
         """
         dt = self.config.dt
         new_x = np.array(x, copy=True)
-        u[:2] = np.clip(
-            a=u[:2],
-            a_min=[self.config.min_speed, -self.config.max_yaw_rate],
-            a_max=[self.config.max_speed, self.config.max_yaw_rate]
-        )
+        # lin velocity
+        if u[0] > self.config.max_speed:
+            u[0] = self.config.max_speed
+        elif u[0] < self.config.min_speed:
+            u[0] = self.config.min_speed
+
+        # ang velocity
+        if u[1] > self.config.max_yaw_rate:
+            u[1] = self.config.max_yaw_rate
+        elif u[1] < -self.config.max_yaw_rate:
+            u[1] = -self.config.max_yaw_rate
+
         # angle
         new_x[2] += u[1] * dt
         # vel lineare
@@ -218,7 +240,8 @@ class RobotArena:
         if is_collision or out_boundaries:
             return COLLISION_REWARD
 
-        return -euclidean(state.x[:2], state.goal) / self.max_eudist
+        # return -euclidean(state.x[:2], state.goal) / self.max_eudist
+        return -math.hypot(state.goal[0] - state.x[0], state.goal[1] - state.x[1])
 
 
 class UniformActionSpace:
@@ -227,9 +250,11 @@ class UniformActionSpace:
         self.high = high
 
     def sample(self):
-        return np.random.uniform(
-            low=self.low,
-            high=self.high
+        return np.array(
+            [
+                random.uniform(self.low[0], self.high[0]),
+                random.uniform(self.low[1], self.high[1])
+            ]
         )
 
 

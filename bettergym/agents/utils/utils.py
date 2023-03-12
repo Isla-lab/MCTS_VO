@@ -16,7 +16,7 @@ def uniform(node: Any, planner: Planner):
 def uniform_discrete(node: Any, planner: Planner):
     current_state = node.state
     actions = planner.environment.get_actions(current_state)
-    return actions[np.random.choice(len(actions))]
+    return random.choice(actions)
 
 
 def towards_goal(node: Any, planner: Planner):
@@ -31,11 +31,11 @@ def towards_goal(node: Any, planner: Planner):
         low=config.min_speed,
         high=config.max_speed
     )
-    angular_velocity = np.clip(
-        a=angular_velocity,
-        a_min=-config.max_yaw_rate,
-        a_max=config.max_yaw_rate
-    )
+    if angular_velocity > config.max_yaw_rate:
+        angular_velocity = config.max_yaw_rate
+    elif angular_velocity < -config.max_yaw_rate:
+        angular_velocity = -config.max_yaw_rate
+
     return np.array([linear_velocity, angular_velocity])
 
 

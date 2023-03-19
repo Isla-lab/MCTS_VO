@@ -26,6 +26,11 @@ def towards_goal(node: Any, planner: Planner):
     config = planner.environment.config
     mean_angle_vel = (arctan2(goal[1] - x[1], goal[0] - x[0]) - x[2]) / config.dt
     var_angle_vel = config.max_yaw_rate / 4
+    # angular_velocity = random.gauss(mean_angle_vel, var_angle_vel)
+    # linear_velocity = random.uniform(
+    #     config.min_speed,
+    #     config.max_speed
+    # )
     angular_velocity = np.random.normal(mean_angle_vel, var_angle_vel)
     linear_velocity = np.random.uniform(
         low=config.min_speed,

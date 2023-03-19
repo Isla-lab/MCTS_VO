@@ -76,7 +76,8 @@ class RobotArena:
         )
         # self.max_eudist = euclidean(np.array([config.bottom_limit, config.left_limit]), self.state.goal)
         bl_corner = np.array([config.bottom_limit, config.left_limit])
-        self.max_eudist = math.hypot(self.state.goal[0] - bl_corner[0], self.state.goal[1] - bl_corner[1])
+        ur_corner = np.array([config.upper_limit, config.right_limit])
+        self.max_eudist = math.hypot(ur_corner[0] - bl_corner[0], ur_corner[1] - bl_corner[1])
         self.config = config
         self.discrete_actions = np.linspace(
             start=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
@@ -207,7 +208,7 @@ class RobotArena:
         :return: The numerical reward of the agent
         """
         GOAL_REWARD: float = 1.0
-        COLLISION_REWARD: float = -5.0
+        COLLISION_REWARD: float = -100.0
         STEP_REWARD: float = -0.01
 
         if is_goal:
@@ -232,7 +233,7 @@ class RobotArena:
         :return: The numerical reward of the agent
         """
         GOAL_REWARD: float = 1.0
-        COLLISION_REWARD: float = -5.0
+        COLLISION_REWARD: float = -100.0
 
         if is_goal:
             return GOAL_REWARD
@@ -240,8 +241,7 @@ class RobotArena:
         if is_collision or out_boundaries:
             return COLLISION_REWARD
 
-        # return -euclidean(state.x[:2], state.goal) / self.max_eudist
-        return -math.hypot(state.goal[0] - state.x[0], state.goal[1] - state.x[1])
+        return -math.hypot(state.goal[0] - state.x[0], state.goal[1] - state.x[1]) / self.max_eudist
 
 
 class UniformActionSpace:

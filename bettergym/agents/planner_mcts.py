@@ -47,7 +47,8 @@ class Mcts(Planner):
         self.info = {
             "trajectories": [],
             "q_values": [],
-            "actions": []
+            "actions": [],
+            "rollout_values": []
         }
 
     def get_id(self):
@@ -55,6 +56,12 @@ class Mcts(Planner):
         return self.last_id
 
     def plan(self, initial_state: Any):
+        self.info = {
+            "trajectories": [],
+            "q_values": [],
+            "actions": [],
+            "rollout_values": []
+        }
         root_id = self.get_id()
         root_node = StateNode(self.environment, initial_state, root_id)
         self.id_to_state_node[root_id] = root_node
@@ -67,7 +74,8 @@ class Mcts(Planner):
         # DEBUG INFORMATION
         self.info["q_values"] = q_vals
         self.info["actions"] = root_node.actions
-        # randomly choose between actions which have the maximum ucb value
+
+        # randomly choose between actions which have the maximum q value
         action_idx = np.random.choice(np.flatnonzero(q_vals == np.max(q_vals)))
         action = root_node.actions[action_idx].action
         return action, self.info
@@ -131,7 +139,6 @@ class Mcts(Planner):
         trajectory = []
         total_reward = 0
         starting_depth = 0
-        # budget = self.computational_budget
         while not terminal and curr_depth + starting_depth != self.computational_budget:
             chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
@@ -140,4 +147,19 @@ class Mcts(Planner):
             starting_depth += 1
 
         self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], np.array(trajectory)))
+        self.info["rollout_values"].append(total_reward)
         return total_reward
+
+    # def rollout(self, current_state, curr_depth) -> Union[int, float]:
+    #     terminal = False
+    #     trajectory = []
+    #     r = 0
+    #     budget = self.computational_budget
+    #     while not terminal and budget != 0:
+    #         chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
+    #         current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
+    #         trajectory.append(current_state.x)  # store state history
+    #         budget -= 1
+    #
+    #     self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], np.array(trajectory)))
+    #     return r

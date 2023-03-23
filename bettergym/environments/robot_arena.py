@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
 import numpy as np
+from numba import njit
 
 from bettergym.better_gym import BetterGym
 
@@ -65,6 +66,17 @@ class RobotArenaState:
             np.array(self.x, copy=True),
             self.goal
         )
+
+
+@njit
+def check_coll_jit(x, obs, robot_radius, obs_size):
+    x = x[:2]
+    x = np.expand_dims(x, 1)
+    for ob in obs:
+        dist_to_ob = np.linalg.norm(x - ob)
+        if dist_to_ob <= robot_radius + obs_size:
+            return True
+    return False
 
 
 class RobotArena:
@@ -129,11 +141,7 @@ class RobotArena:
         :return:
         """
         config = self.config
-        for ob in config.ob:
-            dist_to_ob = math.hypot(ob[0] - x[0], ob[1] - x[1])
-            if dist_to_ob <= config.robot_radius + config.obs_size:
-                return True
-        return False
+        return check_coll_jit(x, self.config.ob, config.robot_radius, config.obs_size)
 
     def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """
@@ -183,7 +191,6 @@ class RobotArena:
         reward = self.reward(self.state, action, collision, goal, out_boundaries)
         # observation, reward, terminal, truncated, info
         return self.state.copy(), reward, collision or goal or out_boundaries, False, None
-
 
     def reward_no_grad(state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
                        out_boundaries: bool) -> float:

@@ -56,7 +56,6 @@ class MctsApw(Planner):
         :param discount: the discount factor of the mdp
         """
         super().__init__(environment)
-        self.id_to_state_node: dict[int, StateNode] = {}
         self.num_sim: int = num_sim
         self.c: float | int = c
         self.computational_budget: int = computational_budget
@@ -66,6 +65,15 @@ class MctsApw(Planner):
         self.action_expansion_function = action_expansion_function
         self.rollout_policy = rollout_policy
 
+        self.id_to_state_node = None
+        self.num_visits_actions = None
+        self.state_actions = None
+        self.last_id = None
+        self.info = None
+        self.a_values = None
+
+    def initialize_variables(self):
+        self.id_to_state_node: dict[int, StateNode] = {}
         self.num_visits_actions = np.array([], dtype=np.float64)
         self.a_values = np.array([])
         self.state_actions = {}
@@ -82,6 +90,7 @@ class MctsApw(Planner):
         return self.last_id
 
     def plan(self, initial_state: Any):
+        self.initialize_variables()
         self.info = {
             "trajectories": [],
             "q_values": [],
@@ -188,7 +197,7 @@ class MctsApw(Planner):
         trajectory = []
         total_reward = 0
         starting_depth = 0
-        while not terminal and curr_depth+starting_depth != self.computational_budget:
+        while not terminal and curr_depth + starting_depth != self.computational_budget:
             # random policy
             chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)

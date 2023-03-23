@@ -122,18 +122,6 @@ class RobotArena:
 
         return False
 
-    # def check_collision(self, x: np.ndarray) -> bool:
-    #     """
-    #     Check if the robot is colliding with some obstacle
-    #     :param x: state of the robot
-    #     :return:
-    #     """
-    #     x = x[:2]
-    #     config = self.config
-    #     x = x[np.newaxis, ...]
-    #     dist_to_obs: np.ndarray = cdist(x, config.ob, 'euclidean')
-    #     return np.any(dist_to_obs <= config.robot_radius + config.obs_size)
-
     def check_collision(self, x: np.ndarray) -> bool:
         """
         Check if the robot is colliding with some obstacle
@@ -196,7 +184,8 @@ class RobotArena:
         # observation, reward, terminal, truncated, info
         return self.state.copy(), reward, collision or goal or out_boundaries, False, None
 
-    def reward_no_grad(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
+
+    def reward_no_grad(state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
                        out_boundaries: bool) -> float:
         """
         Defines the reward the agent receives

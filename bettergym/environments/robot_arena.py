@@ -79,6 +79,27 @@ def check_coll_jit(x, obs, robot_radius, obs_size):
     return False
 
 
+@njit
+def reward_grad_jit(is_goal: bool, is_collision: bool, out_boundaries: bool, goal: np.ndarray, max_eudist: float,
+                    x: np.ndarray):
+    GOAL_REWARD: float = 1.0
+    COLLISION_REWARD: float = -100.0
+
+    if is_goal:
+        return GOAL_REWARD
+
+    if is_collision or out_boundaries:
+        return COLLISION_REWARD
+
+    return -np.linalg.norm(goal - x) / max_eudist
+
+
+@njit
+def check_goal_jit(goal: np.ndarray, x: np.ndarray, robot_radius: float):
+    dist_to_goal = np.linalg.norm(goal - x[:2])
+    return dist_to_goal <= robot_radius
+
+
 class RobotArena:
     def __init__(self, initial_position: Union[Tuple, List, np.ndarray], config: Config = Config(),
                  gradient: bool = True):
@@ -105,17 +126,24 @@ class RobotArena:
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[RobotArenaState, Any]:
         return self.state.copy(), None
 
+    # def check_goal(self, state: RobotArenaState) -> bool:
+    #     """
+    #     Check if the robot reached the goal
+    #     :param state: state of the robot
+    #     :return:
+    #     """
+    #     x = state.x[:2]
+    #     config = self.config
+    #     goal = state.goal
+    #     dist_to_goal = math.hypot(x[0] - goal[0], x[1] - goal[1])
+    #     return dist_to_goal <= config.robot_radius
     def check_goal(self, state: RobotArenaState) -> bool:
         """
         Check if the robot reached the goal
         :param state: state of the robot
         :return:
         """
-        x = state.x[:2]
-        config = self.config
-        goal = state.goal
-        dist_to_goal = math.hypot(x[0] - goal[0], x[1] - goal[1])
-        return dist_to_goal <= config.robot_radius
+        return check_goal_jit(state.goal, state.x, self.config.robot_radius)
 
     def check_out_boundaries(self, state: RobotArenaState) -> bool:
         """
@@ -228,16 +256,7 @@ class RobotArena:
         :param out_boundaries: boolean value indicating if the robot is out of the map
         :return: The numerical reward of the agent
         """
-        GOAL_REWARD: float = 1.0
-        COLLISION_REWARD: float = -100.0
-
-        if is_goal:
-            return GOAL_REWARD
-
-        if is_collision or out_boundaries:
-            return COLLISION_REWARD
-
-        return -math.hypot(state.goal[0] - state.x[0], state.goal[1] - state.x[1]) / self.max_eudist
+        return reward_grad_jit(is_goal, is_collision, out_boundaries, state.goal, self.max_eudist, state.x[:2])
 
 
 class UniformActionSpace:

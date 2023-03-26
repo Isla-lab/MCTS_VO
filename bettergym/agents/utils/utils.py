@@ -23,7 +23,7 @@ def uniform_discrete(node: Any, planner: Planner):
 def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_yaw_rate: float, dt: float, min_speed: float,
                              max_speed: float):
     mean_angle_vel = (np.arctan2(goal[1] - x[1], goal[0] - x[0]) - x[2]) / dt
-    var_angle_vel = max_yaw_rate**2
+    var_angle_vel = max_yaw_rate ** 2
     angular_velocity = np.random.normal(mean_angle_vel, var_angle_vel)
     linear_velocity = np.random.uniform(
         a=min_speed,
@@ -66,7 +66,7 @@ def binary_policy(node: Any, planner: Planner):
         return np.mean([sorted_actions[0].action, sorted_actions[1].action], axis=0)
 
 
-def voronoi(actions: np.ndarray, q_vals: np.ndarray):
+def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
     best_action_index = np.argmax(q_vals)
     best_action = actions[best_action_index]
 
@@ -74,10 +74,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray):
     point = None
     n_sampled = 1
     while not closest and n_sampled <= 200:
-        point = np.random.multivariate_normal(
-            best_action,
-            np.diag([0.3 / 10, 1.9 / 10])
-        )
+        point = sample_centered(best_action)
         n_sampled += 1
         dists = np.linalg.norm(
             point - actions,
@@ -89,12 +86,13 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray):
     return point
 
 
-def voo(eps: float, node: Any, planner: Planner):
+def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     prob = random.random()
     if prob <= 1 - eps:
         return voronoi(
             np.array([node.action for node in node.actions]),
-            node.a_values
+            node.a_values,
+            sample_centered
         )
     else:
         return uniform(node, planner)

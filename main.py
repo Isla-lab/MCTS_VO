@@ -6,19 +6,27 @@ from functools import partial
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+from numba import njit
 from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import uniform, binary_policy, epsilon_greedy, uniform_discrete
+from bettergym.agents.utils.utils import uniform, towards_goal, voo, uniform_discrete
 from bettergym.environments.robot_arena import BetterRobotArena, Config
+from mcts_utils import sample_centered_robot_arena
 from utils import print_and_notify, plot_frame
+
+
+@njit
+def seed_numba(seed_value: int):
+    np.random.seed(seed_value)
 
 
 def seed_everything(seed_value: int):
     random.seed(seed_value)
     np.random.seed(seed_value)
     os.environ['PYTHONHASHSEED'] = str(seed_value)
+    seed_numba(seed_value)
 
 
 def run_experiment(seed_val, num_actions=1, policy=None, discrete=False):
@@ -52,7 +60,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False):
         alpha=0,
         discount=0.99,
         action_expansion_function=policy,
-        rollout_policy=uniform
+        rollout_policy=towards_goal
     )
     planner_mcts = Mcts(
         num_sim=1000,
@@ -60,7 +68,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False):
         environment=real_env,
         computational_budget=100,
         discount=0.99,
-        rollout_policy=policy
+        rollout_policy=towards_goal
     )
     planner = planner_apw if not discrete else planner_mcts
 
@@ -104,8 +112,12 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False):
         fargs=(goal, config, trajectory, ax),
         frames=len(trajectory)
     )
-    ani.save(f"debug/trajectory_{exp_num}.gif", fps=150)
-    # plot_action_evolution(np.array(actions), exp_num)
+    # ani.save(f"debug/trajectory_{exp_num}.gif", fps=150)
+    #
+    # trajectories = [i["trajectories"] for i in infos]
+    # rollout_values = [i["rollout_values"] for i in infos]
+    # np.savez_compressed(f"debug/trajectories_{exp_num}", *trajectories)
+    # np.savez_compressed(f"debug/rollout_values_{exp_num}", *rollout_values)
 
     print("Done")
 
@@ -114,17 +126,21 @@ def main():
     global exp_num
     exp_num = 0
 
-    # for p, na in [(uniform_discrete, 5)]:
+    # for p, na in [(uniform_discrete, 20)]:
     #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=True)
     #     exp_num += 1
 
-    # DISCRETE
-    for p, na in [(uniform_discrete, 5), (uniform_discrete, 10)]:
-        run_experiment(seed_val=1, policy=p, num_actions=na, discrete=True)
-        exp_num += 1
+    # # DISCRETE
+    # for p, na in [(uniform_discrete, 5), (uniform_discrete, 10)]:
+    #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=True)
+    #     exp_num += 1
+    #
+    # # CONTINUOUS
+    # for p, na in [(partial(epsilon_greedy, eps=0.2, other_func=binary_policy), 1), (binary_policy, 1), (uniform, 1)]:
+    #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False)
+    #     exp_num += 1
 
-    # CONTINUOUS
-    for p, na in [(partial(epsilon_greedy, eps=0.2, other_func=binary_policy), 1), (binary_policy, 1), (uniform, 1)]:
+    for p, na in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1)]:
         run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False)
         exp_num += 1
 

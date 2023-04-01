@@ -11,7 +11,7 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import uniform, towards_goal, voo, uniform_discrete
+from bettergym.agents.utils.utils import towards_goal, voo, voo_vo
 from bettergym.environments.robot_arena import BetterRobotArena, Config
 from mcts_utils import sample_centered_robot_arena
 from utils import print_and_notify, plot_frame
@@ -140,7 +140,8 @@ def main():
     #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False)
     #     exp_num += 1
 
-    for p, na in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1)]:
+    # (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1)
+    for p, na in [(partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena), 1)]:
         run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False)
         exp_num += 1
 

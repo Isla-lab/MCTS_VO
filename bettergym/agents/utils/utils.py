@@ -5,6 +5,7 @@ import numpy as np
 from numba import njit
 
 from bettergym.agents.planner import Planner
+from mcts_utils import velocity_obstacle_nearest
 
 
 def uniform(node: Any, planner: Planner):
@@ -96,3 +97,51 @@ def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
         )
     else:
         return uniform(node, planner)
+
+
+def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
+    prob = random.random()
+    if prob <= 1 - eps:
+        return voronoi_vo(
+            actions=np.array([node.action for node in node.actions]),
+            q_vals=node.a_values,
+            sample_centered=sample_centered,
+            x=node.state.x,
+            obs=planner.environment.config.ob,
+            dt=planner.environment.config.dt,
+            ROBOT_RADIUS=planner.environment.config.robot_radius,
+            OBS_RADIUS=planner.environment.config.obs_size
+        )
+    else:
+        return uniform(node, planner)
+
+
+def in_range(p: np.ndarray, rng: list):
+    return rng[0] <= p[1] <= rng[1]
+
+
+def voronoi_vo(actions, q_vals, sample_centered, x, obs, dt, ROBOT_RADIUS, OBS_RADIUS):
+    best_action_index = np.argmax(q_vals)
+    best_action = actions[best_action_index]
+    forbidden_angular_vel = velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS)
+
+    closest = False
+    point = None
+    valid = False
+    n_sampled = 1
+    invalid_sample = -1
+    while not closest and n_sampled <= 200:
+        while not valid:
+            invalid_sample += 1
+            point = sample_centered(best_action)
+            valid = in_range(point, forbidden_angular_vel)
+        n_sampled += 1
+        dists = np.linalg.norm(
+            point - actions,
+            axis=1
+        )
+        best_action_distance = dists[best_action_index]
+        dists = np.delete(dists, best_action_index)
+        closest = np.all(dists >= best_action_distance)
+        print(f"INVALID SAMPLE: {invalid_sample}")
+    return point

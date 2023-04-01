@@ -9,7 +9,7 @@ from numba import njit
 
 from bettergym.better_gym import BetterGym
 
-
+from dataclasses import dataclass
 @dataclass
 class Config:
     """

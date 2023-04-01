@@ -4,13 +4,11 @@ import numpy as np
 from numba import njit
 
 
-@njit
+# @njit
 def sample_centered_robot_arena(center: np.ndarray):
-    return np.array(
-        [
-            np.random.normal(center[0], 0.3 / 10),
-            np.random.normal(center[1], 1.9 / 10)
-        ]
+    return np.random.multivariate_normal(
+        center,
+        np.diag([0.3 / 10, 1.9 / 10])
     )
 
 

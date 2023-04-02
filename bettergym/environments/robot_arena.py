@@ -31,13 +31,13 @@ class Config:
     # yaw_rate_resolution = 0.1 * math.pi / 180.0  # [rad/s]
     dt = 0.2  # [s] Time tick for motion prediction
     robot_radius = 0.3  # [m] for collision check
+    obs_size = 0.2
 
     bottom_limit = -0.5
     upper_limit = 11.5
 
     right_limit = 11.5
     left_limit = -0.5
-    obs_size = 0.2
 
     num_discrete_actions = 5
 

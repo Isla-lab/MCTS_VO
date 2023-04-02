@@ -68,23 +68,43 @@ def binary_policy(node: Any, planner: Planner):
 
 
 def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
-    best_action_index = np.argmax(q_vals)
-    best_action = actions[best_action_index]
+    N_SAMPLE = 200
+    valid = False
 
-    closest = False
-    point = None
-    n_sampled = 1
-    while not closest and n_sampled <= 200:
-        point = sample_centered(best_action)
-        n_sampled += 1
-        dists = np.linalg.norm(
-            point - actions,
-            axis=1
-        )
-        best_action_distance = dists[best_action_index]
-        dists = np.delete(dists, best_action_index)
-        closest = np.all(dists >= best_action_distance)
-    return point
+    while not valid:
+        # find the index of the action with the highest Q-value
+        best_action_index = np.argmax(q_vals)
+
+        # get the action with the highest Q-value
+        best_action = actions[best_action_index]
+
+        # generate 200 random points centered around the best action
+        points = sample_centered(best_action, N_SAMPLE)
+
+        # compute the Euclidean distances between each point and each action
+        dists = np.linalg.norm(points[:, np.newaxis, :] - actions, axis=2)
+
+        # find the distances between each point and the best action
+        best_action_distances = dists[:, best_action_index]
+
+        # repeat the distances for each action except the best action
+        best_action_distances_rep = np.tile(best_action_distances, (dists.shape[1] - 1, 1)).T
+
+        # remove the column for the best action from the distance matrix
+        dists = np.hstack((dists[:, :best_action_index], dists[:, best_action_index + 1:]))
+
+        # find the closest action to each point
+        closest = best_action_distances_rep <= dists
+
+        # find the rows where all distances to other actions are greater than the distance to the best action
+        all_true_rows = np.where(np.all(closest, axis=1))[0]
+
+        # find the index of the point closest to the best action among the valid rows
+        valid_points = best_action_distances[all_true_rows]
+        if len(valid_points >= 0):
+            closest_point_idx = np.argmin(valid_points)
+            # return the closest point to the best action
+            return points[closest_point_idx]
 
 
 def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
@@ -121,27 +141,43 @@ def in_range(p: np.ndarray, rng: list):
 
 
 def voronoi_vo(actions, q_vals, sample_centered, x, obs, dt, ROBOT_RADIUS, OBS_RADIUS):
-    best_action_index = np.argmax(q_vals)
-    best_action = actions[best_action_index]
     forbidden_angular_vel = velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS)
 
-    closest = False
-    point = None
+    N_SAMPLE = 200
     valid = False
-    n_sampled = 1
-    invalid_sample = -1
-    while not closest and n_sampled <= 200:
-        while not valid:
-            invalid_sample += 1
-            point = sample_centered(best_action)
-            valid = in_range(point, forbidden_angular_vel)
-        n_sampled += 1
-        dists = np.linalg.norm(
-            point - actions,
-            axis=1
-        )
-        best_action_distance = dists[best_action_index]
-        dists = np.delete(dists, best_action_index)
-        closest = np.all(dists >= best_action_distance)
-        print(f"INVALID SAMPLE: {invalid_sample}")
-    return point
+
+    while not valid:
+        # find the index of the action with the highest Q-value
+        best_action_index = np.argmax(q_vals)
+
+        # get the action with the highest Q-value
+        best_action = actions[best_action_index]
+
+        # generate 200 random points centered around the best action
+        points = sample_centered(best_action, N_SAMPLE)
+
+        # compute the Euclidean distances between each point and each action
+        dists = np.linalg.norm(points[:, np.newaxis, :] - actions, axis=2)
+
+        # find the distances between each point and the best action
+        best_action_distances = dists[:, best_action_index]
+
+        # repeat the distances for each action except the best action
+        best_action_distances_rep = np.tile(best_action_distances, (dists.shape[1] - 1, 1)).T
+
+        # remove the column for the best action from the distance matrix
+        dists = np.hstack((dists[:, :best_action_index], dists[:, best_action_index + 1:]))
+
+        # find the closest action to each point
+        closest = best_action_distances_rep <= dists
+
+        # find the rows where all distances to other actions are greater than the distance to the best action
+        all_true_rows = np.where(np.all(closest, axis=1))[0]
+        if len(all_true_rows >= 0):
+            valid_points = points[all_true_rows, :]
+            # Boolean indexing to select rows where the second column value is outside of the range
+            out_of_range_rows = (valid_points[:, 1] < forbidden_angular_vel[0]) | (valid_points[:, 1] > forbidden_angular_vel[1])
+            out_of_range_indices = np.where(out_of_range_rows)[0]
+            if len(out_of_range_indices) > 0:
+                closest_point_idx = np.argmin(best_action_distances[out_of_range_indices])
+                return points[closest_point_idx]

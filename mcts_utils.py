@@ -5,10 +5,11 @@ from numba import njit
 
 
 # @njit
-def sample_centered_robot_arena(center: np.ndarray):
+def sample_centered_robot_arena(center: np.ndarray, number):
     return np.random.multivariate_normal(
-        center,
-        np.diag([0.3 / 10, 1.9 / 10])
+        mean=center,
+        cov=np.diag([0.3 / 10, 1.9 / 10]),
+        size=number
     )
 
 

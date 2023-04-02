@@ -140,8 +140,10 @@ def main():
     #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False)
     #     exp_num += 1
 
-    for p, na in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1)]:
-        run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False)
+    #
+    for p, na in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1),
+                  (partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena), 1)]:
+        run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False)
         exp_num += 1
 
 

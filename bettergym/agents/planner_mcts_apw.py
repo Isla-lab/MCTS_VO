@@ -167,7 +167,7 @@ class MctsApw(Planner):
         self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], current_state.x))
 
         prev_node = node
-        if new_state_id is None:
+        if new_state_id is None and depth+1 < self.computational_budget:
             # Leaf Node
             state_id = self.get_id()
             # Initialize State Data
@@ -183,8 +183,9 @@ class MctsApw(Planner):
         else:
             # Node in the tree
             state_id = new_state_id
-            if terminal:
-                return 0
+            if terminal or depth+1 > self.computational_budget:
+                self.info["rollout_values"].append(r)
+                return r
             else:
                 total_rwrd = r + self.discount * self.simulate(state_id, depth + 1)
                 # BackPropagate
@@ -208,15 +209,3 @@ class MctsApw(Planner):
         self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], np.array(trajectory)))
         self.info["rollout_values"].append(total_reward)
         return total_reward
-
-    # def rollout(self, current_state, curr_depth) -> Union[int, float]:
-    #     # TODO: add debug utils
-    #     terminal = False
-    #     r = 0
-    #     budget = self.computational_budget
-    #     while not terminal and budget != 0:
-    #         # random policy
-    #         chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
-    #         current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
-    #         budget -= 1
-    #     return r

@@ -61,6 +61,14 @@ class RobotArenaState:
     def __hash__(self):
         return hash(self.x.tobytes())
 
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
+    def __ne__(self, other):
+        # Not strictly necessary, but to avoid having both x==y and x!=y
+        # True at the same time
+        return not (self == other)
+
     def copy(self):
         return RobotArenaState(
             np.array(self.x, copy=True),

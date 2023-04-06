@@ -1,6 +1,5 @@
 import math
 import random
-# from copy import copy
 from dataclasses import dataclass
 from typing import Any, Union, Tuple, List
 
@@ -9,7 +8,7 @@ from numba import njit
 
 from bettergym.better_gym import BetterGym
 
-from dataclasses import dataclass
+
 @dataclass
 class Config:
     """
@@ -21,14 +20,8 @@ class Config:
     # Min U[0]
     min_speed = -0.1  # [m/s]
     # Max and Min U[1]
-    # max_yaw_rate = 40.0 * math.pi / 180.0  # [rad/s]
-    max_yaw_rate = 1.9  # [rad/s]
+    max_angle_change = 0.38  # [rad/s]
 
-    # The action can be the relative change in speed -0.2 to 0.2
-    # max_accel = 0.2  # [m/ss]
-    # max_delta_yaw_rate = 40.0 * math.pi / 180.0  # [rad/ss]
-
-    # yaw_rate_resolution = 0.1 * math.pi / 180.0  # [rad/s]
     dt = 0.2  # [s] Time tick for motion prediction
     robot_radius = 0.3  # [m] for collision check
     obs_size = 0.2
@@ -102,7 +95,7 @@ def reward_grad_jit(is_goal: bool, is_collision: bool, out_boundaries: bool, goa
 
 @njit
 def check_goal_jit(goal: np.ndarray, x: np.ndarray, robot_radius: float):
-    dist_to_goal = np.linalg.norm(goal - x[:2])
+    dist_to_goal = math.hypot(goal[0] - x[0], goal[1] - x[1])
     return dist_to_goal <= robot_radius
 
 
@@ -110,19 +103,13 @@ class RobotArena:
     def __init__(self, initial_position: Union[Tuple, List, np.ndarray], config: Config = Config(),
                  gradient: bool = True):
         self.state = RobotArenaState(
-            x=np.array([initial_position[0], initial_position[1], math.pi / 8.0, 0.0, 0.0]),
-            goal=np.array([10.0, 10.0])
+            x=np.array([initial_position[0], initial_position[1], math.pi / 8.0, 0.0]),
+            goal=np.array([8.0, 8.0])
         )
-        # self.max_eudist = euclidean(np.array([config.bottom_limit, config.left_limit]), self.state.goal)
         bl_corner = np.array([config.bottom_limit, config.left_limit])
         ur_corner = np.array([config.upper_limit, config.right_limit])
         self.max_eudist = math.hypot(ur_corner[0] - bl_corner[0], ur_corner[1] - bl_corner[1])
         self.config = config
-        self.discrete_actions = np.linspace(
-            start=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
-            stop=np.array([config.max_speed, config.max_yaw_rate], dtype=np.float64),
-            num=config.num_discrete_actions
-        )
 
         if gradient:
             self.reward = self.reward_grad
@@ -138,7 +125,11 @@ class RobotArena:
         :param state: state of the robot
         :return:
         """
-        return check_goal_jit(state.goal, state.x, self.config.robot_radius)
+        return check_goal_jit(
+            goal=state.goal,
+            x=state.x,
+            robot_radius=self.config.robot_radius
+        )
 
     def check_out_boundaries(self, state: RobotArenaState) -> bool:
         """
@@ -181,18 +172,19 @@ class RobotArena:
         elif u[0] < self.config.min_speed:
             u[0] = self.config.min_speed
 
-        # ang velocity
-        if u[1] > self.config.max_yaw_rate:
-            u[1] = self.config.max_yaw_rate
-        elif u[1] < -self.config.max_yaw_rate:
-            u[1] = -self.config.max_yaw_rate
+        # angle
+        if u[1] > u[1] + self.config.max_angle_change:
+            u[1] = self.config.max_angle_change
+        elif u[1] < u[1] - self.config.max_angle_change:
+            u[1] = -self.config.max_angle_change
 
         # angle
-        new_x[2] += u[1] * dt
+        # Make sure angle is within range of -π to π
+        u[1] = (u[1] + math.pi) % (2 * math.pi) - math.pi
+        new_x[2] = u[1]
+
         # vel lineare
         new_x[3] = u[0]
-        # vel angolare
-        new_x[4] = u[1]
         # x
         new_x[0] += u[0] * math.cos(new_x[2]) * dt
         # y
@@ -214,7 +206,7 @@ class RobotArena:
         # observation, reward, terminal, truncated, info
         return self.state.copy(), reward, collision or goal or out_boundaries, False, None
 
-    def reward_no_grad(state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
+    def reward_no_grad(self, state: RobotArenaState, action: np.ndarray, is_collision: bool, is_goal: bool,
                        out_boundaries: bool) -> float:
         """
         Defines the reward the agent receives
@@ -285,13 +277,20 @@ class BetterRobotArena(BetterGym):
 
     def get_actions_continuous(self, state: RobotArenaState):
         config = self.gym_env.config
+
         return UniformActionSpace(
-            low=np.array([config.min_speed, -config.max_yaw_rate], dtype=np.float64),
-            high=np.array([config.max_speed, config.max_yaw_rate], dtype=np.float64)
+            low=np.array([config.min_speed, state.x[2] - config.max_angle_change], dtype=np.float64),
+            high=np.array([config.max_speed, state.x[2] + config.max_angle_change], dtype=np.float64)
         )
 
     def get_actions_discrete(self, state: RobotArenaState):
-        return self.gym_env.discrete_actions
+        config = self.gym_env.config
+
+        return np.linspace(
+            start=np.array([config.min_speed, state.x[2] - config.max_angle_change], dtype=np.float64),
+            stop=np.array([config.max_speed, state.x[2] + config.max_angle_change], dtype=np.float64),
+            num=config.num_discrete_actions
+        )
 
     def set_state(self, state: RobotArenaState) -> None:
         self.gym_env.state = state.copy()

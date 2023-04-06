@@ -1,3 +1,4 @@
+import math
 import random
 from typing import Any, Callable
 
@@ -21,26 +22,29 @@ def uniform_discrete(node: Any, planner: Planner):
 
 
 @njit
-def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_yaw_rate: float, dt: float, min_speed: float,
+def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, var_angle: float, min_speed: float,
                              max_speed: float):
-    mean_angle_vel = (np.arctan2(goal[1] - x[1], goal[0] - x[0]) - x[2]) / dt
-    var_angle_vel = max_yaw_rate ** 2
-    angular_velocity = np.random.normal(mean_angle_vel, var_angle_vel)
+    mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
+    # Make sure angle is within range of -π to π
+    # var_angle = max_angle_change ** 3
+    angle = np.random.normal(mean_angle, var_angle)
     linear_velocity = np.random.uniform(
         a=min_speed,
         b=max_speed
     )
-    if angular_velocity > max_yaw_rate:
-        angular_velocity = max_yaw_rate
-    elif angular_velocity < -max_yaw_rate:
-        angular_velocity = -max_yaw_rate
+    max_angle = x[2] + max_angle_change
+    min_angle = x[2] - max_angle_change
+    if angle > max_angle:
+        angle = max_angle
+    elif angle < min_angle:
+        angle = min_angle
 
-    return np.array([linear_velocity, angular_velocity])
+    return np.array([linear_velocity, angle])
 
 
-def towards_goal(node: Any, planner: Planner):
+def towards_goal(node: Any, planner: Planner, var_angle: float):
     config = planner.environment.config
-    return compute_towards_goal_jit(node.state.x, node.state.goal, config.max_yaw_rate, config.dt, config.min_speed,
+    return compute_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, var_angle, config.min_speed,
                                     config.max_speed)
 
 
@@ -176,7 +180,8 @@ def voronoi_vo(actions, q_vals, sample_centered, x, obs, dt, ROBOT_RADIUS, OBS_R
         if len(all_true_rows >= 0):
             valid_points = points[all_true_rows, :]
             # Boolean indexing to select rows where the second column value is outside of the range
-            out_of_range_rows = (valid_points[:, 1] < forbidden_angular_vel[0]) | (valid_points[:, 1] > forbidden_angular_vel[1])
+            out_of_range_rows = (valid_points[:, 1] < forbidden_angular_vel[0]) | (
+                        valid_points[:, 1] > forbidden_angular_vel[1])
             out_of_range_indices = np.where(out_of_range_rows)[0]
             if len(out_of_range_indices) > 0:
                 closest_point_idx = np.argmin(best_action_distances[out_of_range_indices])

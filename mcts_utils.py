@@ -8,13 +8,13 @@ from numba import njit
 def sample_centered_robot_arena(center: np.ndarray, number):
     return np.random.multivariate_normal(
         mean=center,
-        cov=np.diag([0.3 / 10, 1.9 / 10]),
+        cov=np.diag([0.3 / 10, 0.36/2]),
         size=number
     )
 
 
 @njit
-def velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS):
+def velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS, v_max):
     """
     Compute Forbidden Angular Velocities
     :param x: current robot state
@@ -22,8 +22,10 @@ def velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS):
     :param dt:
     :param ROBOT_RADIUS: radius of the robot
     :param OBS_RADIUS: radius of the obstacle
+    :param v_max: maximum velocity of the angle
     :return: angular velocity that would result in a collision
     """
+    # TODO: Modify Accordingly to new emerged stuff
     # compute euclidian distance from each obstacle
     distances = np.array([math.hypot(ob[0] - x[0], ob[1] - x[1]) for ob in obs])
     dist_to_ob_idx = np.argmin(distances)
@@ -36,6 +38,5 @@ def velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS):
     # angle between plane and the middle of the cone
     theta = math.atan2(ob[1] - x[1], ob[0] - x[0])
     # compute right angle and left angle then subtract current angle
-    forbidden_angles = [theta - beta - x[2], theta + beta - x[2]]
-    forbidden_ang_vel = [a / dt for a in forbidden_angles]
-    return forbidden_ang_vel
+    tangent_angles = [theta - beta - x[2], theta + beta - x[2]]
+    inside_tang_angles = np.linspace(tangent_angles[0], tangent_angles[1], 1000)

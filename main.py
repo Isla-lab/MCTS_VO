@@ -14,7 +14,7 @@ from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import towards_goal, voo
 from bettergym.environments.robot_arena import BetterRobotArena, Config
 from mcts_utils import sample_centered_robot_arena
-from utils import print_and_notify, plot_frame
+from utils import print_and_notify, plot_frame, plot_real_trajectory_information
 
 DEBUG_DATA = False
 ANIMATION = True
@@ -38,7 +38,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
     c = Config()
     c.num_discrete_actions = num_actions
     real_env = BetterRobotArena(
-        initial_position=(1, 1),
+        initial_position=(7, 7),
         gradient=True,
         discrete=discrete,
         config=c
@@ -59,8 +59,8 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         c=101,
         environment=real_env,
         computational_budget=100,
-        k=20,
-        alpha=0,
+        k=50,
+        alpha=0.1,
         discount=0.99,
         action_expansion_function=policy,
         rollout_policy=partial(towards_goal, var_angle=var_angle)
@@ -98,12 +98,12 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         trajectory = np.vstack((trajectory, s.x))  # store state history
 
     print_and_notify(
-        f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n" +
-        f"Discrete: {discrete}\n" +
-        f"Towards Goal Variance: {var_angle}"
-        f"Number of Steps: {step_n}\n" +
+        f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
+        f"Discrete: {discrete}\n" 
+        f"Towards Goal Variance: {var_angle}\n" 
+        f"Number of Steps: {step_n}\n" 
         f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
-        f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n" +
+        f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
         f"Total Time: {sum(times)}",
         exp_num
     )
@@ -119,6 +119,8 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
             frames=len(trajectory)
         )
         ani.save(f"debug/trajectory_{exp_num}.gif", fps=150)
+        plot_real_trajectory_information(trajectory, exp_num)
+        plt.close()
 
     if DEBUG_DATA:
         print("Saving Debug Data...")
@@ -130,6 +132,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         np.savez_compressed(f"debug/rollout_values_{exp_num}", *rollout_values)
         np.savez_compressed(f"debug/q_values_{exp_num}", *q_vals)
         np.savez_compressed(f"debug/actions_{exp_num}", *a)
+        np.savez_compressed(f"debug/trajectory_real_{exp_num}", trajectory)
         np.savez_compressed(f"debug/chosen_a_{exp_num}", np.array(actions))
 
     print("Done")
@@ -139,28 +142,7 @@ def main():
     global exp_num
     exp_num = 0
 
-    # for p, na in [(uniform_discrete, 20)]:
-    #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=True)
-    #     exp_num += 1
-
-    # # DISCRETE
-    # for p, na in [(uniform_discrete, 5), (uniform_discrete, 10)]:
-    #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=True)
-    #     exp_num += 1
-    #
-    # # CONTINUOUS
-    # for p, na in [(partial(epsilon_greedy, eps=0.2, other_func=binary_policy), 1), (binary_policy, 1), (uniform, 1)]:
-    #     run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False)
-    #     exp_num += 1
-
-    for p, na, var in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38),
-                       (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 ** 2),
-                       (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 ** 3),
-                       (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 / 2),
-                       (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.5),
-                       (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 / 10),
-                       (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 / 50),
-                       (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 / 100)]:
+    for p, na, var in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38)]:
         run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var)
         exp_num += 1
 

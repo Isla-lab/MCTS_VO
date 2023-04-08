@@ -8,7 +8,7 @@ from numba import njit
 def sample_centered_robot_arena(center: np.ndarray, number):
     return np.random.multivariate_normal(
         mean=center,
-        cov=np.diag([0.3 / 10, 0.36/2]),
+        cov=np.diag([0.36/2, 0.3 / 10]),
         size=number
     )
 
@@ -38,5 +38,5 @@ def velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS, v_max):
     # angle between plane and the middle of the cone
     theta = math.atan2(ob[1] - x[1], ob[0] - x[0])
     # compute right angle and left angle then subtract current angle
-    tangent_angles = [theta - beta - x[2], theta + beta - x[2]]
+    tangent_angles = [theta - beta , theta + beta]
     inside_tang_angles = np.linspace(tangent_angles[0], tangent_angles[1], 1000)

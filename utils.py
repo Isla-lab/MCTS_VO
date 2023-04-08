@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-
 from notify_run import Notify
 
 notify = Notify()
@@ -61,7 +60,6 @@ def plot_tree_trajectory(i, infos, file_name):
 
 
 def plot_action_evolution(actions: np.ndarray, exp_num: int):
-
     def plot(data):
         fig, axs = plt.subplots(2, sharex=True)
         sns.lineplot(data=data, x=data.index, y="Linear Velocity", ax=axs[0], color='#4c72b0')
@@ -71,8 +69,8 @@ def plot_action_evolution(actions: np.ndarray, exp_num: int):
     sns.set_theme()
     df = pd.DataFrame(
         {
-            "Linear Velocity": actions[:, 0],
-            "Angular Velocity": actions[:, 1]
+            "Linear Velocity": actions[:, 1],
+            "Angular Velocity": actions[:, 0]
         }
     )
     plot(df.iloc[:100])
@@ -87,3 +85,42 @@ def print_and_notify(message: str, exp_num: int):
     notify.send(message)
     with open(f'debug/{exp_num}.txt', 'w') as f:
         f.write(message)
+
+
+def plot_real_trajectory_information(trj: np.ndarray,exp_num: int):
+    sns.set_theme()
+    sns.set_palette(sns.color_palette())
+
+    x_vals = trj[:, 0]
+    y_vals = trj[:, 1]
+    angles = trj[:, 2]
+    lin_vel = trj[:, 3]
+
+    # X
+    plt.clf()
+    sns.lineplot(x=range(len(x_vals)), y=x_vals)
+    plt.xlabel("Step")
+    plt.ylabel("X")
+    plt.savefig(f"debug/X_{exp_num}.svg", dpi=300)
+
+    # Y
+    plt.clf()
+    sns.lineplot(x=range(len(y_vals)), y=y_vals)
+    plt.xlabel("Step")
+    plt.ylabel("Y")
+    plt.savefig(f'debug/Y_{exp_num}.svg', dpi=300)
+
+    # Lin Vel
+    plt.clf()
+    sns.lineplot(x=range(len(lin_vel)), y=lin_vel)
+    plt.xlabel("Step")
+    plt.ylabel("Linear Velocity")
+    plt.savefig(f'debug/Lin Vel_{exp_num}.svg', dpi=300)
+
+    # Angles
+    plt.clf()
+    sns.lineplot(x=range(len(angles)), y=angles)
+    plt.xlabel("Step")
+    plt.ylabel("Angles")
+    plt.savefig(f'debug/Angles_{exp_num}.svg', dpi=300)
+    sns.reset_orig()

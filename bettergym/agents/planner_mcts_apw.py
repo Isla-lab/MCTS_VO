@@ -66,17 +66,11 @@ class MctsApw(Planner):
         self.rollout_policy = rollout_policy
 
         self.id_to_state_node = None
-        self.num_visits_actions = None
-        self.state_actions = None
         self.last_id = None
         self.info = None
-        self.a_values = None
 
     def initialize_variables(self):
         self.id_to_state_node: dict[int, StateNode] = {}
-        self.num_visits_actions = np.array([], dtype=np.float64)
-        self.a_values = np.array([])
-        self.state_actions = {}
         self.last_id = -1
         self.info = {
             "trajectories": [],
@@ -91,12 +85,6 @@ class MctsApw(Planner):
 
     def plan(self, initial_state: Any):
         self.initialize_variables()
-        self.info = {
-            "trajectories": [],
-            "q_values": [],
-            "actions": [],
-            "rollout_values": []
-        }
         root_id = self.get_id()
         root_node = StateNode(initial_state, root_id)
         self.id_to_state_node[root_id] = root_node
@@ -127,8 +115,8 @@ class MctsApw(Planner):
             # add child
             new_action_node = ActionNode(new_action)
             node.actions.append(new_action_node)
-            node.num_visits_actions = np.append(node.num_visits_actions, 0)
-            node.a_values = np.append(node.a_values, 0)
+            node.num_visits_actions = np.append(node.num_visits_actions, 0.0)
+            node.a_values = np.append(node.a_values, 0.0)
 
         elif len(node.actions) <= math.ceil(self.k * (node.num_visits ** self.alpha)):
             new_action: np.ndarray = self.action_expansion_function(node=node, planner=self)

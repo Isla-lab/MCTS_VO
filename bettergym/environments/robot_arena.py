@@ -16,26 +16,26 @@ class Config:
     """
     # robot parameter
     # Max U[0]
-    max_speed = 0.3  # [m/s]
+    max_speed: float = 0.3  # [m/s]
     # Min U[0]
-    min_speed = -0.1  # [m/s]
+    min_speed: float = -0.1  # [m/s]
     # Max and Min U[1]
-    max_angle_change = 0.38  # [rad/s]
+    max_angle_change: float = 0.38  # [rad/s]
 
-    dt = 0.2  # [s] Time tick for motion prediction
-    robot_radius = 0.3  # [m] for collision check
-    obs_size = 0.2
+    dt: float = 0.2  # [s] Time tick for motion prediction
+    robot_radius: float = 0.3  # [m] for collision check
+    obs_size: float = 0.2
 
-    bottom_limit = -0.5
-    upper_limit = 11.5
+    bottom_limit: float = -0.5
+    upper_limit: float = 11.5
 
-    right_limit = 11.5
-    left_limit = -0.5
+    right_limit: float = 11.5
+    left_limit: float = -0.5
 
-    num_discrete_actions = 5
+    num_discrete_actions: int = 5
 
     # obstacles [x(m) y(m), ....]
-    ob = np.array([
+    ob: np.ndarray = np.array([
         [4.5, 5.0],
         [5.0, 4.5],
         [5.0, 5.0],
@@ -72,7 +72,8 @@ class RobotArenaState:
 @njit
 def check_coll_jit(x, obs, robot_radius, obs_size):
     for ob in obs:
-        dist_to_ob = math.hypot(ob[0] - x[0], ob[1] - x[1])
+        # dist_to_ob = math.hypot(ob[0] - x[0], ob[1] - x[1])
+        dist_to_ob = np.linalg.norm(ob - x[:2])
         if dist_to_ob <= robot_radius + obs_size:
             return True
     return False
@@ -95,7 +96,7 @@ def reward_grad_jit(is_goal: bool, is_collision: bool, out_boundaries: bool, goa
 
 @njit
 def check_goal_jit(goal: np.ndarray, x: np.ndarray, robot_radius: float):
-    dist_to_goal = math.hypot(goal[0] - x[0], goal[1] - x[1])
+    dist_to_goal = np.linalg.norm(goal - x[:2])
     return dist_to_goal <= robot_radius
 
 
@@ -108,7 +109,7 @@ class RobotArena:
         )
         bl_corner = np.array([config.bottom_limit, config.left_limit])
         ur_corner = np.array([config.upper_limit, config.right_limit])
-        self.max_eudist = math.hypot(ur_corner[0] - bl_corner[0], ur_corner[1] - bl_corner[1])
+        self.max_eudist = math.hypot(self.state.goal[0] - bl_corner[0], self.state.goal[1] - bl_corner[1])
         self.config = config
 
         if gradient:
@@ -178,13 +179,13 @@ class RobotArena:
         elif u[1] < u[1] - self.config.max_angle_change:
             u[1] = -self.config.max_angle_change
 
-        # angle
+
         # Make sure angle is within range of -π to π
         u[1] = (u[1] + math.pi) % (2 * math.pi) - math.pi
-        new_x[2] = u[1]
-
+        # angle
+        new_x[2] = u[0]
         # vel lineare
-        new_x[3] = u[0]
+        new_x[3] = u[1]
         # x
         new_x[0] += u[0] * math.cos(new_x[2]) * dt
         # y

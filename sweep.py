@@ -183,7 +183,8 @@ def run_experiment(seed_val):
         fargs=(goal, config, trajectory, ax),
         frames=len(trajectory)
     )
-    ani.save(f"debug/trajectory_{run.entity}.gif", fps=150)
+    ani.save(f"debug/trajectory_{run.id}.gif", fps=150)
+    plt.close(fig)
 
     # if DEBUG_DATA:
     #     print("Saving Debug Data...")

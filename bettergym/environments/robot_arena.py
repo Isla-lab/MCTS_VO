@@ -80,8 +80,7 @@ def check_coll_jit(x, obs, robot_radius, obs_size):
 
 
 @njit
-def reward_grad_jit(is_goal: bool, is_collision: bool, out_boundaries: bool, goal: np.ndarray, max_eudist: float,
-                    x: np.ndarray):
+def reward_grad_jit(is_goal: bool, is_collision: bool, out_boundaries: bool, max_eudist: float, dist_goal: float):
     GOAL_REWARD: float = 1.0
     COLLISION_REWARD: float = -100.0
 
@@ -91,13 +90,12 @@ def reward_grad_jit(is_goal: bool, is_collision: bool, out_boundaries: bool, goa
     if is_collision or out_boundaries:
         return COLLISION_REWARD
 
-    return -np.linalg.norm(goal - x) / max_eudist
+    return -dist_goal / max_eudist
 
 
 @njit
-def check_goal_jit(goal: np.ndarray, x: np.ndarray, robot_radius: float):
-    dist_to_goal = np.linalg.norm(goal - x[:2])
-    return dist_to_goal <= robot_radius
+def dist_to_goal(goal: np.ndarray, x: np.ndarray):
+    return np.linalg.norm(x-goal)
 
 
 class RobotArena:
@@ -108,9 +106,10 @@ class RobotArena:
             goal=np.array([8.0, 8.0])
         )
         bl_corner = np.array([config.bottom_limit, config.left_limit])
-        ur_corner = np.array([config.upper_limit, config.right_limit])
+        # ur_corner = np.array([config.upper_limit, config.right_limit])
         self.max_eudist = math.hypot(self.state.goal[0] - bl_corner[0], self.state.goal[1] - bl_corner[1])
         self.config = config
+        self.dist_goal = None
 
         if gradient:
             self.reward = self.reward_grad
@@ -119,18 +118,6 @@ class RobotArena:
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[RobotArenaState, Any]:
         return self.state.copy(), None
-
-    def check_goal(self, state: RobotArenaState) -> bool:
-        """
-        Check if the robot reached the goal
-        :param state: state of the robot
-        :return:
-        """
-        return check_goal_jit(
-            goal=state.goal,
-            x=state.x,
-            robot_radius=self.config.robot_radius
-        )
 
     def check_out_boundaries(self, state: RobotArenaState) -> bool:
         """
@@ -179,17 +166,16 @@ class RobotArena:
         elif u[1] < u[1] - self.config.max_angle_change:
             u[1] = -self.config.max_angle_change
 
-
         # Make sure angle is within range of -π to π
         u[1] = (u[1] + math.pi) % (2 * math.pi) - math.pi
-        # angle
-        new_x[2] = u[0]
-        # vel lineare
-        new_x[3] = u[1]
         # x
-        new_x[0] += u[0] * math.cos(new_x[2]) * dt
+        new_x[0] += u[0] * math.cos(u[1]) * dt
         # y
-        new_x[1] += u[0] * math.sin(new_x[2]) * dt
+        new_x[1] += u[0] * math.sin(u[1]) * dt
+        # angle
+        new_x[2] = u[1]
+        # vel lineare
+        new_x[3] = u[0]
 
         return new_x
 
@@ -199,9 +185,10 @@ class RobotArena:
         :param action: action performed by the agent
         :return:
         """
+        self.dist_goal = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.motion(self.state.x, action)
         collision = self.check_collision(self.state.x)
-        goal = self.check_goal(self.state)
+        goal = self.dist_goal <= self.config.robot_radius
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(self.state, action, collision, goal, out_boundaries)
         # observation, reward, terminal, truncated, info
@@ -245,9 +232,8 @@ class RobotArena:
             is_goal=is_goal,
             is_collision=is_collision,
             out_boundaries=out_boundaries,
-            goal=state.goal,
             max_eudist=self.max_eudist,
-            x=state.x[:2]
+            dist_goal=self.dist_goal
         )
 
 

@@ -12,6 +12,13 @@ def sample_centered_robot_arena(center: np.ndarray, number):
         size=number
     )
 
+def uniform_random(node, planner):
+    state = node.state
+    config = planner.config
+    return np.uniform(
+        low=np.array([config.min_speed, state.x[2] - config.max_angle_change], dtype=np.float64),
+        high=np.array([config.max_speed, state.x[2] + config.max_angle_change], dtype=np.float64)
+    )
 
 @njit
 def velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS, v_max):

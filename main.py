@@ -1,3 +1,4 @@
+import math
 import os
 import random
 import time
@@ -13,7 +14,7 @@ from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import towards_goal, voo
 from bettergym.environments.robot_arena import BetterRobotArena, Config
-from mcts_utils import sample_centered_robot_arena
+from mcts_utils import sample_centered_robot_arena, uniform_random
 from utils import print_and_notify, plot_frame, plot_real_trajectory_information
 
 DEBUG_DATA = False
@@ -38,7 +39,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
     c = Config()
     c.num_discrete_actions = num_actions
     real_env = BetterRobotArena(
-        initial_position=(7, 7),
+        initial_position=(1, 1),
         gradient=True,
         discrete=discrete,
         config=c
@@ -142,7 +143,7 @@ def main():
     global exp_num
     exp_num = 0
 
-    for p, na, var in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38)]:
+    for p, na, var in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38*2)]:
         run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var)
         exp_num += 1
 

@@ -2,11 +2,14 @@ import math
 import random
 from typing import Any, Callable
 
+import random
+from typing import Any, Callable
+
 import numpy as np
 from numba import njit
 
 from bettergym.agents.planner import Planner
-from mcts_utils import velocity_obstacle_nearest
+from mcts_utils import get_intersections
 
 
 def uniform(node: Any, planner: Planner):
@@ -22,7 +25,8 @@ def uniform_discrete(node: Any, planner: Planner):
 
 
 @njit
-def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, var_angle: float, min_speed: float,
+def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, var_angle: float,
+                             min_speed: float,
                              max_speed: float):
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
     # Make sure angle is within range of -π to π
@@ -145,44 +149,27 @@ def in_range(p: np.ndarray, rng: list):
 
 
 def voronoi_vo(actions, q_vals, sample_centered, x, obs, dt, ROBOT_RADIUS, OBS_RADIUS):
-    forbidden_angular_vel = velocity_obstacle_nearest(x, obs, dt, ROBOT_RADIUS, OBS_RADIUS)
-
-    N_SAMPLE = 200
-    valid = False
-
-    while not valid:
-        # find the index of the action with the highest Q-value
-        best_action_index = np.argmax(q_vals)
-
-        # get the action with the highest Q-value
-        best_action = actions[best_action_index]
-
-        # generate 200 random points centered around the best action
-        points = sample_centered(best_action, N_SAMPLE)
-
-        # compute the Euclidean distances between each point and each action
-        dists = np.linalg.norm(points[:, np.newaxis, :] - actions, axis=2)
-
-        # find the distances between each point and the best action
-        best_action_distances = dists[:, best_action_index]
-
-        # repeat the distances for each action except the best action
-        best_action_distances_rep = np.tile(best_action_distances, (dists.shape[1] - 1, 1)).T
-
-        # remove the column for the best action from the distance matrix
-        dists = np.hstack((dists[:, :best_action_index], dists[:, best_action_index + 1:]))
-
-        # find the closest action to each point
-        closest = best_action_distances_rep <= dists
-
-        # find the rows where all distances to other actions are greater than the distance to the best action
-        all_true_rows = np.where(np.all(closest, axis=1))[0]
-        if len(all_true_rows >= 0):
-            valid_points = points[all_true_rows, :]
-            # Boolean indexing to select rows where the second column value is outside of the range
-            out_of_range_rows = (valid_points[:, 1] < forbidden_angular_vel[0]) | (
-                        valid_points[:, 1] > forbidden_angular_vel[1])
-            out_of_range_indices = np.where(out_of_range_rows)[0]
-            if len(out_of_range_indices) > 0:
-                closest_point_idx = np.argmin(best_action_distances[out_of_range_indices])
-                return points[closest_point_idx]
+    VMAX = 0.3
+    # TODO integrate obs into the state of the agent as a five element vector containing
+    #  the same information as the robot state
+    # 0 is the velocity of the obstacle, if its moving then change
+    r0 = VMAX * dt + 0 * dt
+    r1 = ROBOT_RADIUS+OBS_RADIUS
+    intersection_points = [get_intersections(x[:2], ob, r0, r1) for ob in obs]
+    # check if the list contains only None
+    if not any(intersection_points):
+        return voronoi(
+            actions,
+            q_vals,
+            sample_centered
+        )
+    else:
+        not_none = [point for point in intersection_points if point is not None]
+        min_angle = np.inf
+        max_angle = -np.inf
+        for t in not_none:
+            for p in t:
+                angle = math.atan2(p[1] - x[1], p[0] - x[0])
+                max_angle = max(angle, max_angle)
+                min_angle = min(angle, min_angle)
+        print("VELOCITY OBSTACLE")

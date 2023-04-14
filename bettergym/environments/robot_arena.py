@@ -80,20 +80,6 @@ def check_coll_jit(x, obs, robot_radius, obs_size):
 
 
 @njit
-def reward_grad_jit(is_goal: bool, is_collision: bool, out_boundaries: bool, max_eudist: float, dist_goal: float):
-    GOAL_REWARD: float = 1.0
-    COLLISION_REWARD: float = -100.0
-
-    if is_goal:
-        return GOAL_REWARD
-
-    if is_collision or out_boundaries:
-        return COLLISION_REWARD
-
-    return -dist_goal / max_eudist
-
-
-@njit
 def dist_to_goal(goal: np.ndarray, x: np.ndarray):
     return np.linalg.norm(x-goal)
 
@@ -106,8 +92,8 @@ class RobotArena:
             goal=np.array([8.0, 8.0])
         )
         bl_corner = np.array([config.bottom_limit, config.left_limit])
-        # ur_corner = np.array([config.upper_limit, config.right_limit])
-        self.max_eudist = math.hypot(self.state.goal[0] - bl_corner[0], self.state.goal[1] - bl_corner[1])
+        ur_corner = np.array([config.upper_limit, config.right_limit])
+        self.max_eudist = math.hypot(ur_corner[0] - bl_corner[0], ur_corner[1] - bl_corner[1])
         self.config = config
         self.dist_goal = None
 
@@ -228,13 +214,17 @@ class RobotArena:
         :param out_boundaries: boolean value indicating if the robot is out of the map
         :return: The numerical reward of the agent
         """
-        return reward_grad_jit(
-            is_goal=is_goal,
-            is_collision=is_collision,
-            out_boundaries=out_boundaries,
-            max_eudist=self.max_eudist,
-            dist_goal=self.dist_goal
-        )
+
+        GOAL_REWARD: float = 100.0
+        COLLISION_REWARD: float = -100.0
+
+        if is_goal:
+            return GOAL_REWARD
+
+        if is_collision or out_boundaries:
+            return COLLISION_REWARD
+
+        return -self.dist_goal / self.max_eudist
 
 
 class UniformActionSpace:

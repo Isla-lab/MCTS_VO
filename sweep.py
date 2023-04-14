@@ -17,7 +17,7 @@ from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import uniform, uniform_discrete, voo, towards_goal, voo_vo
 from bettergym.environments.robot_arena import Config, BetterRobotArena
 from mcts_utils import sample_centered_robot_arena
-from utils import plot_frame
+from experiment_utils import plot_frame
 
 
 def argument_parser():

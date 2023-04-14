@@ -15,7 +15,7 @@ from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import towards_goal, voo
 from bettergym.environments.robot_arena import BetterRobotArena, Config
 from mcts_utils import sample_centered_robot_arena, uniform_random
-from utils import print_and_notify, plot_frame, plot_real_trajectory_information
+from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information
 
 DEBUG_DATA = False
 ANIMATION = True

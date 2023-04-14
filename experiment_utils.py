@@ -1,9 +1,13 @@
+import math
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
 from notify_run import Notify
+
+from bettergym.environments.robot_arena import Config, BetterRobotArena, RobotArenaState
 
 notify = Notify()
 
@@ -16,16 +20,19 @@ def plot_robot(x, y, yaw, config, ax):
     ax.plot([x, out_x], [y, out_y], "-k")
 
 
-def plot_frame(i, goal, config, traj, ax):
+def plot_frame(i, goal, config, obs, traj, ax):
     x = traj[i, :]
-    ob = config.ob
+    # ob = config.ob
     ax.clear()
     # ROBOT POSITION
     ax.plot(x[0], x[1], "xr")
     # GOAL POSITION
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
-    ax.plot(ob[:, 0], ob[:, 1], "ok")
+    # ax.plot(ob[:, 0], ob[:, 1], "ok")
+    for ob in obs[i]:
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        ax.add_artist(circle)
     # BOX AROUND ROBOT
     plot_robot(x[0], x[1], x[2], config, ax)
     # TRAJECTORY
@@ -87,7 +94,7 @@ def print_and_notify(message: str, exp_num: int):
         f.write(message)
 
 
-def plot_real_trajectory_information(trj: np.ndarray,exp_num: int):
+def plot_real_trajectory_information(trj: np.ndarray, exp_num: int):
     sns.set_theme()
     sns.set_palette(sns.color_palette())
 

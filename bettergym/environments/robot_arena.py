@@ -1,7 +1,7 @@
 import math
 import random
 from dataclasses import dataclass
-from typing import Any, Union, Tuple, List
+from typing import Any
 
 import numpy as np
 from numba import njit
@@ -24,7 +24,7 @@ class Config:
 
     dt: float = 0.2  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
-    obs_size: float = 0.2
+    obs_size: float = 0.5
 
     bottom_limit: float = -0.5
     upper_limit: float = 11.5
@@ -34,25 +34,27 @@ class Config:
 
     num_discrete_actions: int = 5
 
-    # obstacles [x(m) y(m), ....]
-    ob: np.ndarray = np.array([
-        [4.5, 5.0],
-        [5.0, 4.5],
-        [5.0, 5.0],
-        [5.0, 5.5],
-        [5.5, 5.0],
-    ])
+    # # obstacles [x(m) y(m), ....]
+    # ob: np.ndarray = np.array([
+    #     [4.5, 5.0],
+    #     [5.0, 4.5],
+    #     [5.0, 5.0],
+    #     [5.0, 5.5],
+    #     [5.5, 5.0],
+    # ])
 
 
 class RobotArenaState:
-    def __init__(self, x: np.ndarray, goal: np.ndarray):
+    def __init__(self, x: np.ndarray, goal: np.ndarray, obstacles: list, radius: float):
         # x, y, angle ,vel_lin, vel_ang
         self.x: np.ndarray = x
         # x(m), y(m)
         self.goal: np.ndarray = goal
+        self.obstacles: list = obstacles
+        self.radius: float = radius
 
     def __hash__(self):
-        return hash(self.x.tobytes())
+        return hash(tuple(self.x.tobytes()) + tuple(o.x.tobytes() for o in self.obstacles))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -65,32 +67,30 @@ class RobotArenaState:
     def copy(self):
         return RobotArenaState(
             np.array(self.x, copy=True),
-            self.goal
+            self.goal,
+            self.obstacles,
+            self.radius
         )
 
 
 @njit
 def check_coll_jit(x, obs, robot_radius, obs_size):
-    for ob in obs:
-        # dist_to_ob = math.hypot(ob[0] - x[0], ob[1] - x[1])
+    for i, ob in enumerate(obs):
         dist_to_ob = np.linalg.norm(ob - x[:2])
-        if dist_to_ob <= robot_radius + obs_size:
+        if dist_to_ob <= robot_radius + obs_size[i]:
             return True
     return False
 
 
 @njit
 def dist_to_goal(goal: np.ndarray, x: np.ndarray):
-    return np.linalg.norm(x-goal)
+    return np.linalg.norm(x - goal)
 
 
 class RobotArena:
-    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], config: Config = Config(),
+    def __init__(self, initial_state: RobotArenaState, config: Config = Config(),
                  gradient: bool = True):
-        self.state = RobotArenaState(
-            x=np.array([initial_position[0], initial_position[1], math.pi / 8.0, 0.0]),
-            goal=np.array([8.0, 8.0])
-        )
+        self.state = initial_state
         bl_corner = np.array([config.bottom_limit, config.left_limit])
         ur_corner = np.array([config.upper_limit, config.right_limit])
         self.max_eudist = math.hypot(ur_corner[0] - bl_corner[0], ur_corner[1] - bl_corner[1])
@@ -122,14 +122,19 @@ class RobotArena:
 
         return False
 
-    def check_collision(self, x: np.ndarray) -> bool:
+    def check_collision(self, state: RobotArenaState) -> bool:
         """
         Check if the robot is colliding with some obstacle
         :param x: state of the robot
         :return:
         """
-        config = self.config
-        return check_coll_jit(x, config.ob, config.robot_radius, config.obs_size)
+        # config = self.config
+        obs_pos = []
+        obs_rad = []
+        for ob in state.obstacles:
+            obs_pos.append(ob.x[:2])
+            obs_rad.append(ob.radius)
+        return check_coll_jit(state.x, np.array(obs_pos), state.radius, np.array(obs_rad))
 
     def motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """
@@ -141,16 +146,8 @@ class RobotArena:
         dt = self.config.dt
         new_x = np.array(x, copy=True)
         # lin velocity
-        if u[0] > self.config.max_speed:
-            u[0] = self.config.max_speed
-        elif u[0] < self.config.min_speed:
-            u[0] = self.config.min_speed
-
-        # angle
-        if u[1] > u[1] + self.config.max_angle_change:
-            u[1] = self.config.max_angle_change
-        elif u[1] < u[1] - self.config.max_angle_change:
-            u[1] = -self.config.max_angle_change
+        u[0] = max(-0.1, min(u[0], 0.3))
+        u[1] = max(x[2] - self.config.max_angle_change, min(u[1], x[2] + self.config.max_angle_change))
 
         # Make sure angle is within range of -π to π
         u[1] = (u[1] + math.pi) % (2 * math.pi) - math.pi
@@ -173,7 +170,7 @@ class RobotArena:
         """
         self.dist_goal = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.motion(self.state.x, action)
-        collision = self.check_collision(self.state.x)
+        collision = self.check_collision(self.state)
         goal = self.dist_goal <= self.config.robot_radius
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(self.state, action, collision, goal, out_boundaries)
@@ -243,14 +240,14 @@ class UniformActionSpace:
 
 class BetterRobotArena(BetterGym):
 
-    def __init__(self, initial_position: Union[Tuple, List, np.ndarray], gradient: bool = True, discrete: bool = False,
+    def __init__(self, initial_state: RobotArenaState, gradient: bool = True, discrete: bool = False,
                  config: Config = Config()):
         if discrete:
             self.get_actions = self.get_actions_discrete
         else:
             self.get_actions = self.get_actions_continuous
 
-        super().__init__(RobotArena(initial_position=initial_position, gradient=gradient, config=config))
+        super().__init__(RobotArena(initial_state=initial_state, gradient=gradient, config=config))
 
     def get_actions_continuous(self, state: RobotArenaState):
         config = self.gym_env.config

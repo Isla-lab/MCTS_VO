@@ -2,9 +2,6 @@ import math
 import random
 from typing import Any, Callable
 
-import random
-from typing import Any, Callable
-
 import numpy as np
 from numba import njit
 
@@ -115,30 +112,53 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
             return points[closest_point_idx]
 
 
+@njit
+def clip_act(chosen, angle_change, min_speed, max_speed, x):
+    chosen[0] = max(min_speed, min(chosen[0], max_speed))
+    chosen[1] = max(x[2] - angle_change, min(chosen[1], x[2] + angle_change))
+    return chosen
+
+
 def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     prob = random.random()
     if prob <= 1 - eps:
-        return voronoi(
+        chosen = voronoi(
             np.array([node.action for node in node.actions]),
             node.a_values,
             sample_centered
         )
     else:
-        return uniform(node, planner)
+        chosen = uniform(node, planner)
+    config = planner.environment.gym_env.config
+    chosen = clip_act(
+        chosen=chosen,
+        angle_change=config.max_angle_change,
+        min_speed=config.min_speed,
+        max_speed=config.max_speed,
+        x=node.state.x
+    )
+    # chosen[0] = max(-0.1, min(chosen[0], 0.3))
+    # chosen[1] = max(node.state.x[2] - config.max_angle_change, min(chosen[1], node.state.x[2] + config.max_angle_change))
+    return chosen
 
 
 def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     prob = random.random()
     if prob <= 1 - eps:
+        obs_pos = []
+        obs_rad = []
+        for ob in node.state.obstacles:
+            obs_pos.append(ob.x[:2])
+            obs_rad.append(ob.radius)
         return voronoi_vo(
             actions=np.array([node.action for node in node.actions]),
             q_vals=node.a_values,
             sample_centered=sample_centered,
             x=node.state.x,
-            obs=planner.environment.config.ob,
+            obs=np.array(obs_pos),
             dt=planner.environment.config.dt,
             ROBOT_RADIUS=planner.environment.config.robot_radius,
-            OBS_RADIUS=planner.environment.config.obs_size
+            OBS_RADIUS=np.array(obs_rad)
         )
     else:
         return uniform(node, planner)
@@ -150,12 +170,10 @@ def in_range(p: np.ndarray, rng: list):
 
 def voronoi_vo(actions, q_vals, sample_centered, x, obs, dt, ROBOT_RADIUS, OBS_RADIUS):
     VMAX = 0.3
-    # TODO integrate obs into the state of the agent as a five element vector containing
-    #  the same information as the robot state
     # 0 is the velocity of the obstacle, if its moving then change
     r0 = VMAX * dt + 0 * dt
-    r1 = ROBOT_RADIUS+OBS_RADIUS
-    intersection_points = [get_intersections(x[:2], ob, r0, r1) for ob in obs]
+    r1 = ROBOT_RADIUS + OBS_RADIUS
+    intersection_points = [get_intersections(x[:2], obs[i], r0, r1[i]) for i in range(len(obs))]
     # check if the list contains only None
     if not any(intersection_points):
         return voronoi(

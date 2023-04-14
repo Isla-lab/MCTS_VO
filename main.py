@@ -12,10 +12,10 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import towards_goal, voo, voo_vo
-from bettergym.environments.robot_arena import BetterRobotArena, Config
-from mcts_utils import sample_centered_robot_arena, uniform_random
+from bettergym.agents.utils.utils import towards_goal, voo
+from bettergym.environments.robot_arena import RobotArenaState, Config, BetterRobotArena
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information
+from mcts_utils import sample_centered_robot_arena
 
 DEBUG_DATA = False
 ANIMATION = True
@@ -33,20 +33,44 @@ def seed_everything(seed_value: int):
     seed_numba(seed_value)
 
 
+def create_env_four_small_obs_continuous(initial_pos: tuple, goal: tuple):
+    c = Config()
+    obstacles_positions = np.array([
+        [4.0, 4.0],
+        [4.0, 6.0],
+        [6.0, 4.0],
+        [6.0, 6.0]
+    ])
+
+    initial_state = RobotArenaState(
+        x=np.array([initial_pos[0], initial_pos[1], math.pi / 8.0, 0.0]),
+        goal=np.array([goal[0], goal[1]]),
+        obstacles=[RobotArenaState(np.pad(ob, (0, 2), 'constant'), goal=None, obstacles=None, radius=c.obs_size) for ob
+                   in
+                   obstacles_positions],
+        radius=c.robot_radius
+    )
+    c.num_discrete_actions = 1
+    real_env = BetterRobotArena(
+        initial_state=initial_state,
+        gradient=True,
+        discrete=False,
+        config=c
+    )
+    return real_env
+
+
 def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_angle: float = 0.38):
     global exp_num
     # input [forward speed, yaw_rate]
-    c = Config()
-    c.num_discrete_actions = num_actions
-    real_env = BetterRobotArena(
-        initial_position=(1, 1),
-        gradient=True,
-        discrete=discrete,
-        config=c
+    real_env = create_env_four_small_obs_continuous(
+        initial_pos=(1, 1),
+        goal=(10, 10)
     )
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
+    obs = [s0.obstacles]
     config = real_env.config
     infos = []
     actions = []
@@ -97,12 +121,13 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         s, r, terminal, truncated, env_info = real_env.step(s, u)
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
+        obs.append(s.obstacles)
 
     print_and_notify(
         f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
-        f"Discrete: {discrete}\n" 
-        f"Towards Goal Variance: {var_angle}\n" 
-        f"Number of Steps: {step_n}\n" 
+        f"Discrete: {discrete}\n"
+        f"Towards Goal Variance: {var_angle}\n"
+        f"Number of Steps: {step_n}\n"
         f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
         f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
         f"Total Time: {sum(times)}",
@@ -112,11 +137,11 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
     if ANIMATION:
         print("Creating Gif...")
         fig, ax = plt.subplots()
-
+        # plot_frame(i, goal, config, obs, traj, ax):
         ani = FuncAnimation(
             fig,
             plot_frame,
-            fargs=(goal, config, trajectory, ax),
+            fargs=(goal, config, obs, trajectory, ax),
             frames=len(trajectory)
         )
         ani.save(f"debug/trajectory_{exp_num}.gif", fps=150)
@@ -143,7 +168,7 @@ def main():
     global exp_num
     exp_num = 0
 
-    for p, na, var in [(partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38*2)]:
+    for p, na, var in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
         run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var)
         exp_num += 1
 

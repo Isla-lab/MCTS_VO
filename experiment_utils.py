@@ -1,13 +1,10 @@
-import math
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.animation import FuncAnimation
 
 from notify_run import Notify
-
-from bettergym.environments.robot_arena import Config, BetterRobotArena, RobotArenaState
 
 notify = Notify()
 
@@ -29,7 +26,6 @@ def plot_frame(i, goal, config, obs, traj, ax):
     # GOAL POSITION
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
-    # ax.plot(ob[:, 0], ob[:, 1], "ok")
     for ob in obs[i]:
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
@@ -45,25 +41,6 @@ def plot_frame(i, goal, config, obs, traj, ax):
     ax.set_ylim([config.bottom_limit, config.upper_limit])
     # ax.axis("equal")
     ax.grid(True)
-
-
-def plot_tree_trajectory(i, infos, file_name):
-    fig, ax = plt.subplots()
-    trajectories = infos[i]["trajectories"]
-    x = trajectories[0][0]
-    ax.clear()
-    plt.axis("equal")
-    plt.grid(True)
-
-    for t in trajectories:
-        plt.plot(t[:, 0], t[:, 1], "--r")
-
-    # STEP NUMBER
-    plt.text(plt.gca().get_xlim()[0] - 0.3, plt.gca().get_ylim()[1] - 0.2, str(i), fontsize=20)
-    # ROBOT POSITION
-    ax.plot(x[0], x[1], "xg")
-    fig.savefig(file_name)
-    plt.close(fig)
 
 
 def plot_action_evolution(actions: np.ndarray, exp_num: int):
@@ -131,3 +108,45 @@ def plot_real_trajectory_information(trj: np.ndarray, exp_num: int):
     plt.ylabel("Angles")
     plt.savefig(f'debug/Angles_{exp_num}.svg', dpi=300)
     sns.reset_orig()
+
+
+def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
+    fig.clear()
+    ax = fig.add_subplot()
+    file_name = trajectories.files[i]
+    step = trajectories[file_name]
+    val_points = values[file_name]
+
+    last_points = np.array([trj[-1][:2] for trj in step])
+    x0 = step[0][0]
+
+    ax.cla()
+    ax.set_xlim([config.left_limit, config.right_limit])
+    ax.set_ylim([config.bottom_limit, config.upper_limit])
+    ax.grid(True)
+
+    # ROBOT POSITION
+    ax.plot(x0[0], x0[1], "xr")
+    # GOAL POSITION
+    ax.plot(goal[0], goal[1], "xb")
+    # OBSTACLES
+    for ob in obs[i]:
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        ax.add_artist(circle)
+
+    cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker='x')
+    plt.colorbar(cmap)
+
+
+def create_animation_tree_trajectory(goal, config, obs):
+    trajectories = np.load("trajectories_0.npz", allow_pickle=True)
+    values = np.load("rollout_values_0.npz", allow_pickle=True)
+    fig, ax = plt.subplots()
+
+    ani = FuncAnimation(
+        fig,
+        plot_frame_tree_traj,
+        fargs=(goal, config, obs, trajectories, values, fig),
+        frames=len(trajectories)
+    )
+    ani.save(f"animation.mp4", fps=5, dpi=300)

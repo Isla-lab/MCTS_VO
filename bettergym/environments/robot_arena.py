@@ -24,7 +24,7 @@ class Config:
 
     dt: float = 0.2  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
-    obs_size: float = 0.5
+    obs_size: float = 0.6
 
     bottom_limit: float = -0.5
     upper_limit: float = 11.5
@@ -33,15 +33,6 @@ class Config:
     left_limit: float = -0.5
 
     num_discrete_actions: int = 5
-
-    # # obstacles [x(m) y(m), ....]
-    # ob: np.ndarray = np.array([
-    #     [4.5, 5.0],
-    #     [5.0, 4.5],
-    #     [5.0, 5.0],
-    #     [5.0, 5.5],
-    #     [5.5, 5.0],
-    # ])
 
 
 class RobotArenaState:

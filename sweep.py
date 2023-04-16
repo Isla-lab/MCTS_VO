@@ -1,4 +1,5 @@
 import argparse
+import gc
 import os
 import random
 import time
@@ -6,18 +7,15 @@ from functools import partial
 from statistics import mean
 
 import numpy as np
-import wandb
-from matplotlib import pyplot as plt
-from matplotlib.animation import FuncAnimation
 from numba import njit
 from numpy import std
 
+import wandb
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import uniform, uniform_discrete, voo, towards_goal, voo_vo
-from bettergym.environments.robot_arena import Config, BetterRobotArena
+from main import create_env_four_obs_difficult_continuous
 from mcts_utils import sample_centered_robot_arena
-from experiment_utils import plot_frame
 
 
 def argument_parser():
@@ -103,24 +101,11 @@ def seed_everything(seed_value: int):
 
 def run_experiment(seed_val):
     dict_args = args.__dict__
-    run = wandb.init(config=dict_args, entity="lorenzobonanni", project="robotArena", reinit=True)
-    # input [forward speed, yaw_rate]
-    c = Config()
-    c.num_discrete_actions = dict_args["n_actions"]
-    real_env = BetterRobotArena(
-        initial_position=(1, 1),
-        gradient=True,
-        discrete=dict_args["discrete"],
-        config=c
-    )
+    wandb.init(config=dict_args, entity="lorenzobonanni", project="robotArena", reinit=True)
+    # input [forward speed, angle]
+    real_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
     s0, _ = real_env.reset()
     seed_everything(seed_val)
-    trajectory = np.array(s0.x)
-    config = real_env.config
-    infos = []
-    actions = []
-
-    goal = s0.goal
 
     s = s0
     planner = get_planner(real_env)
@@ -137,12 +122,12 @@ def run_experiment(seed_val):
         print(f"Step Number {step_n}")
         initial_time = time.time()
         u, info = planner.plan(s)
-
+        # FREE Memory
+        del planner.id_to_state_node
+        del planner.last_id
+        del planner.info
         final_time = time.time() - initial_time
-        actions.append(u)
-        infos.append(info)
 
-        times.append(final_time)
         wandb.log(
             {
                 "Angle": u[1],
@@ -156,7 +141,8 @@ def run_experiment(seed_val):
             {"Reward": r}
         )
         rewards.append(r)
-        trajectory = np.vstack((trajectory, s.x))  # store state history
+        times.append(final_time)
+        gc.collect()
 
     print(
         f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n" +
@@ -173,30 +159,6 @@ def run_experiment(seed_val):
             "Std Step Time": np.round(std(times), 2)
         }
     )
-
-    print("Creating Gif...")
-    fig, ax = plt.subplots()
-
-    ani = FuncAnimation(
-        fig,
-        plot_frame,
-        fargs=(goal, config, trajectory, ax),
-        frames=len(trajectory)
-    )
-    ani.save(f"debug/trajectory_{run.id}.gif", fps=150)
-    plt.close(fig)
-
-    # if DEBUG_DATA:
-    #     print("Saving Debug Data...")
-    #     trajectories = [i["trajectories"] for i in infos]
-    #     rollout_values = [i["rollout_values"] for i in infos]
-    #     q_vals = [i["q_values"] for i in infos]
-    #     a = [[an.action for an in i["actions"]] for i in infos]
-    #     np.savez_compressed(f"debug/trajectories_{exp_num}", *trajectories)
-    #     np.savez_compressed(f"debug/rollout_values_{exp_num}", *rollout_values)
-    #     np.savez_compressed(f"debug/q_values_{exp_num}", *q_vals)
-    #     np.savez_compressed(f"debug/actions_{exp_num}", *a)
-    #     np.savez_compressed(f"debug/chosen_a_{exp_num}", np.array(actions))
 
     print("Done")
 

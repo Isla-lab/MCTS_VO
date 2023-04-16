@@ -139,8 +139,8 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
 
 
 def create_animation_tree_trajectory(goal, config, obs):
-    trajectories = np.load("trajectories_0.npz", allow_pickle=True)
-    values = np.load("rollout_values_0.npz", allow_pickle=True)
+    trajectories = np.load("./debug/trajectories_0.npz", allow_pickle=True)
+    values = np.load("./debug/rollout_values_0.npz", allow_pickle=True)
     fig, ax = plt.subplots()
 
     ani = FuncAnimation(
@@ -149,4 +149,4 @@ def create_animation_tree_trajectory(goal, config, obs):
         fargs=(goal, config, obs, trajectories, values, fig),
         frames=len(trajectories)
     )
-    ani.save(f"animation.mp4", fps=5, dpi=300)
+    ani.save(f"./debug/tree_trajectory.mp4", fps=5, dpi=300)

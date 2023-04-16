@@ -12,7 +12,7 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import towards_goal, voo
+from bettergym.agents.utils.utils import towards_goal, voo, voo_vo
 from bettergym.environments.robot_arena import RobotArenaState, Config, BetterRobotArena
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
     create_animation_tree_trajectory
@@ -109,7 +109,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         num_sim=1000,
         c=101,
         environment=real_env,
-        computational_budget=100,
+        computational_budget=200,
         k=50,
         alpha=0.1,
         discount=0.99,
@@ -120,7 +120,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         num_sim=1000,
         c=6,
         environment=real_env,
-        computational_budget=100,
+        computational_budget=200,
         discount=0.99,
         rollout_policy=partial(towards_goal, var_angle=var_angle)
     )
@@ -174,11 +174,10 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         plt.close()
 
     if DEBUG_DATA:
-        print("Saving Debug Data...")
         trajectories = [i["trajectories"] for i in infos]
         rollout_values = [i["rollout_values"] for i in infos]
-        print("Creating Tree Trajectories Animation...")
-        create_animation_tree_trajectory(goal, config, obs)
+
+        print("Saving Debug Data...")
         q_vals = [i["q_values"] for i in infos]
         a = [[an.action for an in i["actions"]] for i in infos]
         np.savez_compressed(f"debug/trajectories_{exp_num}", *trajectories)
@@ -188,6 +187,9 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         np.savez_compressed(f"debug/trajectory_real_{exp_num}", trajectory)
         np.savez_compressed(f"debug/chosen_a_{exp_num}", np.array(actions))
 
+        print("Creating Tree Trajectories Animation...")
+        create_animation_tree_trajectory(goal, config, obs)
+
     print("Done")
 
 
@@ -195,7 +197,7 @@ def main():
     global exp_num
     exp_num = 0
 
-    for p, na, var in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
+    for p, na, var in [(partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
         run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var)
         exp_num += 1
 

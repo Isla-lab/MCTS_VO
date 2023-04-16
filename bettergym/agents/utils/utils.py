@@ -137,31 +137,39 @@ def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
         max_speed=config.max_speed,
         x=node.state.x
     )
-    # chosen[0] = max(-0.1, min(chosen[0], 0.3))
-    # chosen[1] = max(node.state.x[2] - config.max_angle_change, min(chosen[1], node.state.x[2] + config.max_angle_change))
     return chosen
 
 
 def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     prob = random.random()
     if prob <= 1 - eps:
-        obs_pos = []
+        obs_x = []
         obs_rad = []
         for ob in node.state.obstacles:
-            obs_pos.append(ob.x[:2])
+            obs_x.append(ob.x)
             obs_rad.append(ob.radius)
-        return voronoi_vo(
+        chosen = voronoi_vo(
             actions=np.array([node.action for node in node.actions]),
             q_vals=node.a_values,
             sample_centered=sample_centered,
             x=node.state.x,
-            obs=np.array(obs_pos),
+            obs=np.array(obs_x),
             dt=planner.environment.config.dt,
             ROBOT_RADIUS=planner.environment.config.robot_radius,
             OBS_RADIUS=np.array(obs_rad)
         )
     else:
-        return uniform(node, planner)
+        chosen = uniform(node, planner)
+
+    config = planner.environment.gym_env.config
+    chosen = clip_act(
+        chosen=chosen,
+        angle_change=config.max_angle_change,
+        min_speed=config.min_speed,
+        max_speed=config.max_speed,
+        x=node.state.x
+    )
+    return chosen
 
 
 def in_range(p: np.ndarray, rng: list):
@@ -171,9 +179,9 @@ def in_range(p: np.ndarray, rng: list):
 def voronoi_vo(actions, q_vals, sample_centered, x, obs, dt, ROBOT_RADIUS, OBS_RADIUS):
     VMAX = 0.3
     # 0 is the velocity of the obstacle, if its moving then change
-    r0 = VMAX * dt + 0 * dt
+    r0 = VMAX * dt + obs[:, 3] * dt
     r1 = ROBOT_RADIUS + OBS_RADIUS
-    intersection_points = [get_intersections(x[:2], obs[i], r0, r1[i]) for i in range(len(obs))]
+    intersection_points = [get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))]
     # check if the list contains only None
     if not any(intersection_points):
         return voronoi(
@@ -191,3 +199,5 @@ def voronoi_vo(actions, q_vals, sample_centered, x, obs, dt, ROBOT_RADIUS, OBS_R
                 max_angle = max(angle, max_angle)
                 min_angle = min(angle, min_angle)
         print("VELOCITY OBSTACLE")
+        print(f"MAX: {max_angle}")
+        print(f"MAX: {min_angle}")

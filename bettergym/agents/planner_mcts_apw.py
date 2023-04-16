@@ -155,7 +155,7 @@ class MctsApw(Planner):
         self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], current_state.x))
 
         prev_node = node
-        if new_state_id is None and depth+1 < self.computational_budget:
+        if new_state_id is None and depth + 1 < self.computational_budget:
             # Leaf Node
             state_id = self.get_id()
             # Initialize State Data
@@ -171,7 +171,7 @@ class MctsApw(Planner):
         else:
             # Node in the tree
             state_id = new_state_id
-            if terminal or depth+1 > self.computational_budget:
+            if terminal or depth + 1 > self.computational_budget:
                 self.info["rollout_values"].append(r)
                 return r
             else:

@@ -1,5 +1,6 @@
 import math
 import random
+from functools import partial
 from typing import Any, Callable
 
 import numpy as np
@@ -73,6 +74,7 @@ def binary_policy(node: Any, planner: Planner):
 
 
 def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
+    # TODO Fix
     N_SAMPLE = 200
     valid = False
 
@@ -93,7 +95,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
         best_action_distances = dists[:, best_action_index]
 
         # repeat the distances for each action except the best action
-        best_action_distances_rep = np.tile(best_action_distances, (dists.shape[1] - 1, 1)).T
+        best_action_distances_rep = np.tile(best_action_distances, (dists.shape[0] - 1, 1)).T
 
         # remove the column for the best action from the distance matrix
         dists = np.hstack((dists[:, :best_action_index], dists[:, best_action_index + 1:]))
@@ -190,14 +192,23 @@ def voronoi_vo(actions, q_vals, sample_centered, x, obs, dt, ROBOT_RADIUS, OBS_R
             sample_centered
         )
     else:
-        not_none = [point for point in intersection_points if point is not None]
         min_angle = np.inf
         max_angle = -np.inf
-        for t in not_none:
-            for p in t:
-                angle = math.atan2(p[1] - x[1], p[0] - x[0])
-                max_angle = max(angle, max_angle)
-                min_angle = min(angle, min_angle)
-        print("VELOCITY OBSTACLE")
-        print(f"MAX: {max_angle}")
-        print(f"MAX: {min_angle}")
+        for point in intersection_points:
+            if point is not None:
+                p1, p2 = point
+                angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
+                min_angle = min(angle1, min_angle)
+                angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
+                max_angle = max(angle2, max_angle)
+        angle_space = [x[2] - 0.38, x[2] + 0.38]
+        angle_space[0] = max(angle_space[0], min_angle)
+        angle_space[1] = min(angle_space[1], max_angle)
+        angle_space = sorted(angle_space)
+
+        def sample(center, number, a_space):
+            points1 = np.random.uniform(low=-0.1, high=0.3, size=number)
+            points2 = np.random.uniform(low=a_space[0], high=a_space[1], size=number)
+            return np.vstack([points1, points2]).T
+
+        return voronoi(actions, q_vals, partial(sample, a_space=angle_space))

@@ -14,6 +14,7 @@ from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import towards_goal, voo, voo_vo
 from bettergym.environments.robot_arena import RobotArenaState, Config, BetterRobotArena
+from environment_creator import create_env_four_obs_difficult_continuous
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
     create_animation_tree_trajectory
 from mcts_utils import sample_centered_robot_arena
@@ -34,65 +35,10 @@ def seed_everything(seed_value: int):
     seed_numba(seed_value)
 
 
-def create_env_five_small_obs_continuous(initial_pos: tuple, goal: tuple):
-    c = Config()
-    obstacles_positions = np.array([
-        [4.0, 4.0],
-        [4.0, 6.0],
-        [5.0, 5.0],
-        [6.0, 4.0],
-        [6.0, 6.0]
-    ])
-    obs = [RobotArenaState(np.pad(ob, (0, 2), 'constant'), goal=None, obstacles=None, radius=c.obs_size) for ob in
-           obstacles_positions]
-    initial_state = RobotArenaState(
-        x=np.array([initial_pos[0], initial_pos[1], math.pi / 8.0, 0.0]),
-        goal=np.array([goal[0], goal[1]]),
-        obstacles=obs,
-        radius=c.robot_radius
-    )
-    c.num_discrete_actions = 1
-    real_env = BetterRobotArena(
-        initial_state=initial_state,
-        gradient=True,
-        discrete=False,
-        config=c
-    )
-    return real_env
-
-
-def create_env_four_obs_difficult_continuous(initial_pos: tuple, goal: tuple):
-    c = Config()
-    obstacles_positions = np.array([
-        [3.0, 2.0],
-        [1.0, 4.0],
-        [4.0, 7.0],
-        [9.0, 7.0],
-    ])
-    radiuses = [1, 1, 2, 2]
-    obs = [RobotArenaState(np.pad(obstacles_positions[i], (0, 2), 'constant'), goal=None, obstacles=None,
-                           radius=radiuses[i]) for i in
-           range(len(obstacles_positions))]
-    initial_state = RobotArenaState(
-        x=np.array([initial_pos[0], initial_pos[1], math.pi / 8.0, 0.0]),
-        goal=np.array([goal[0], goal[1]]),
-        obstacles=obs,
-        radius=c.robot_radius
-    )
-    c.num_discrete_actions = 1
-    real_env = BetterRobotArena(
-        initial_state=initial_state,
-        gradient=True,
-        discrete=False,
-        config=c
-    )
-    return real_env
-
-
 def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_angle: float = 0.38):
     global exp_num
     # input [forward speed, yaw_rate]
-    real_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
+    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
@@ -107,9 +53,9 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
     # planner = RandomPlanner(real_env)
     planner_apw = MctsApw(
         num_sim=1000,
-        c=101,
-        environment=real_env,
-        computational_budget=200,
+        c=150,
+        environment=sim_env,
+        computational_budget=100,
         k=50,
         alpha=0.1,
         discount=0.99,
@@ -118,9 +64,9 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
     )
     planner_mcts = Mcts(
         num_sim=1000,
-        c=6,
-        environment=real_env,
-        computational_budget=200,
+        c=150,
+        environment=sim_env,
+        computational_budget=100,
         discount=0.99,
         rollout_policy=partial(towards_goal, var_angle=var_angle)
     )
@@ -145,6 +91,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
 
         times.append(final_time)
         s, r, terminal, truncated, env_info = real_env.step(s, u)
+        sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
         obs.append(s.obstacles)

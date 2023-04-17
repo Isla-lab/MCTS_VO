@@ -103,12 +103,12 @@ def run_experiment(seed_val):
     dict_args = args.__dict__
     wandb.init(config=dict_args, entity="lorenzobonanni", project="robotArena", reinit=True)
     # input [forward speed, angle]
-    real_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
+    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
     s0, _ = real_env.reset()
     seed_everything(seed_val)
 
     s = s0
-    planner = get_planner(real_env)
+    planner = get_planner(sim_env)
 
     print("Simulation Started")
     terminal = False
@@ -137,6 +137,7 @@ def run_experiment(seed_val):
             }
         )
         s, r, terminal, truncated, env_info = real_env.step(s, u)
+        sim_env.gym_env.state = real_env.gym_env.state
         wandb.log(
             {"Reward": r}
         )

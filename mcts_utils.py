@@ -7,7 +7,7 @@ from numba import njit
 def sample_centered_robot_arena(center: np.ndarray, number):
     return np.random.multivariate_normal(
         mean=center,
-        cov=np.diag([0.36 / 2, 0.3 / 10]),
+        cov=np.diag([0.3/2, 0.38 * 2]),
         size=number
     )
 
@@ -82,4 +82,4 @@ def get_intersections(p0, p1, r0, r1):
     if d == 0 and r0 == r1:
         return None
     else:
-        compute_int(r0, r1, d, x0, x1, y0, y1)
+        return compute_int(r0, r1, d, x0, x1, y0, y1)

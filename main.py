@@ -14,7 +14,7 @@ from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import towards_goal, voo, voo_vo
 from bettergym.environments.robot_arena import RobotArenaState, Config, BetterRobotArena
-from environment_creator import create_env_four_obs_difficult_continuous
+from environment_creator import create_env_four_obs_difficult_continuous, create_env_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
     create_animation_tree_trajectory
 from mcts_utils import sample_centered_robot_arena
@@ -38,7 +38,8 @@ def seed_everything(seed_value: int):
 def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_angle: float = 0.38):
     global exp_num
     # input [forward speed, yaw_rate]
-    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
+    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
+    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10))
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)

@@ -108,17 +108,7 @@ class MctsApw(Planner):
         node.num_visits += 1
         current_state = node.state
 
-        if len(node.actions) == 0:
-            # Since we don't have actions in the node, we'll sample one at random
-            available_actions = self.environment.get_actions(current_state)
-            new_action: np.ndarray = available_actions.sample()
-            # add child
-            new_action_node = ActionNode(new_action)
-            node.actions.append(new_action_node)
-            node.num_visits_actions = np.append(node.num_visits_actions, 0.0)
-            node.a_values = np.append(node.a_values, 0.0)
-
-        elif len(node.actions) <= math.ceil(self.k * (node.num_visits ** self.alpha)):
+        if len(node.actions) <= math.ceil(self.k * (node.num_visits ** self.alpha)) or len(node.actions) == 0:
             new_action: np.ndarray = self.action_expansion_function(node=node, planner=self)
 
             # add child
@@ -129,8 +119,8 @@ class MctsApw(Planner):
 
             if len(node.num_visits_actions) != len(node.actions):
                 # the node we added was a duplicate node
-                node.num_visits_actions = np.append(node.num_visits_actions, 0)
-                node.a_values = np.append(node.a_values, 0)
+                node.num_visits_actions = np.append(node.num_visits_actions, 0.0)
+                node.a_values = np.append(node.a_values, 0.0)
 
         # UCB
         # Q + c * sqrt(ln(Parent_Visit)/Child_visit)

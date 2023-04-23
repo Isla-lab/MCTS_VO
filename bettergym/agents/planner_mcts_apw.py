@@ -161,7 +161,7 @@ class MctsApw(Planner):
         else:
             # Node in the tree
             state_id = new_state_id
-            if terminal or depth + 1 > self.computational_budget:
+            if terminal or depth + 1 >= self.computational_budget:
                 self.info["rollout_values"].append(r)
                 return r
             else:

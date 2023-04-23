@@ -87,7 +87,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
         best_action = actions[best_action_index]
 
         # generate 200 random points centered around the best action
-        points = sample_centered(best_action, N_SAMPLE)
+        points = sample_centered(center=best_action, number=N_SAMPLE)
 
         # compute the Euclidean distances between each point and each action
         # column -> actions
@@ -161,7 +161,9 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     VMAX = 0.3
     # 0 is the velocity of the obstacle, if its moving then change
     r0 = VMAX * dt + obs[:, 3] * dt
-    r1 = ROBOT_RADIUS + OBS_RADIUS + 0.1
+    r1 = ROBOT_RADIUS + OBS_RADIUS
+    # increment by ten percent radius
+    r1 += r1 * 0.1
     intersection_points = [get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))]
     config = planner.environment.gym_env.config
     chosen = voronoi_vo(
@@ -172,14 +174,6 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
         intersection_points=intersection_points,
         config=config,
         eps=eps
-    )
-
-    chosen = clip_act(
-        chosen=chosen,
-        angle_change=config.max_angle_change,
-        min_speed=config.min_speed,
-        max_speed=config.max_speed,
-        x=node.state.x
     )
     return chosen
 
@@ -238,6 +232,13 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
                 q_vals,
                 sample_centered
             )
+            chosen = clip_act(
+                chosen=chosen,
+                angle_change=config.max_angle_change,
+                min_speed=config.min_speed,
+                max_speed=config.max_speed,
+                x=x
+            )
         else:
             points1 = np.random.uniform(low=config.min_speed, high=config.max_speed)
             points2 = np.random.uniform(low=x[2] - config.max_angle_change, high=x[2] + config.max_angle_change)
@@ -271,6 +272,7 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
             return np.array([config.min_speed, x[2]])
         elif len(angle_space) == 1:
             sample = sample_single_space
+            angle_space = angle_space[0]
         else:
             sample = sample_multiple_spaces
 
@@ -281,13 +283,6 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
                 partial(sample, space=angle_space)
             )
         else:
-            return sample(None, angle_space, 1)[0]
+            return sample(center=None, space=angle_space, number=1)[0]
 
-    chosen = clip_act(
-        chosen=chosen,
-        angle_change=config.max_angle_change,
-        min_speed=config.min_speed,
-        max_speed=config.max_speed,
-        x=x
-    )
     return chosen

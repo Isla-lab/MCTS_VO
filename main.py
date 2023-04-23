@@ -12,7 +12,7 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import towards_goal, voo, voo_vo
+from bettergym.agents.utils.utils import towards_goal, voo, voo_vo, uniform
 from bettergym.environments.robot_arena import RobotArenaState, Config, BetterRobotArena
 from environment_creator import create_env_four_obs_difficult_continuous, create_env_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
@@ -38,12 +38,11 @@ def seed_everything(seed_value: int):
 def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_angle: float = 0.38):
     global exp_num
     # input [forward speed, yaw_rate]
-    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
-    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10))
+    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
+    # real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10))
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
-    obs = [s0.obstacles]
     config = real_env.config
     infos = []
     actions = []
@@ -52,15 +51,25 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
 
     s = s0
     # planner = RandomPlanner(real_env)
+    if policy is voo:
+        env = real_env
+        for o in s0.obstacles:
+            o.radius += o.radius * 0.1
+        env.gym_env.state = s0
+    else:
+        env = sim_env
+
+    obs = [s0.obstacles]
     planner_apw = MctsApw(
         num_sim=1000,
         c=150,
-        environment=sim_env,
+        environment=env,
         computational_budget=100,
         k=50,
         alpha=0.1,
         discount=0.99,
         action_expansion_function=policy,
+        # rollout_policy=uniform
         rollout_policy=partial(towards_goal, var_angle=var_angle)
     )
     planner_mcts = Mcts(

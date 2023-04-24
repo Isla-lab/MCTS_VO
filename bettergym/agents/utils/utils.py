@@ -159,8 +159,12 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     OBS_RADIUS = np.array(obs_rad)
 
     VMAX = 0.3
-    # 0 is the velocity of the obstacle, if its moving then change
-    r0 = VMAX * dt + obs[:, 3] * dt
+    conjunction_angle = np.arctan2(obs[:, 1] - x[1], obs[:, 0] - x[0])
+    v1_vec = VMAX * np.array([np.cos(conjunction_angle), np.sin(conjunction_angle)]).T
+    v2_vec = obs[:, 3][:, np.newaxis] * np.array([np.cos(obs[:, 2]), np.sin(obs[:, 2])]).T
+    v = v1_vec - v2_vec
+
+    r0 = np.linalg.norm(v, axis=1) * dt
     r1 = ROBOT_RADIUS + OBS_RADIUS
     # increment by ten percent radius
     r1 += r1 * 0.1

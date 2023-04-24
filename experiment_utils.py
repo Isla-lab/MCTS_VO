@@ -9,8 +9,8 @@ from notify_run import Notify
 notify = Notify()
 
 
-def plot_robot(x, y, yaw, config, ax):
-    circle = plt.Circle((x, y), config.robot_radius, color="b")
+def plot_robot(x, y, yaw, config, ax, color="b"):
+    circle = plt.Circle((x, y), config.robot_radius, color=color)
     ax.add_artist(circle)
     out_x, out_y = (np.array([x, y]) +
                     np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius)
@@ -150,3 +150,37 @@ def create_animation_tree_trajectory(goal, config, obs):
         frames=len(trajectories)
     )
     ani.save(f"./debug/tree_trajectory.mp4", fps=5, dpi=300)
+
+
+def plot_frame_multiagent(i, goal1, goal2, config, obs, traj1, traj2, ax):
+    x1 = traj1[i, :]
+    x2 = traj2[i, :]
+    # ob = config.ob
+    ax.clear()
+    # ROBOT1 POSITION
+    ax.plot(x1[0], x1[1], "xr")
+    # ROBOT2 POSITION
+    ax.plot(x2[0], x2[1], "xr")
+    # GOAL1 POSITION
+    ax.plot(goal1[0], goal1[1], "xb")
+    # GOAL2 POSITION
+    ax.plot(goal2[0], goal2[1], "xb")
+    # OBSTACLES
+    for ob in obs[i][:-1]:
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        ax.add_artist(circle)
+    # CIRCLE AROUND ROBOT1
+    plot_robot(x1[0], x1[1], x1[2], config, ax, color="b")
+    # CIRCLE AROUND ROBOT2
+    plot_robot(x2[0], x2[1], x2[2], config, ax, color="g")
+    # TRAJECTORY1
+    sub_traj1 = traj1[:i]
+    ax.plot(sub_traj1[:, 0], sub_traj1[:, 1], "--r")
+
+    # TRAJECTORY
+    sub_traj2 = traj2[:i]
+    ax.plot(sub_traj2[:, 0], sub_traj2[:, 1], "--b")
+
+    ax.set_xlim([config.left_limit, config.right_limit])
+    ax.set_ylim([config.bottom_limit, config.upper_limit])
+    ax.grid(True)

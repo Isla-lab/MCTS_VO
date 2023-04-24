@@ -1,4 +1,4 @@
-import math
+import os
 import os
 import random
 import time
@@ -10,13 +10,10 @@ from matplotlib.animation import FuncAnimation
 from numba import njit
 from numpy import mean, std
 
-from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import towards_goal, voo, voo_vo, uniform
-from bettergym.environments.robot_arena import RobotArenaState, Config, BetterRobotArena
-from environment_creator import create_env_four_obs_difficult_continuous, create_env_five_small_obs_continuous
-from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
-    create_animation_tree_trajectory
+from bettergym.agents.utils.utils import towards_goal, voo, voo_vo
+from environment_creator import create_env_multiagent_five_small_obs_continuous
+from experiment_utils import print_and_notify, plot_frame_multiagent
 from mcts_utils import sample_centered_robot_arena
 
 DEBUG_DATA = True
@@ -38,54 +35,63 @@ def seed_everything(seed_value: int):
 def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_angle: float = 0.38):
     global exp_num
     # input [forward speed, yaw_rate]
-    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
-    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10))
-    s0, _ = real_env.reset()
+    real_env_1, real_env_2, sim_env_1, sim_env_2 = create_env_multiagent_five_small_obs_continuous(initial_pos=(1, 1),
+                                                                                             goal=(10, 10))
+    s0_1, _ = real_env_1.reset()
+    s0_2, _ = real_env_2.reset()
     seed_everything(seed_val)
-    trajectory = np.array(s0.x)
-    config = real_env.config
+    trajectory_1 = np.array(s0_1.x)
+    trajectory_2 = np.array(s0_2.x)
+    # config is equal
+    config = real_env_1.config
+    goal_1 = s0_1.goal
+    goal_2 = s0_2.goal
+    s1 = s0_1
+    s2 = s0_2
 
-    goal = s0.goal
-
-    s = s0
-    # planner = RandomPlanner(real_env)
     if policy.func is voo:
-        env = real_env
-        for o in s0.obstacles:
+        env1 = real_env_1
+        env2 = real_env_2
+        for o in s0_1.obstacles:
             o.radius += o.radius * 0.1
-        env.gym_env.state = s0
-    else:
-        env = sim_env
 
-    obs = [s0.obstacles]
-    planner_apw = MctsApw(
+        for o in s0_2.obstacles:
+            o.radius += o.radius * 0.1
+        env1.gym_env.state = s0_1
+        env2.gym_env.state = s0_2
+    else:
+        env1 = sim_env_1
+        env2 = sim_env_2
+
+    obs1 = [s0_1.obstacles]
+    planner1 = MctsApw(
         num_sim=1000,
         c=150,
-        environment=env,
+        environment=env1,
         computational_budget=100,
         k=50,
         alpha=0.1,
         discount=0.99,
         action_expansion_function=policy,
-        # rollout_policy=uniform
         rollout_policy=partial(towards_goal, var_angle=var_angle)
     )
-    planner_mcts = Mcts(
+    planner2 = MctsApw(
         num_sim=1000,
         c=150,
-        environment=sim_env,
+        environment=env2,
         computational_budget=100,
+        k=50,
+        alpha=0.1,
         discount=0.99,
+        action_expansion_function=policy,
         rollout_policy=partial(towards_goal, var_angle=var_angle)
     )
-    planner = planner_apw if not discrete else planner_mcts
 
     print("Simulation Started")
     terminal = False
     rewards = []
     times = []
     infos = []
-    actions = []
     step_n = 0
     while not terminal:
         step_n += 1
@@ -93,18 +99,27 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
-        u, info = planner.plan(s)
+        u1, info = planner1.plan(s1)
+        u2, _ = planner2.plan(s2)
 
         final_time = time.time() - initial_time
-        actions.append(u)
         infos.append(info)
-
         times.append(final_time)
-        s, r, terminal, truncated, env_info = real_env.step(s, u)
-        sim_env.gym_env.state = real_env.gym_env.state.copy()
-        rewards.append(r)
-        trajectory = np.vstack((trajectory, s.x))  # store state history
-        obs.append(s.obstacles)
+
+        s1, r1, terminal1, truncated1, env_info1 = real_env_1.step(s1, u1)
+        s2.obstacles[-1] = s1.copy()
+        s2, r2, terminal2, truncated2, env_info2 = real_env_2.step(s2, u2)
+        s1.obstacles[-1] = s2.copy()
+
+        sim_env_1.gym_env.state = real_env_1.gym_env.state.copy()
+        sim_env_2.gym_env.state = real_env_2.gym_env.state.copy()
+
+
+        rewards.append(r1)
+        trajectory_1 = np.vstack((trajectory_1, s1.x))  # store state history
+        trajectory_2 = np.vstack((trajectory_2, s2.x))  # store state history
+        obs1.append(s1.obstacles)
+        terminal = terminal1 or terminal2
 
     print_and_notify(
         f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
@@ -122,32 +137,12 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         fig, ax = plt.subplots()
         ani = FuncAnimation(
             fig,
-            plot_frame,
-            fargs=(goal, config, obs, trajectory, ax),
-            frames=len(trajectory)
+            plot_frame_multiagent,
+            fargs=(goal_1, goal_2, config, obs1, trajectory_1, trajectory_2, ax),
+            frames=len(trajectory_1)
         )
         ani.save(f"debug/trajectory_{exp_num}.gif", fps=150)
-        plot_real_trajectory_information(trajectory, exp_num)
         plt.close()
-
-    if DEBUG_DATA:
-        trajectories = [i["trajectories"] for i in infos]
-        rollout_values = [i["rollout_values"] for i in infos]
-
-        print("Saving Debug Data...")
-        q_vals = [i["q_values"] for i in infos]
-        a = [[an.action for an in i["actions"]] for i in infos]
-        np.savez_compressed(f"debug/trajectories_{exp_num}", *trajectories)
-        np.savez_compressed(f"debug/rollout_values_{exp_num}", *rollout_values)
-        np.savez_compressed(f"debug/q_values_{exp_num}", *q_vals)
-        np.savez_compressed(f"debug/actions_{exp_num}", *a)
-        np.savez_compressed(f"debug/trajectory_real_{exp_num}", trajectory)
-        np.savez_compressed(f"debug/chosen_a_{exp_num}", np.array(actions))
-
-        print("Creating Tree Trajectories Animation...")
-        create_animation_tree_trajectory(goal, config, obs)
-
-    print("Done")
 
 
 def main():

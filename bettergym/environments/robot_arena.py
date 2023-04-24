@@ -9,7 +9,7 @@ from numba import njit
 from bettergym.better_gym import BetterGym
 
 
-@dataclass
+@dataclass(frozen=True)
 class Config:
     """
     simulation parameter class

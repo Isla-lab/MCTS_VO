@@ -38,8 +38,8 @@ def seed_everything(seed_value: int):
 def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_angle: float = 0.38):
     global exp_num
     # input [forward speed, yaw_rate]
-    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
-    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10))
+    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10))
+    # real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10))
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
@@ -153,7 +153,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
 def main():
     global exp_num
     exp_num = 0
-    for p, na, var in [(partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
+    for p, na, var in [(partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2), (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
         run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var)
         exp_num += 1
 

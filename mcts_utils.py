@@ -11,8 +11,6 @@ def sample_centered_robot_arena(center: np.ndarray, number):
     )
 
 
-
-
 def uniform_random(node, planner):
     state = node.state
     config = planner.config

@@ -177,7 +177,9 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
         x=x,
         intersection_points=intersection_points,
         config=config,
-        eps=eps
+        eps=eps,
+        obs=obs,
+        r1=r1
     )
     return chosen
 
@@ -186,7 +188,7 @@ def in_range(p: np.ndarray, rng: list):
     return rng[0] <= p[1] <= rng[1]
 
 
-def compute_angle_space(intersection_points, config, x):
+def compute_angle_space(intersection_points, max_angle_change, x):
     # convert points into angles and define the forbidden angles space
     min_angle = np.inf
     max_angle = -np.inf
@@ -197,7 +199,7 @@ def compute_angle_space(intersection_points, config, x):
             min_angle = min(angle1, min_angle)
             angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
             max_angle = max(angle2, max_angle)
-    robot_angles = [x[2] - config.max_angle_change, x[2] + config.max_angle_change]
+    robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
     forbidden_angles = [min_angle, max_angle]
 
     # CASE 3: the forbidden angle range is inside the angles available to the robot
@@ -226,7 +228,22 @@ def compute_angle_space(intersection_points, config, x):
     return angle_space
 
 
-def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config, eps):
+def vo_negative_speed(obs, x, r1, config):
+    VELOCITY = 0.1
+    conjunction_angle = np.arctan2(obs[:, 1] - x[1], obs[:, 0] - x[0])
+    v1_vec = VELOCITY * np.array([np.cos(conjunction_angle), np.sin(conjunction_angle)]).T
+    v2_vec = obs[:, 3][:, np.newaxis] * np.array([np.cos(obs[:, 2]), np.sin(obs[:, 2])]).T
+    v = v1_vec - v2_vec
+    r0 = np.linalg.norm(v, axis=1) * config.dt
+    intersection_points = [get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))]
+    # all none
+    if not any(intersection_points):
+        return True, [x[2] + math.pi - config.max_angle_change, x[2] + math.pi + config.max_angle_change]
+    else:
+        pass
+
+
+def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config, obs, eps, r1):
     prob = random.random()
     # check if the list contains only None
     if not any(intersection_points):
@@ -271,9 +288,18 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
                 np.random.uniform(low=space[0], high=space[1], size=number)
             ]).T
 
-        angle_space = compute_angle_space(intersection_points=intersection_points, config=config, x=x)
+        angle_space = compute_angle_space(intersection_points=intersection_points,
+                                          max_angle_change=config.max_angle_change, x=x)
         if angle_space is None:
-            return np.array([config.min_speed, x[2]])
+            # VO with negative speed
+            # TODO define sample function and angle_space
+            retro_available, angle_space = vo_negative_speed(obs, x, r1, config)
+            if retro_available:
+                # velocity from -0.1 to 0.0
+                pass
+            else:
+                # velocity 0.0
+                pass
         elif len(angle_space) == 1:
             sample = sample_single_space
             angle_space = angle_space[0]

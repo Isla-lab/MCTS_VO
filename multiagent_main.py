@@ -148,7 +148,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
 def main():
     global exp_num
     exp_num = 0
-    for p, na, var in [(partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
+    for p, na, var in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
         run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var)
         exp_num += 1
 

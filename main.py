@@ -12,7 +12,8 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import towards_goal, voo, voo_vo, uniform
+from bettergym.agents.utils.utils import towards_goal, voo, uniform
+from bettergym.agents.utils.voronoi_vo import voo_vo
 from bettergym.environments.robot_arena import RobotArenaState, Config, BetterRobotArena
 from environment_creator import create_env_four_obs_difficult_continuous, create_env_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \

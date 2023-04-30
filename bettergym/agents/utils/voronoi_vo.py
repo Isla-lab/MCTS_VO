@@ -104,8 +104,8 @@ def vo_negative_speed(obs, x, r1, config):
     # check if there are any intersections
     if not any(intersection_points):
         # return a list of angles to explore
-        new_angles = [x[2] + math.pi - config.max_angle_change, x[2] + math.pi + config.max_angle_change]
-        return True, new_angles
+        angle_space = [[x[2] + math.pi - config.max_angle_change, x[2] + math.pi + config.max_angle_change]]
+        return True, angle_space
 
     # create a copy of the current state
     x_copy = x.copy()
@@ -136,8 +136,17 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
         # Use Voronoi with probability 1-eps, otherwise sample random actions
         if prob <= 1 - eps and len(actions) != 0:
             chosen = voronoi(actions, q_vals, partial(sample, a_space=angle_space, v_space=velocity_space))
-            return clip_act(chosen=chosen, angle_change=config.max_angle_change,
-                            min_speed=config.min_speed, max_speed=config.max_speed, x=x)
+            if chosen[0] <= 0:
+                if chosen[0] == 0:
+                    return chosen
+                else:
+                    x_copy = x.copy()
+                    x_copy[2] += math.pi
+                    return clip_act(chosen=chosen, angle_change=config.max_angle_change,
+                                    min_speed=config.min_speed, max_speed=config.max_speed, x=x_copy)
+            else:
+                return clip_act(chosen=chosen, angle_change=config.max_angle_change,
+                                min_speed=config.min_speed, max_speed=config.max_speed, x=x)
         else:
             return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 
@@ -154,7 +163,6 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     obstacles = node.state.obstacles
     obs_x = np.array([ob.x for ob in obstacles])
     obs_rad = np.array([ob.radius for ob in obstacles])
-    OBS_RADIUS = obs_rad * 1.1  # Increment by ten percent radius
 
     # Extract robot information
     x = node.state.x
@@ -167,7 +175,7 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
 
     # Calculate radii
     r0 = np.linalg.norm(v, axis=1) * dt
-    r1 = ROBOT_RADIUS + OBS_RADIUS
+    r1 = ROBOT_RADIUS + obs_rad
     # increment by ten percent radius 1
     r1 = r1 * 1.1
 

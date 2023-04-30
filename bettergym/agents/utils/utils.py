@@ -73,6 +73,7 @@ def binary_policy(node: Any, planner: Planner):
 
 def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
     N_SAMPLE = 500
+    MAX_ITER = 10
     valid = False
 
     while not valid:

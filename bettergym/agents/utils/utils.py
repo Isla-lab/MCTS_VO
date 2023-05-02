@@ -1,3 +1,4 @@
+import math
 import random
 from typing import Any, Callable
 
@@ -25,19 +26,15 @@ def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: 
                              min_speed: float,
                              max_speed: float):
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
-    # Make sure angle is within range of -π to π
-    # var_angle = max_angle_change ** 3
     angle = np.random.normal(mean_angle, var_angle)
     linear_velocity = np.random.uniform(
         a=min_speed,
         b=max_speed
     )
-    max_angle = x[2] + max_angle_change
-    min_angle = x[2] - max_angle_change
-    if angle > max_angle:
-        angle = max_angle
-    elif angle < min_angle:
-        angle = min_angle
+    # Make sure angle is within range of -π to π
+    min_angle = (x[2] - max_angle_change + math.pi) % (2 * math.pi) - math.pi
+    max_angle = (x[2] + max_angle_change + math.pi) % (2 * math.pi) - math.pi
+    angle = max(min(angle, max_angle), min_angle)
 
     return np.array([linear_velocity, angle])
 
@@ -72,8 +69,7 @@ def binary_policy(node: Any, planner: Planner):
 
 
 def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
-    N_SAMPLE = 500
-    MAX_ITER = 10
+    N_SAMPLE = 1000
     valid = False
 
     while not valid:
@@ -113,12 +109,15 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
             closest_point_idx = np.argmin(valid_points)
             # return the closest point to the best action
             return points[closest_point_idx]
+        del points, dists, best_action_distances, best_action_distances_rep, closest, all_true_rows, valid_points
 
 
 @njit
 def clip_act(chosen, angle_change, min_speed, max_speed, x):
     chosen[0] = max(min_speed, min(chosen[0], max_speed))
-    chosen[1] = max(x[2] - angle_change, min(chosen[1], x[2] + angle_change))
+    min_available_angle = (x[2] - angle_change + math.pi) % (2 * math.pi) - math.pi
+    max_available_angle = (x[2] + angle_change + math.pi) % (2 * math.pi) - math.pi
+    chosen[1] = max(min_available_angle, min(chosen[1], max_available_angle))
     return chosen
 
 
@@ -145,4 +144,3 @@ def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
 
 def in_range(p: np.ndarray, rng: list):
     return rng[0] <= p[1] <= rng[1]
-

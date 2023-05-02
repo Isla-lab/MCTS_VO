@@ -11,6 +11,17 @@ from bettergym.agents.utils.utils import voronoi, clip_act
 from mcts_utils import get_intersections
 
 
+def sample_centered_robot_arena(center: np.ndarray, number):
+    chosen = np.random.multivariate_normal(
+        mean=center,
+        cov=np.diag([0.3 / 2, 0.38 * 2]),
+        size=number
+    )
+    # Make sure angle is within range of -π to π
+    chosen[:, 1] = (chosen[:, 1] + math.pi) % (2 * math.pi) - math.pi
+    return chosen
+
+
 def sample_multiple_spaces(center, a_space, number, v_space):
     length0 = np.linalg.norm(a_space[0])
     length1 = np.linalg.norm(a_space[1])
@@ -54,6 +65,9 @@ def get_spaces(intersection_points, x, obs, r1, config):
             velocity_space = [config.min_speed, 0.0]
         else:
             velocity_space = [0.0]
+            min_angle = (x[2] - config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
+            max_angle = (x[2] + config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
+            angle_space = [[min_angle, max_angle]]
 
     return angle_space, velocity_space
 
@@ -70,6 +84,10 @@ def compute_angle_space(intersection_points, max_angle_change, x):
             angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
             max_angle = max(angle2, max_angle)
     robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
+    # Make sure angle is within range of -π to π
+    robot_angles[0] = (robot_angles[0] + math.pi) % (2 * math.pi) - math.pi
+    robot_angles[1] = (robot_angles[1] + math.pi) % (2 * math.pi) - math.pi
+
     forbidden_angles = [min_angle, max_angle]
 
     # Check different cases for angle spaces
@@ -131,22 +149,14 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
             return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
     # If there are intersection points
     else:
+        # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(intersection_points, x, obs, r1, config)
 
         # Use Voronoi with probability 1-eps, otherwise sample random actions
         if prob <= 1 - eps and len(actions) != 0:
             chosen = voronoi(actions, q_vals, partial(sample, a_space=angle_space, v_space=velocity_space))
-            if chosen[0] <= 0:
-                if chosen[0] == 0:
-                    return chosen
-                else:
-                    x_copy = x.copy()
-                    x_copy[2] += math.pi
-                    return clip_act(chosen=chosen, angle_change=config.max_angle_change,
-                                    min_speed=config.min_speed, max_speed=config.max_speed, x=x_copy)
-            else:
-                return clip_act(chosen=chosen, angle_change=config.max_angle_change,
-                                min_speed=config.min_speed, max_speed=config.max_speed, x=x)
+            # negative or zero velocity
+            return chosen
         else:
             return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 

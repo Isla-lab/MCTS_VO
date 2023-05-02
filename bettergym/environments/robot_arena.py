@@ -141,12 +141,11 @@ class RobotArena:
         """
         dt = self.config.dt
         new_x = np.array(x, copy=True)
+        u = np.array(u, copy=True)
         # lin velocity
         # u[0] = max(-0.1, min(u[0], 0.3))
         # u[1] = max(x[2] - self.config.max_angle_change, min(u[1], x[2] + self.config.max_angle_change))
 
-        # Make sure angle is within range of -π to π
-        u[1] = (u[1] + math.pi) % (2 * math.pi) - math.pi
         # x
         new_x[0] += u[0] * math.cos(u[1]) * dt
         # y

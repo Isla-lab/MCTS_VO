@@ -3,6 +3,20 @@
   <component name="CsvFileAttributes">
     <option name="attributeMap">
       <map>
+        <entry key="$PROJECT_DIR$/../actions.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/../points.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
         <entry key="/venv/lib/python3.10/site-packages/matplotlib/mpl-data/sample_data/Stocks.csv">
           <value>
             <Attribute>

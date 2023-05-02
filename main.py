@@ -1,3 +1,4 @@
+import gc
 import os
 import random
 import time
@@ -12,30 +13,11 @@ from numpy import mean, std
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import towards_goal, voo
+from bettergym.agents.utils.voronoi_vo import sample_centered_robot_arena
 from bettergym.agents.utils.voronoi_vo import voo_vo
 from environment_creator import create_env_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
     create_animation_tree_trajectory
-from mcts_utils import sample_centered_robot_arena
-import os
-import random
-import time
-from functools import partial
-
-import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.animation import FuncAnimation
-from numba import njit
-from numpy import mean, std
-
-from bettergym.agents.planner_mcts import Mcts
-from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import towards_goal, voo
-from bettergym.agents.utils.voronoi_vo import voo_vo
-from environment_creator import create_env_five_small_obs_continuous
-from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
-    create_animation_tree_trajectory
-from mcts_utils import sample_centered_robot_arena
 
 DEBUG_DATA = True
 ANIMATION = True
@@ -123,6 +105,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
         obs.append(s.obstacles)
+        gc.collect()
 
     print_and_notify(
         f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
@@ -173,7 +156,7 @@ def main():
     exp_num = 0
     # , (partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)
     for p, na, var in [(partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
-        run_experiment(seed_val=1, policy=p, num_actions=na, discrete=False, var_angle=var)
+        run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var)
         exp_num += 1
 
 

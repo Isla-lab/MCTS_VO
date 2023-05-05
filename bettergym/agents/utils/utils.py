@@ -114,7 +114,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
 
 @njit
 def clip_act(chosen, angle_change, min_speed, max_speed, x):
-    chosen[0] = max(min_speed, min(chosen[0], max_speed))
+    chosen[0] = max(0.0, min(chosen[0], max_speed))
     min_available_angle = (x[2] - angle_change + math.pi) % (2 * math.pi) - math.pi
     max_available_angle = (x[2] + angle_change + math.pi) % (2 * math.pi) - math.pi
     chosen[1] = max(min_available_angle, min(chosen[1], max_available_angle))

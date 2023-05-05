@@ -23,20 +23,14 @@ def sample_centered_robot_arena(center: np.ndarray, number):
 
 
 def sample_multiple_spaces(center, a_space, number, v_space):
-    length0 = np.linalg.norm(a_space[0])
-    length1 = np.linalg.norm(a_space[1])
-    percentages = softmax([length0, length1])
+    lengths = np.linalg.norm(a_space, axis=0)
+    percentages = np.cumsum(softmax(lengths))
     pct = random.random()
-    if pct <= percentages[0]:
-        return np.vstack([
-            np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
-            np.random.uniform(low=a_space[0][0], high=a_space[0][1], size=number)
-        ]).T
-    else:
-        return np.vstack([
-            np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
-            np.random.uniform(low=a_space[1][0], high=a_space[1][1], size=number)
-        ]).T
+    idx_space = np.flatnonzero(pct <= percentages)[0]
+    return np.vstack([
+        np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
+        np.random.uniform(low=a_space[idx_space][0], high=a_space[idx_space][1], size=number)
+    ]).T
 
 
 def sample_single_space(center, a_space, number, v_space):
@@ -56,7 +50,7 @@ def sample(center, a_space, v_space, number):
 def get_spaces(intersection_points, x, obs, r1, config):
     angle_space = compute_angle_space(intersection_points=intersection_points,
                                       max_angle_change=config.max_angle_change, x=x)
-    velocity_space = [config.min_speed, config.max_speed]
+    velocity_space = [0.0, config.max_speed]
 
     if angle_space is None:
         retro_available, angle_space = vo_negative_speed(obs, x, r1, config)
@@ -67,50 +61,61 @@ def get_spaces(intersection_points, x, obs, r1, config):
             velocity_space = [0.0]
             min_angle = (x[2] - config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
             max_angle = (x[2] + config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
-            angle_space = [[min_angle, max_angle]]
+            if min_angle > max_angle:
+                angle_space = [[-math.pi, min_angle], [max_angle, math.pi]]
+            else:
+                angle_space = [[min_angle, max_angle]]
 
     return angle_space, velocity_space
 
 
 def compute_angle_space(intersection_points, max_angle_change, x):
     # convert points into angles and define the forbidden angles space
-    min_angle = np.inf
-    max_angle = -np.inf
+    forbidden_ranges = []
     for point in intersection_points:
         if point is not None:
             p1, p2 = point
             angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
-            min_angle = min(angle1, min_angle)
             angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
-            max_angle = max(angle2, max_angle)
+            forbidden_ranges.append([angle1, angle2])
     robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
     # Make sure angle is within range of -π to π
     robot_angles[0] = (robot_angles[0] + math.pi) % (2 * math.pi) - math.pi
     robot_angles[1] = (robot_angles[1] + math.pi) % (2 * math.pi) - math.pi
-
-    forbidden_angles = [min_angle, max_angle]
-
-    # Check different cases for angle spaces
-    if forbidden_angles[0] > robot_angles[0] and forbidden_angles[1] < robot_angles[1]:
-        angle_space = [
-            [robot_angles[0], forbidden_angles[0]],
-            [forbidden_angles[1], robot_angles[1]]
-        ]
-    elif forbidden_angles[0] < robot_angles[0] and forbidden_angles[1] > robot_angles[1]:
-        angle_space = None
-    elif forbidden_angles[0] < robot_angles[0]:
-        angle_space = [
-            [forbidden_angles[1], robot_angles[1]]
-        ]
-    elif forbidden_angles[1] > robot_angles[1]:
-        angle_space = [
-            [robot_angles[0], forbidden_angles[0]]
-        ]
+    if robot_angles[0] > robot_angles[1]:
+        robot_angles = [[-math.pi, robot_angles[0]], [robot_angles[1], math.pi]]
     else:
-        raise Exception(f"The provided forbidden angles: {forbidden_angles} does not match any case with "
-                        f"the following angles available to the robot: {robot_angles}")
+        robot_angles = [robot_angles]
 
-    return angle_space
+    angle_spaces = []
+
+    for rr in robot_angles:
+        for fr in forbidden_ranges:
+            # Check different cases for angle spaces
+            if fr[0] > rr[0] and fr[1] < rr[1]:
+                angle_space = [
+                    [rr[0], fr[0]],
+                    [fr[1], rr[1]]
+                ]
+            elif fr[0] < rr[0] and fr[1] > rr[1]:
+                angle_space = [None]
+            elif fr[0] < rr[0]:
+                angle_space = [
+                    [fr[1], rr[1]]
+                ]
+            elif fr[1] > rr[1]:
+                angle_space = [
+                    [rr[0], fr[0]]
+                ]
+            else:
+                raise Exception(f"The provided forbidden angles: {fr} does not match any case with "
+                                f"the following angles available to the robot: {rr}")
+            angle_spaces.extend(angle_space)
+    angle_spaces = [a for a in angle_spaces if a is not None]
+    if len(angle_spaces) == 0:
+        return None
+    else:
+        return angle_spaces
 
 
 def vo_negative_speed(obs, x, r1, config):
@@ -122,14 +127,21 @@ def vo_negative_speed(obs, x, r1, config):
     # check if there are any intersections
     if not any(intersection_points):
         # return a list of angles to explore
-        angle_space = [[x[2] + math.pi - config.max_angle_change, x[2] + math.pi + config.max_angle_change]]
+        angle_space = [x[2] + math.pi - config.max_angle_change, x[2] + math.pi + config.max_angle_change]
+        # check if the angles are in the range -pi, pi
+        angle_space[0] = (angle_space[0] + math.pi) % (2 * math.pi) - math.pi
+        angle_space[1] = (angle_space[1] + math.pi) % (2 * math.pi) - math.pi
+        if angle_space[0] > angle_space[1]:
+            angle_space = [[-math.pi, angle_space[0]], [angle_space[1], math.pi]]
+        else:
+            angle_space = [angle_space]
         return True, angle_space
-
-    # create a copy of the current state
-    x_copy = x.copy()
-    x_copy[2] += math.pi
-    angle_space = compute_angle_space(intersection_points=intersection_points,
-                                      max_angle_change=config.max_angle_change, x=x_copy)
+    else:
+        # create a copy of the current state
+        x_copy = x.copy()
+        x_copy[2] += math.pi
+        angle_space = compute_angle_space(intersection_points=intersection_points,
+                                          max_angle_change=config.max_angle_change, x=x_copy)
     return angle_space is not None, angle_space
 
 
@@ -144,7 +156,7 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
                             min_speed=config.min_speed, max_speed=config.max_speed, x=x)
         else:
             # Generate random actions
-            velocity_space = [config.min_speed, config.max_speed]
+            velocity_space = [0.0, config.max_speed]
             angle_space = [[x[2] - config.max_angle_change, x[2] + config.max_angle_change]]
             return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
     # If there are intersection points

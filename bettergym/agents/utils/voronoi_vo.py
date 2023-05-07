@@ -59,10 +59,10 @@ def get_spaces(intersection_points, x, obs, r1, config):
             velocity_space = [config.min_speed, 0.0]
         else:
             velocity_space = [0.0]
-            min_angle = (x[2] - config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
-            max_angle = (x[2] + config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
+            min_angle = ((x[2] - config.max_angle_change) + math.pi) % (2 * math.pi) - math.pi
+            max_angle = ((x[2] + config.max_angle_change) + math.pi) % (2 * math.pi) - math.pi
             if min_angle > max_angle:
-                angle_space = [[-math.pi, min_angle], [max_angle, math.pi]]
+                angle_space = [[min_angle, math.pi], [-math.pi, max_angle]]
             else:
                 angle_space = [[min_angle, max_angle]]
 
@@ -79,14 +79,18 @@ def compute_angle_space(intersection_points, max_angle_change, x):
             angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
             forbidden_ranges.append([angle1, angle2])
     robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
+    robot_angles = np.array(robot_angles)
     # Make sure angle is within range of -π to π
-    robot_angles[0] = (robot_angles[0] + math.pi) % (2 * math.pi) - math.pi
-    robot_angles[1] = (robot_angles[1] + math.pi) % (2 * math.pi) - math.pi
-    if robot_angles[0] > robot_angles[1]:
-        robot_angles = [[-math.pi, robot_angles[0]], [robot_angles[1], math.pi]]
-    else:
+    robot_angles = (robot_angles + np.pi) % (2 * np.pi) - np.pi
+    if type(robot_angles[0]) is np.float64:
         robot_angles = [robot_angles]
-
+    new_robot_angles = []
+    for a in robot_angles:
+        if a[0] > a[1]:
+            new_robot_angles.extend([[a[0], math.pi], [-math.pi, a[1]]])
+        else:
+            new_robot_angles.append(a)
+    robot_angles = new_robot_angles
     angle_spaces = []
 
     for rr in robot_angles:
@@ -119,7 +123,7 @@ def compute_angle_space(intersection_points, max_angle_change, x):
 
 
 def vo_negative_speed(obs, x, r1, config):
-    VELOCITY = 0.1
+    VELOCITY = np.abs(config.min_speed)
     v = get_relative_velocity(VELOCITY, obs, x)
     r0 = np.linalg.norm(v, axis=1) * config.dt
     intersection_points = [get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))]
@@ -127,12 +131,12 @@ def vo_negative_speed(obs, x, r1, config):
     # check if there are any intersections
     if not any(intersection_points):
         # return a list of angles to explore
-        angle_space = [x[2] + math.pi - config.max_angle_change, x[2] + math.pi + config.max_angle_change]
+        angle_space = [x[2] - config.max_angle_change, x[2] + config.max_angle_change]
         # check if the angles are in the range -pi, pi
         angle_space[0] = (angle_space[0] + math.pi) % (2 * math.pi) - math.pi
         angle_space[1] = (angle_space[1] + math.pi) % (2 * math.pi) - math.pi
         if angle_space[0] > angle_space[1]:
-            angle_space = [[-math.pi, angle_space[0]], [angle_space[1], math.pi]]
+            angle_space = [[angle_space[0], math.pi], [-math.pi, angle_space[1]]]
         else:
             angle_space = [angle_space]
         return True, angle_space
@@ -140,6 +144,7 @@ def vo_negative_speed(obs, x, r1, config):
         # create a copy of the current state
         x_copy = x.copy()
         x_copy[2] += math.pi
+        x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
         angle_space = compute_angle_space(intersection_points=intersection_points,
                                           max_angle_change=config.max_angle_change, x=x_copy)
     return angle_space is not None, angle_space
@@ -199,7 +204,7 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     r0 = np.linalg.norm(v, axis=1) * dt
     r1 = ROBOT_RADIUS + obs_rad
     # increment by ten percent radius 1
-    r1 = r1 * 1.1
+    r1 *= 1.1
 
     # Calculate intersection points
     intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]

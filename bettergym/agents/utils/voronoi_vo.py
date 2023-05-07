@@ -95,32 +95,43 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
         else:
             new_robot_angles.append(a)
     angle_spaces = []
+    all_safe = True
     for rr in new_robot_angles:
         for fr in forbidden_ranges:
             # CASE 1 the forbidden range is inside the robot angles
             if rr[0] <= fr[0] <= rr[1] and rr[0] <= fr[1] <= rr[1]:
+                all_safe = False
                 angle_space = [
                     [rr[0], fr[0]],
                     [fr[1], rr[1]]
                 ]
             # CASE 2 the forbidden range all the robot angles
             elif fr[0] <= rr[0] and fr[1] >= rr[1]:
+                all_safe = False
                 # all angles collide
                 angle_space = [None]
             # CASE 3 the forbidden range starts before the robot angles and ends inside
-            elif fr[0] <= rr[0] and fr[1] <= rr[1]:
+            elif fr[0] <= rr[0] <= fr[1] <= rr[1]:
+                all_safe = False
                 angle_space = [
                     [fr[1], rr[1]]
                 ]
             # CASE 4 the forbidden range starts in the robot angles and ends after
-            elif fr[1] >= rr[1] and fr[0] >= rr[0]:
+            elif fr[1] >= rr[1] >= fr[0] >= rr[0]:
+                all_safe = False
                 angle_space = [
                     [rr[0], fr[0]]
                 ]
+            # CASE 5 no overlap
+            elif (fr[0] >= rr[1] and fr[1] >= rr[1]) or (fr[0] <= rr[0] and fr[0] <= rr[0]):
+                continue
             else:
                 raise Exception(f"The provided forbidden angles: {fr} does not match any case with "
                                 f"the following angles available to the robot: {rr}")
             angle_spaces.extend(angle_space)
+        # need to check all forbidden ranges before saying its safe
+        if all_safe:
+            angle_spaces.append(rr)
     angle_spaces = [a for a in angle_spaces if a is not None]
     if len(angle_spaces) == 0:
         return None
@@ -153,7 +164,22 @@ def vo_negative_speed(obs, x, r1, config):
         x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
         angle_space = compute_safe_angle_space(intersection_points=intersection_points,
                                                max_angle_change=config.max_angle_change, x=x_copy)
-    return angle_space is not None, angle_space
+
+        if angle_space is not None:
+            # since angle_space was computed using the flipped angle
+            # we need to flip it so that we'll have a range compatible with current robot direction
+            angle_space = np.array(angle_space) + np.pi
+            # Make sure angle is within range of -π to π
+            angle_space = (angle_space + np.pi) % (2 * np.pi) - np.pi
+            new_angle_space = []
+            for a in angle_space:
+                if a[0] > a[1]:
+                    new_angle_space.extend([[a[0], math.pi], [-math.pi, a[1]]])
+                else:
+                    new_angle_space.append(a)
+            return True, new_angle_space
+        else:
+            return False, angle_space
 
 
 def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config, obs, eps, r1):

@@ -3,16 +3,6 @@ import math
 import numpy as np
 
 
-def sample_centered_robot_arena(center: np.ndarray, number):
-    return np.random.multivariate_normal(
-        mean=center,
-        cov=np.diag([0.3 / 2, 0.38 * 2]),
-        size=number
-    )
-
-
-
-
 def uniform_random(node, planner):
     state = node.state
     config = planner.config

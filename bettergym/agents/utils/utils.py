@@ -1,15 +1,12 @@
 import math
 import random
-from functools import partial
 from typing import Any, Callable
 
 import numpy as np
 from numba import njit
 from scipy.spatial.distance import cdist
-from scipy.special import softmax
 
 from bettergym.agents.planner import Planner
-from mcts_utils import get_intersections
 
 
 def uniform(node: Any, planner: Planner):
@@ -29,19 +26,15 @@ def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: 
                              min_speed: float,
                              max_speed: float):
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
-    # Make sure angle is within range of -π to π
-    # var_angle = max_angle_change ** 3
     angle = np.random.normal(mean_angle, var_angle)
     linear_velocity = np.random.uniform(
         a=min_speed,
         b=max_speed
     )
-    max_angle = x[2] + max_angle_change
-    min_angle = x[2] - max_angle_change
-    if angle > max_angle:
-        angle = max_angle
-    elif angle < min_angle:
-        angle = min_angle
+    # Make sure angle is within range of -π to π
+    min_angle = (x[2] - max_angle_change + math.pi) % (2 * math.pi) - math.pi
+    max_angle = (x[2] + max_angle_change + math.pi) % (2 * math.pi) - math.pi
+    angle = max(min(angle, max_angle), min_angle)
 
     return np.array([linear_velocity, angle])
 
@@ -76,7 +69,7 @@ def binary_policy(node: Any, planner: Planner):
 
 
 def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
-    N_SAMPLE = 500
+    N_SAMPLE = 1000
     valid = False
 
     while not valid:
@@ -116,12 +109,15 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
             closest_point_idx = np.argmin(valid_points)
             # return the closest point to the best action
             return points[closest_point_idx]
+        del points, dists, best_action_distances, best_action_distances_rep, closest, all_true_rows, valid_points
 
 
 @njit
 def clip_act(chosen, angle_change, min_speed, max_speed, x):
-    chosen[0] = max(min_speed, min(chosen[0], max_speed))
-    chosen[1] = max(x[2] - angle_change, min(chosen[1], x[2] + angle_change))
+    chosen[0] = max(0.0, min(chosen[0], max_speed))
+    min_available_angle = (x[2] - angle_change + math.pi) % (2 * math.pi) - math.pi
+    max_available_angle = (x[2] + angle_change + math.pi) % (2 * math.pi) - math.pi
+    chosen[1] = max(min_available_angle, min(chosen[1], max_available_angle))
     return chosen
 
 
@@ -146,147 +142,5 @@ def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     return chosen
 
 
-def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
-    obs_x = []
-    obs_rad = []
-    for ob in node.state.obstacles:
-        obs_x.append(ob.x)
-        obs_rad.append(ob.radius)
-    x = node.state.x
-    obs = np.array(obs_x)
-    dt = planner.environment.config.dt
-    ROBOT_RADIUS = planner.environment.config.robot_radius
-    OBS_RADIUS = np.array(obs_rad)
-
-    VMAX = 0.3
-    conjunction_angle = np.arctan2(obs[:, 1] - x[1], obs[:, 0] - x[0])
-    v1_vec = VMAX * np.array([np.cos(conjunction_angle), np.sin(conjunction_angle)]).T
-    v2_vec = obs[:, 3][:, np.newaxis] * np.array([np.cos(obs[:, 2]), np.sin(obs[:, 2])]).T
-    v = v1_vec - v2_vec
-
-    r0 = np.linalg.norm(v, axis=1) * dt
-    r1 = ROBOT_RADIUS + OBS_RADIUS
-    # increment by ten percent radius
-    r1 += r1 * 0.1
-    intersection_points = [get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))]
-    config = planner.environment.gym_env.config
-    chosen = voronoi_vo(
-        actions=np.array([node.action for node in node.actions]),
-        q_vals=node.a_values,
-        sample_centered=sample_centered,
-        x=x,
-        intersection_points=intersection_points,
-        config=config,
-        eps=eps
-    )
-    return chosen
-
-
 def in_range(p: np.ndarray, rng: list):
     return rng[0] <= p[1] <= rng[1]
-
-
-def compute_angle_space(intersection_points, config, x):
-    # convert points into angles and define the forbidden angles space
-    min_angle = np.inf
-    max_angle = -np.inf
-    for point in intersection_points:
-        if point is not None:
-            p1, p2 = point
-            angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
-            min_angle = min(angle1, min_angle)
-            angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
-            max_angle = max(angle2, max_angle)
-    robot_angles = [x[2] - config.max_angle_change, x[2] + config.max_angle_change]
-    forbidden_angles = [min_angle, max_angle]
-
-    # CASE 3: the forbidden angle range is inside the angles available to the robot
-    if forbidden_angles[0] > robot_angles[0] and forbidden_angles[1] < robot_angles[1]:
-        angle_space = [
-            [robot_angles[0], forbidden_angles[0]],
-            [forbidden_angles[1], robot_angles[1]]
-        ]
-    # CASE 4: the forbidden angle range is bigger than the range of angles available to the robot
-    elif forbidden_angles[0] < robot_angles[0] and forbidden_angles[1] > robot_angles[1]:
-        angle_space = None
-    # CASE 1: the forbidden angle range starts before the range of angles available to the robot
-    elif forbidden_angles[0] < robot_angles[0]:
-        angle_space = [
-            [robot_angles[0], forbidden_angles[0]]
-        ]
-    # CASE 2: the forbidden angle range ends after the range of angles available to the robot
-    elif forbidden_angles[1] > robot_angles[1]:
-        angle_space = [
-            [robot_angles[0], forbidden_angles[0]]
-        ]
-    else:
-        raise Exception(f"The provided forbidden angles: {forbidden_angles} does not match any case with "
-                        f"the following angles available to the robot: {robot_angles}")
-
-    return angle_space
-
-
-def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config, eps):
-    prob = random.random()
-    # check if the list contains only None
-    if not any(intersection_points):
-        if prob <= 1 - eps and len(actions) != 0:
-            chosen = voronoi(
-                actions,
-                q_vals,
-                sample_centered
-            )
-            chosen = clip_act(
-                chosen=chosen,
-                angle_change=config.max_angle_change,
-                min_speed=config.min_speed,
-                max_speed=config.max_speed,
-                x=x
-            )
-        else:
-            points1 = np.random.uniform(low=config.min_speed, high=config.max_speed)
-            points2 = np.random.uniform(low=x[2] - config.max_angle_change, high=x[2] + config.max_angle_change)
-            return np.vstack([points1, points2]).T[0]
-    else:
-        def sample_multiple_spaces(center, space, number):
-            length0 = np.linalg.norm(space[0])
-            length1 = np.linalg.norm(space[1])
-
-            percentages = softmax([length0, length1])
-            pct = random.random()
-            if pct <= percentages[0]:
-                return np.vstack([
-                    np.random.uniform(low=config.min_speed, high=config.max_speed, size=number),
-                    np.random.uniform(low=space[0][0], high=space[0][1], size=number)
-                ]).T
-            else:
-                return np.vstack([
-                    np.random.uniform(low=config.min_speed, high=config.max_speed, size=number),
-                    np.random.uniform(low=space[1][0], high=space[1][1], size=number)
-                ]).T
-
-        def sample_single_space(center, space, number):
-            return np.vstack([
-                np.random.uniform(low=config.min_speed, high=config.max_speed, size=number),
-                np.random.uniform(low=space[0], high=space[1], size=number)
-            ]).T
-
-        angle_space = compute_angle_space(intersection_points=intersection_points, config=config, x=x)
-        if angle_space is None:
-            return np.array([config.min_speed, x[2]])
-        elif len(angle_space) == 1:
-            sample = sample_single_space
-            angle_space = angle_space[0]
-        else:
-            sample = sample_multiple_spaces
-
-        if prob <= 1 - eps and len(actions) != 0:
-            chosen = voronoi(
-                actions,
-                q_vals,
-                partial(sample, space=angle_space)
-            )
-        else:
-            return sample(center=None, space=angle_space, number=1)[0]
-
-    return chosen

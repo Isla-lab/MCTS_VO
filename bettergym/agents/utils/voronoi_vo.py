@@ -1,5 +1,6 @@
 import math
 import random
+from copy import deepcopy
 from functools import partial
 from typing import Callable, Any
 
@@ -70,6 +71,37 @@ def get_spaces(intersection_points, x, obs, r1, config):
     return angle_space, velocity_space
 
 
+def range_difference(rr, fr):
+    # CASE 1 the forbidden range is inside the robot angles
+    if rr[0] <= fr[0] <= rr[1] and rr[0] <= fr[1] <= rr[1]:
+        angle_space = [
+            [rr[0], fr[0]],
+            [fr[1], rr[1]]
+        ]
+    # CASE 2 the forbidden range all the robot angles
+    elif fr[0] <= rr[0] and fr[1] >= rr[1]:
+        # all angles collide
+        angle_space = None
+    # CASE 3 the forbidden range starts before the robot angles and ends inside
+    elif fr[0] <= rr[0] <= fr[1] <= rr[1]:
+        angle_space = [
+            [fr[1], rr[1]]
+        ]
+    # CASE 4 the forbidden range starts in the robot angles and ends after
+    elif fr[1] >= rr[1] >= fr[0] >= rr[0]:
+        angle_space = [
+            [rr[0], fr[0]]
+        ]
+    # CASE 5 no overlap
+    elif (fr[0] >= rr[1] and fr[1] >= rr[1]) or (fr[0] <= rr[0] and fr[0] <= rr[0]):
+        angle_space = [rr]
+    else:
+        raise Exception(f"The provided forbidden angles: {fr} does not match any case with "
+                        f"the following angles available to the robot: {rr}")
+
+    return angle_space
+
+
 def compute_safe_angle_space(intersection_points, max_angle_change, x):
     # convert points into angles and define the forbidden angles space
     forbidden_ranges = []
@@ -94,49 +126,20 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
             new_robot_angles.extend([[a[0], math.pi], [-math.pi, a[1]]])
         else:
             new_robot_angles.append(a)
-    angle_spaces = []
-    all_safe = True
-    for rr in new_robot_angles:
-        for fr in forbidden_ranges:
-            # CASE 1 the forbidden range is inside the robot angles
-            if rr[0] <= fr[0] <= rr[1] and rr[0] <= fr[1] <= rr[1]:
-                all_safe = False
-                angle_space = [
-                    [rr[0], fr[0]],
-                    [fr[1], rr[1]]
-                ]
-            # CASE 2 the forbidden range all the robot angles
-            elif fr[0] <= rr[0] and fr[1] >= rr[1]:
-                all_safe = False
-                # all angles collide
-                angle_space = [None]
-            # CASE 3 the forbidden range starts before the robot angles and ends inside
-            elif fr[0] <= rr[0] <= fr[1] <= rr[1]:
-                all_safe = False
-                angle_space = [
-                    [fr[1], rr[1]]
-                ]
-            # CASE 4 the forbidden range starts in the robot angles and ends after
-            elif fr[1] >= rr[1] >= fr[0] >= rr[0]:
-                all_safe = False
-                angle_space = [
-                    [rr[0], fr[0]]
-                ]
-            # CASE 5 no overlap
-            elif (fr[0] >= rr[1] and fr[1] >= rr[1]) or (fr[0] <= rr[0] and fr[0] <= rr[0]):
-                continue
-            else:
-                raise Exception(f"The provided forbidden angles: {fr} does not match any case with "
-                                f"the following angles available to the robot: {rr}")
-            angle_spaces.extend(angle_space)
-        # need to check all forbidden ranges before saying its safe
-        if all_safe:
-            angle_spaces.append(rr)
-    angle_spaces = [a for a in angle_spaces if a is not None]
-    if len(angle_spaces) == 0:
+
+    new_ranges = []
+    for fr in forbidden_ranges:
+        for rr in robot_angles:
+            output = range_difference(rr, fr)
+            if output is not None:
+                new_ranges.extend(output)
+        robot_angles = deepcopy(new_ranges)
+        new_ranges = []
+
+    if len(robot_angles) == 0:
         return None
     else:
-        return angle_spaces
+        return robot_angles
 
 
 def vo_negative_speed(obs, x, r1, config):

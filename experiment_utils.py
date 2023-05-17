@@ -142,7 +142,6 @@ def create_animation_tree_trajectory(goal, config, obs):
     trajectories = np.load("./debug/trajectories_0.npz", allow_pickle=True)
     values = np.load("./debug/rollout_values_0.npz", allow_pickle=True)
     fig, ax = plt.subplots()
-
     ani = FuncAnimation(
         fig,
         plot_frame_tree_traj,

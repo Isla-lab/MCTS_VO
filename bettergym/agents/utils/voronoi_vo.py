@@ -194,7 +194,6 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
             chosen = voronoi(actions, q_vals, sample_centered)
             return clip_act(chosen=chosen, angle_change=config.max_angle_change,
                             min_speed=config.min_speed, max_speed=config.max_speed, x=x)
-            # return voronoi(actions, q_vals, partial(sample, a_space=angle_space, v_space=velocity_space))
         else:
             velocity_space = [0.0, config.max_speed]
             min_angle = (x[2] - config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
@@ -243,8 +242,8 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     # Calculate radii
     r0 = np.linalg.norm(v, axis=1) * dt
     r1 = ROBOT_RADIUS + obs_rad
-    # increment by ten percent radius 1
-    r1 *= 1.1
+    # increment by ten percent radius 5 percent
+    r1 *= 1.05
 
     # Calculate intersection points
     intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]

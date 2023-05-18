@@ -12,8 +12,8 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import towards_goal, voo
-from bettergym.agents.utils.voronoi_vo import sample_centered_robot_arena, voo_vo
+from bettergym.agents.utils.utils import voo, towards_goal
+from bettergym.agents.utils.vo import sample_centered_robot_arena, voo_vo, towards_goal_vo
 from environment_creator import create_env_four_obs_difficult_continuous
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
     create_animation_tree_trajectory
@@ -67,7 +67,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         discount=0.99,
         action_expansion_function=policy,
         # rollout_policy=uniform
-        rollout_policy=partial(towards_goal, var_angle=var_angle)
+        rollout_policy=partial(towards_goal_vo, var_angle=var_angle)
     )
     planner_mcts = Mcts(
         num_sim=1000,

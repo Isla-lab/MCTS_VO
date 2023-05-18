@@ -8,8 +8,42 @@ import numpy as np
 from scipy.special import softmax
 
 from bettergym.agents.planner import Planner
-from bettergym.agents.utils.utils import voronoi, clip_act
+from bettergym.agents.utils.utils import voronoi, clip_act, compute_towards_goal_jit
 from mcts_utils import get_intersections
+
+
+def towards_goal_vo(node: Any, planner: Planner, var_angle: float):
+    # Extract obstacle information
+    obstacles = node.state.obstacles
+    obs_x = np.array([ob.x for ob in obstacles])
+    obs_rad = np.array([ob.radius for ob in obstacles])
+
+    # Extract robot information
+    x = node.state.x
+    dt = planner.environment.config.dt
+    ROBOT_RADIUS = planner.environment.config.robot_radius
+    VMAX = 0.3
+
+    # Calculate velocities
+    v = get_relative_velocity(VMAX, obs_x, x)
+
+    # Calculate radii
+    r0 = np.linalg.norm(v, axis=1) * dt
+    r1 = ROBOT_RADIUS + obs_rad
+    # increment by ten percent radius 5 percent
+    r1 *= 1.05
+
+    # Calculate intersection points
+    intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]
+    config = planner.environment.gym_env.config
+    # If there are no intersection points
+    if not any(intersection_points):
+        return compute_towards_goal_jit(x, node.state.goal, config.max_angle_change, var_angle, config.min_speed,
+                                        config.max_speed)
+    else:
+        # convert intersection points into ranges of available velocities/angles
+        angle_space, velocity_space = get_spaces(intersection_points, x, obs_x, r1, config)
+        return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 
 
 def sample_centered_robot_arena(center: np.ndarray, number):

@@ -138,9 +138,9 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
     plt.colorbar(cmap)
 
 
-def create_animation_tree_trajectory(goal, config, obs):
-    trajectories = np.load("./debug/trajectories_0.npz", allow_pickle=True)
-    values = np.load("./debug/rollout_values_0.npz", allow_pickle=True)
+def create_animation_tree_trajectory(goal, config, obs, exp_num):
+    trajectories = np.load(f"./debug/trajectories_{exp_num}.npz", allow_pickle=True)
+    values = np.load(f"./debug/rollout_values_{exp_num}.npz", allow_pickle=True)
     fig, ax = plt.subplots()
     ani = FuncAnimation(
         fig,
@@ -148,7 +148,7 @@ def create_animation_tree_trajectory(goal, config, obs):
         fargs=(goal, config, obs, trajectories, values, fig),
         frames=len(trajectories)
     )
-    ani.save(f"./debug/tree_trajectory.mp4", fps=5, dpi=300)
+    ani.save(f"./debug/tree_trajectory_{exp_num}.mp4", fps=5, dpi=300)
 
 
 def plot_frame_multiagent(i, goal1, goal2, config, obs, traj1, traj2, ax):

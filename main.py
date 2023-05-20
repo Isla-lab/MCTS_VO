@@ -16,7 +16,7 @@ from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import voo, towards_goal
 from bettergym.agents.utils.vo import sample_centered_robot_arena, towards_goal_vo, voo_vo
-from environment_creator import create_env_four_obs_difficult_continuous
+from environment_creator import create_env_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
     create_animation_tree_trajectory
 
@@ -48,8 +48,9 @@ def seed_everything(seed_value: int):
 def run_experiment(seed_val, experiment: ExperimentData):
     global exp_num
     # input [forward speed, yaw_rate]
-    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10), discrete=experiment.discrete)
-    # real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10))
+    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10), discrete=experiment.discrete)
+    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10),
+                                                             discrete=experiment.discrete)
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
@@ -152,9 +153,9 @@ def run_experiment(seed_val, experiment: ExperimentData):
         np.savez_compressed(f"debug/actions_{exp_num}", *a)
         np.savez_compressed(f"debug/trajectory_real_{exp_num}", trajectory)
         np.savez_compressed(f"debug/chosen_a_{exp_num}", np.array(actions))
-
+        time.sleep(1)
         print("Creating Tree Trajectories Animation...")
-        create_animation_tree_trajectory(goal, config, obs)
+        create_animation_tree_trajectory(goal, config, obs, exp_num)
 
     print("Done")
 
@@ -162,15 +163,15 @@ def run_experiment(seed_val, experiment: ExperimentData):
 def main():
     global exp_num
     exp_num = 0
-    var_angle = 0.38*2
+    var_angle = 0.38 * 2
     experiments = [
-        # VORONOI + VO (albero + rollout)
-        ExperimentData(
-            action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal_vo, var_angle=var_angle),
-            discrete=False,
-            obstacle_reward=False
-        ),
+        # # VORONOI + VO (albero + rollout)
+        # ExperimentData(
+        #     action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
+        #     rollout_policy=partial(towards_goal_vo, var_angle=var_angle),
+        #     discrete=False,
+        #     obstacle_reward=False
+        # ),
         # VORONOI + VO (albero + reward ostacoli)
         ExperimentData(
             action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),

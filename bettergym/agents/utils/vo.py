@@ -46,14 +46,13 @@ def towards_goal_vo(node: Any, planner: Planner, var_angle: float):
         return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 
 
-def sample_centered_robot_arena(center: np.ndarray, number):
+def sample_centered_robot_arena(center: np.ndarray, number: int, clip_fn: Callable):
     chosen = np.random.multivariate_normal(
         mean=center,
         cov=np.diag([0.3 / 2, 0.38 * 2]),
         size=number
     )
-    # Make sure angle is within range of -π to π
-    chosen[:, 1] = (chosen[:, 1] + math.pi) % (2 * math.pi) - math.pi
+    clip_fn(chosen=chosen)
     return chosen
 
 
@@ -225,9 +224,7 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
     # If there are no intersection points
     if not any(intersection_points):
         if prob <= 1 - eps and len(actions) != 0:
-            chosen = voronoi(actions, q_vals, sample_centered)
-            return clip_act(chosen=chosen, angle_change=config.max_angle_change,
-                            min_speed=config.min_speed, max_speed=config.max_speed, x=x)
+            return voronoi(actions, q_vals, partial(sample_centered, clip_fn=partial(clip_act, max_angle_change=config.max_angle_change, x=x, allow_negative=False)))
         else:
             velocity_space = [0.0, config.max_speed]
             min_angle = (x[2] - config.max_angle_change + math.pi) % (2 * math.pi) - math.pi

@@ -16,7 +16,7 @@ from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import voo, towards_goal
 from bettergym.agents.utils.vo import sample_centered_robot_arena, towards_goal_vo, voo_vo
-from environment_creator import create_env_five_small_obs_continuous
+from environment_creator import create_env_five_small_obs_continuous, create_env_four_obs_difficult_continuous
 from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
     create_animation_tree_trajectory
 
@@ -30,7 +30,7 @@ class ExperimentData:
     action_expansion_policy: Callable
     discrete: bool
     obstacle_reward: bool
-    # variance: float
+    variance: float
 
 
 @njit
@@ -48,9 +48,9 @@ def seed_everything(seed_value: int):
 def run_experiment(seed_val, experiment: ExperimentData):
     global exp_num
     # input [forward speed, yaw_rate]
-    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10), discrete=experiment.discrete)
-    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10),
-                                                             discrete=experiment.discrete)
+    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10), discrete=experiment.discrete)
+    # real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10),
+    #                                                          discrete=experiment.discrete)
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
@@ -66,7 +66,7 @@ def run_experiment(seed_val, experiment: ExperimentData):
 
     if experiment.action_expansion_policy is not voo_vo:
         for o in s0.obstacles:
-            o.radius = o.radius * 1.05
+            o.radius *= 1.05
         env.gym_env.state = s0
 
     obs = [s0.obstacles]
@@ -100,7 +100,7 @@ def run_experiment(seed_val, experiment: ExperimentData):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 100:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -120,6 +120,7 @@ def run_experiment(seed_val, experiment: ExperimentData):
     print_and_notify(
         f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
         f"Discrete: {experiment.discrete}\n"
+        f"Variance Angle: {experiment.variance}"
         f"Number of Steps: {step_n}\n"
         f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
         f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
@@ -173,33 +174,34 @@ def main():
         #     obstacle_reward=False
         # ),
         # VORONOI + VO (albero + reward ostacoli)
-        ExperimentData(
-            action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal, var_angle=var_angle),
-            discrete=False,
-            obstacle_reward=True
-        ),
+        # ExperimentData(
+        #     action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
+        #     rollout_policy=partial(towards_goal, var_angle=var_angle),
+        #     discrete=False,
+        #     obstacle_reward=True
+        # ),
         # VORONOI + VO (albero)
         ExperimentData(
             action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
             rollout_policy=partial(towards_goal, var_angle=var_angle),
             discrete=False,
-            obstacle_reward=False
+            obstacle_reward=False,
+            variance=0.38 * 2
         ),
         # VORONOI
-        ExperimentData(
-            action_expansion_policy=partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal, var_angle=var_angle),
-            discrete=False,
-            obstacle_reward=True
-        ),
-        # VANILLA
-        ExperimentData(
-            action_expansion_policy=None,
-            rollout_policy=partial(towards_goal, var_angle=var_angle),
-            discrete=True,
-            obstacle_reward=True
-        )
+        # ExperimentData(
+        #     action_expansion_policy=partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena),
+        #     rollout_policy=partial(towards_goal, var_angle=var_angle),
+        #     discrete=False,
+        #     obstacle_reward=True
+        # ),
+        # # VANILLA
+        # ExperimentData(
+        #     action_expansion_policy=None,
+        #     rollout_policy=partial(towards_goal, var_angle=var_angle),
+        #     discrete=True,
+        #     obstacle_reward=True
+        # )
     ]
     for exp in experiments:
         run_experiment(seed_val=2, experiment=exp)

@@ -1,3 +1,5 @@
+import pickle
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -113,9 +115,8 @@ def plot_real_trajectory_information(trj: np.ndarray, exp_num: int):
 def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
     fig.clear()
     ax = fig.add_subplot()
-    file_name = trajectories.files[i]
-    step = trajectories[file_name]
-    val_points = values[file_name]
+    step = trajectories[i]
+    val_points = values[i]
 
     last_points = np.array([trj[-1][:2] for trj in step])
     x0 = step[0][0]
@@ -139,8 +140,11 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
 
 
 def create_animation_tree_trajectory(goal, config, obs, exp_num):
-    trajectories = np.load(f"./debug/trajectories_{exp_num}.npz", allow_pickle=True)
-    values = np.load(f"./debug/rollout_values_{exp_num}.npz", allow_pickle=True)
+    # trajectories = np.load(f"./debug/trajectories_{exp_num}.npz", allow_pickle=True)
+    with open(f"./debug/trajectories_{exp_num}.pkl", 'rb') as f:
+        trajectories = pickle.load(f)
+    with open(f"./debug/rollout_values_{exp_num}.pkl", 'rb') as f:
+        values = pickle.load(f)
     fig, ax = plt.subplots()
     ani = FuncAnimation(
         fig,

@@ -52,7 +52,7 @@ def sample_centered_robot_arena(center: np.ndarray, number: int, clip_fn: Callab
         cov=np.diag([0.3 / 2, 0.38 * 2]),
         size=number
     )
-    clip_fn(chosen=chosen)
+    chosen = clip_fn(chosen=chosen)
     return chosen
 
 

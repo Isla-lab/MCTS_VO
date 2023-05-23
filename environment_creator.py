@@ -47,12 +47,12 @@ def create_env_five_small_obs_continuous(initial_pos: tuple, goal: tuple, discre
 def create_env_four_obs_difficult_continuous(initial_pos: tuple, goal: tuple, discrete: bool):
     c = Config()
     obstacles_positions = np.array([
-        [3.0, 1.1],
+        [3.4, 1.1],
         [1.0, 4.0],
         [4.0, 7.0],
-        [9.0, 7.0],
+        [9.5, 7.0],
     ])
-    radiuses = [1.5, 1, 2, 2]
+    radiuses = [1.8, 1, 2, 2]
     obs = [RobotArenaState(np.pad(obstacles_positions[i], (0, 2), 'constant'), goal=None, obstacles=None,
                            radius=radiuses[i]) for i in
            range(len(obstacles_positions))]

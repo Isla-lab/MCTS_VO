@@ -9,7 +9,19 @@ from bettergym.better_gym import BetterGym
 class ActionNode:
     def __init__(self, action: Any):
         self.action: Any = action
+        self.action_bytes = action.tobytes()
         self.state_to_id: Dict[Any, int] = {}
+
+    def __hash__(self):
+        return hash(self.action_bytes)
+
+    def __repr__(self):
+        return np.array2string(self.action)
+
+    def __eq__(self, other):
+        if isinstance(other, ActionNode) and hash(self) == hash(other):
+            return True
+        return False
 
 
 class StateNode:
@@ -47,9 +59,6 @@ class Mcts(Planner):
 
     def initialize_variables(self):
         self.id_to_state_node: dict[int, StateNode] = {}
-        self.num_visits_actions = np.array([], dtype=np.float64)
-        self.a_values = np.array([])
-        self.state_actions = {}
         self.last_id = -1
         self.info = {
             "trajectories": [],
@@ -127,7 +136,7 @@ class Mcts(Planner):
         else:
             # Node in the tree
             state_id = new_state_id
-            if terminal or depth+1 > self.computational_budget:
+            if terminal or depth+1 >= self.computational_budget:
                 self.info["rollout_values"].append(r)
                 return r
             else:

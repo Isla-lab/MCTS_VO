@@ -177,7 +177,6 @@ class MctsApw(Planner):
         total_reward = 0
         starting_depth = 0
         while not terminal and curr_depth + starting_depth != self.computational_budget:
-            # random policy
             chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
             total_reward += r * pow(self.discount, starting_depth)

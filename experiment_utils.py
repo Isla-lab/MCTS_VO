@@ -1,3 +1,5 @@
+import pickle
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -113,9 +115,8 @@ def plot_real_trajectory_information(trj: np.ndarray, exp_num: int):
 def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
     fig.clear()
     ax = fig.add_subplot()
-    file_name = trajectories.files[i]
-    step = trajectories[file_name]
-    val_points = values[file_name]
+    step = trajectories[i]
+    val_points = values[i]
 
     last_points = np.array([trj[-1][:2] for trj in step])
     x0 = step[0][0]
@@ -138,18 +139,20 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
     plt.colorbar(cmap)
 
 
-def create_animation_tree_trajectory(goal, config, obs):
-    trajectories = np.load("./debug/trajectories_0.npz", allow_pickle=True)
-    values = np.load("./debug/rollout_values_0.npz", allow_pickle=True)
+def create_animation_tree_trajectory(goal, config, obs, exp_num):
+    # trajectories = np.load(f"./debug/trajectories_{exp_num}.npz", allow_pickle=True)
+    with open(f"./debug/trajectories_{exp_num}.pkl", 'rb') as f:
+        trajectories = pickle.load(f)
+    with open(f"./debug/rollout_values_{exp_num}.pkl", 'rb') as f:
+        values = pickle.load(f)
     fig, ax = plt.subplots()
-
     ani = FuncAnimation(
         fig,
         plot_frame_tree_traj,
         fargs=(goal, config, obs, trajectories, values, fig),
         frames=len(trajectories)
     )
-    ani.save(f"./debug/tree_trajectory.mp4", fps=5, dpi=300)
+    ani.save(f"./debug/tree_trajectory_{exp_num}.mp4", fps=5, dpi=300)
 
 
 def plot_frame_multiagent(i, goal1, goal2, config, obs, traj1, traj2, ax):

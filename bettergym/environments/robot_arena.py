@@ -32,7 +32,7 @@ class Config:
     right_limit: float = 11.5
     left_limit: float = -0.5
 
-    num_discrete_actions: int = 5
+    num_discrete_actions: int = 101
 
 
 class RobotArenaState:
@@ -249,9 +249,8 @@ class UniformActionSpace:
 
 class BetterRobotArena(BetterGym):
 
-    def __init__(self, initial_state: RobotArenaState, gradient: bool = True, discrete: bool = False,
-                 config: Config = Config(), sim: bool = False):
-        if discrete:
+    def __init__(self, initial_state: RobotArenaState, gradient: bool, discrete_env: bool, config: Config, sim: bool):
+        if discrete_env:
             self.get_actions = self.get_actions_discrete
         else:
             self.get_actions = self.get_actions_continuous
@@ -269,11 +268,13 @@ class BetterRobotArena(BetterGym):
     def get_actions_discrete(self, state: RobotArenaState):
         config = self.gym_env.config
 
-        return np.linspace(
+        actions = np.linspace(
             start=np.array([config.min_speed, state.x[2] - config.max_angle_change], dtype=np.float64),
             stop=np.array([config.max_speed, state.x[2] + config.max_angle_change], dtype=np.float64),
             num=config.num_discrete_actions
         )
+        actions[:, 1] = sorted((actions[:, 1] + np.pi) % (2 * np.pi) - np.pi)
+        return actions
 
     def set_state(self, state: RobotArenaState) -> None:
         self.gym_env.state = state.copy()

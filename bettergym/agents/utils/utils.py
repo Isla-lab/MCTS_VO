@@ -1,5 +1,6 @@
 import math
 import random
+from functools import partial
 from typing import Any, Callable
 
 import numpy as np
@@ -21,6 +22,22 @@ def uniform_discrete(node: Any, planner: Planner):
     return random.choice(actions)
 
 
+# @njit
+# def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, var_angle: float,
+#                              min_speed: float,
+#                              max_speed: float):
+#     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
+#     angle = np.random.normal(mean_angle, var_angle)
+#     linear_velocity = np.random.uniform(
+#         low=min_speed,
+#         high=max_speed
+#     )
+#     # Make sure angle is within range of -π to π
+#     min_angle = x[2] - max_angle_change
+#     max_angle = x[2] + max_angle_change
+#     angle = max(min(angle, max_angle), min_angle)
+#     angle = (angle + math.pi) % (2 * math.pi) - math.pi
+#     return np.array([linear_velocity, angle])
 @njit
 def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, var_angle: float,
                              min_speed: float,
@@ -28,14 +45,14 @@ def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: 
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
     angle = np.random.normal(mean_angle, var_angle)
     linear_velocity = np.random.uniform(
-        a=min_speed,
-        b=max_speed
+        low=min_speed,
+        high=max_speed
     )
     # Make sure angle is within range of -π to π
     min_angle = (x[2] - max_angle_change + math.pi) % (2 * math.pi) - math.pi
     max_angle = (x[2] + max_angle_change + math.pi) % (2 * math.pi) - math.pi
+    angle = (angle + math.pi) % (2 * math.pi) - math.pi
     angle = max(min(angle, max_angle), min_angle)
-
     return np.array([linear_velocity, angle])
 
 
@@ -71,15 +88,19 @@ def binary_policy(node: Any, planner: Planner):
 def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
     N_SAMPLE = 1000
     valid = False
+    n_iter = 0
+    # find the index of the action with the highest Q-value
+    best_action_index = np.argmax(q_vals)
 
+    # get the action with the highest Q-value
+    best_action = actions[best_action_index]
+    tmp_best = None
+    tmp_dist = np.inf
     while not valid:
-        # find the index of the action with the highest Q-value
-        best_action_index = np.argmax(q_vals)
+        if n_iter >= 100:
+            return tmp_best
 
-        # get the action with the highest Q-value
-        best_action = actions[best_action_index]
-
-        # generate 200 random points centered around the best action
+        # generate random points centered around the best action
         points = sample_centered(center=best_action, number=N_SAMPLE)
 
         # compute the Euclidean distances between each point and each action
@@ -109,38 +130,40 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
             closest_point_idx = np.argmin(valid_points)
             # return the closest point to the best action
             return points[closest_point_idx]
+        else:
+            closest_point_idx = np.argmin(best_action_distances)
+            if d := best_action_distances[closest_point_idx] < tmp_dist:
+                # return the closest point to the best action
+                tmp_best = points[closest_point_idx]
+                tmp_dist = d
+        n_iter += 1
         del points, dists, best_action_distances, best_action_distances_rep, closest, all_true_rows, valid_points
 
 
 @njit
-def clip_act(chosen, angle_change, min_speed, max_speed, x):
-    chosen[0] = max(0.0, min(chosen[0], max_speed))
-    min_available_angle = (x[2] - angle_change + math.pi) % (2 * math.pi) - math.pi
-    max_available_angle = (x[2] + angle_change + math.pi) % (2 * math.pi) - math.pi
-    chosen[1] = max(min_available_angle, min(chosen[1], max_available_angle))
+def clip_act(chosen: np.ndarray, max_angle_change: float, x: np.ndarray, allow_negative: bool):
+    if allow_negative:
+        chosen[:, 0] = (chosen[:, 0] % 0.4) - 0.1
+    else:
+        chosen[:, 0] = chosen[:, 0] % 0.3
+    min_available_angle = x[2] - max_angle_change
+    max_available_angle = x[2] + max_angle_change
+    # Make sure angle is within range of -min_angle to max_angle
+    chosen[:, 1] = chosen[:, 1] % (max_available_angle - min_available_angle) + min_available_angle
+    # Make sure angle is within range of -π to π
+    chosen[:, 1] = (chosen[:, 1] + math.pi) % (2 * math.pi) - math.pi
     return chosen
 
 
 def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     prob = random.random()
     if prob <= 1 - eps and len(node.actions) != 0:
-        chosen = voronoi(
+        config = planner.environment.gym_env.config
+        return voronoi(
             np.array([node.action for node in node.actions]),
             node.a_values,
-            sample_centered
+            partial(sample_centered, clip_fn=partial(clip_act, max_angle_change=config.max_angle_change, x=node.state.x,
+                                                     allow_negative=True))
         )
     else:
-        chosen = uniform(node, planner)
-    config = planner.environment.gym_env.config
-    chosen = clip_act(
-        chosen=chosen,
-        angle_change=config.max_angle_change,
-        min_speed=config.min_speed,
-        max_speed=config.max_speed,
-        x=node.state.x
-    )
-    return chosen
-
-
-def in_range(p: np.ndarray, rng: list):
-    return rng[0] <= p[1] <= rng[1]
+        return uniform(node, planner)

@@ -80,7 +80,7 @@ def dist_to_goal(goal: np.ndarray, x: np.ndarray):
 
 class RobotArena:
     def __init__(self, initial_state: RobotArenaState, config: Config = Config(),
-                 gradient: bool = True, sim: bool = False):
+                 gradient: bool = True, collision_rwrd: bool = False):
         self.state = initial_state
         bl_corner = np.array([config.bottom_limit, config.left_limit])
         ur_corner = np.array([config.upper_limit, config.right_limit])
@@ -93,7 +93,7 @@ class RobotArena:
         else:
             self.reward = self.reward_no_grad
 
-        if not sim:
+        if collision_rwrd:
             self.step = self.step_check_coll
         else:
             self.step = self.step_no_check_coll
@@ -249,13 +249,15 @@ class UniformActionSpace:
 
 class BetterRobotArena(BetterGym):
 
-    def __init__(self, initial_state: RobotArenaState, gradient: bool, discrete_env: bool, config: Config, sim: bool):
+    def __init__(self, initial_state: RobotArenaState, gradient: bool, discrete_env: bool, config: Config,
+                 collision_rwrd: bool):
         if discrete_env:
             self.get_actions = self.get_actions_discrete
         else:
             self.get_actions = self.get_actions_continuous
 
-        super().__init__(RobotArena(initial_state=initial_state, gradient=gradient, config=config, sim=sim))
+        super().__init__(
+            RobotArena(initial_state=initial_state, config=config, gradient=gradient, collision_rwrd=collision_rwrd))
 
     def get_actions_continuous(self, state: RobotArenaState):
         config = self.gym_env.config

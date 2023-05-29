@@ -52,7 +52,7 @@ def run_experiment(seed_val, experiment: ExperimentData):
     # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(10, 10),
     #                                                              discrete=experiment.discrete)
     real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10),
-                                                             discrete=experiment.discrete)
+                                                             discrete=experiment.discrete, rwrd_in_sim=experiment.obstacle_reward)
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
@@ -61,21 +61,18 @@ def run_experiment(seed_val, experiment: ExperimentData):
     goal = s0.goal
 
     s = s0
-    if experiment.obstacle_reward:
-        env = real_env
-    else:
-        env = sim_env
 
     if experiment.action_expansion_policy is not voo_vo:
         for o in s0.obstacles:
             o.radius *= 1.05
-        env.gym_env.state = s0
+        real_env.gym_env.state = s0
+        sim_env.gym_env.state = s0
 
     obs = [s0.obstacles]
     planner_apw = MctsApw(
         num_sim=1000,
         c=150,
-        environment=env,
+        environment=sim_env,
         computational_budget=100,
         k=50,
         alpha=0.1,
@@ -86,7 +83,7 @@ def run_experiment(seed_val, experiment: ExperimentData):
     planner_mcts = Mcts(
         num_sim=1000,
         c=150,
-        environment=env,
+        environment=sim_env,
         computational_budget=100,
         discount=0.99,
         rollout_policy=experiment.rollout_policy
@@ -175,38 +172,38 @@ def main():
     exp_num = 0
     var_angle = 0.38 * 2
     experiments = [
-        # # VORONOI + VO (albero + reward ostacoli)
-        # ExperimentData(
-        #     action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-        #     rollout_policy=partial(towards_goal, var_angle=var_angle),
-        #     discrete=False,
-        #     obstacle_reward=True,
-        #     variance=0.38 * 2
-        # ),
-        # # VORONOI + VO (albero)
-        # ExperimentData(
-        #     action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-        #     rollout_policy=partial(towards_goal, var_angle=var_angle),
-        #     discrete=False,
-        #     obstacle_reward=False,
-        #     variance=0.38 * 2
-        # ),
-        # # VORONOI
-        # ExperimentData(
-        #     action_expansion_policy=partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena),
-        #     rollout_policy=partial(towards_goal, var_angle=var_angle),
-        #     discrete=False,
-        #     obstacle_reward=True,
-        #     variance=0.38 * 2
-        # ),
-        # # VANILLA
-        # ExperimentData(
-        #     action_expansion_policy=None,
-        #     rollout_policy=partial(towards_goal, var_angle=var_angle),
-        #     discrete=True,
-        #     obstacle_reward=True,
-        #     variance=0.38 * 2
-        # ),
+        # VORONOI + VO (albero + reward ostacoli)
+        ExperimentData(
+            action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
+            rollout_policy=partial(towards_goal, var_angle=var_angle),
+            discrete=False,
+            obstacle_reward=True,
+            variance=0.38 * 2
+        ),
+        # VORONOI + VO (albero)
+        ExperimentData(
+            action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
+            rollout_policy=partial(towards_goal, var_angle=var_angle),
+            discrete=False,
+            obstacle_reward=False,
+            variance=0.38 * 2
+        ),
+        # VORONOI
+        ExperimentData(
+            action_expansion_policy=partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena),
+            rollout_policy=partial(towards_goal, var_angle=var_angle),
+            discrete=False,
+            obstacle_reward=True,
+            variance=0.38 * 2
+        ),
+        # VANILLA
+        ExperimentData(
+            action_expansion_policy=None,
+            rollout_policy=partial(towards_goal, var_angle=var_angle),
+            discrete=True,
+            obstacle_reward=True,
+            variance=0.38 * 2
+        ),
         # VORONOI + VO (albero + rollout)
         ExperimentData(
             action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),

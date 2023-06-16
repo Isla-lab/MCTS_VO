@@ -22,22 +22,6 @@ def uniform_discrete(node: Any, planner: Planner):
     return random.choice(actions)
 
 
-# @njit
-# def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, var_angle: float,
-#                              min_speed: float,
-#                              max_speed: float):
-#     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
-#     angle = np.random.normal(mean_angle, var_angle)
-#     linear_velocity = np.random.uniform(
-#         low=min_speed,
-#         high=max_speed
-#     )
-#     # Make sure angle is within range of -π to π
-#     min_angle = x[2] - max_angle_change
-#     max_angle = x[2] + max_angle_change
-#     angle = max(min(angle, max_angle), min_angle)
-#     angle = (angle + math.pi) % (2 * math.pi) - math.pi
-#     return np.array([linear_velocity, angle])
 @njit
 def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, var_angle: float,
                              min_speed: float,

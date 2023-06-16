@@ -91,7 +91,8 @@ class MctsApw(Planner):
         for sn in range(self.num_sim):
             self.info["trajectories"].append(np.array([initial_state.x]))
             # root should be at depth 0
-            self.simulate(state_id=root_id, depth=0)
+            total_reward = self.simulate(state_id=root_id, depth=0)
+            self.info["rollout_values"].append(total_reward)
 
         q_vals = root_node.a_values / root_node.num_visits_actions
         # DEBUG INFORMATION
@@ -162,7 +163,7 @@ class MctsApw(Planner):
             # Node in the tree
             state_id = new_state_id
             if terminal or depth + 1 >= self.computational_budget:
-                self.info["rollout_values"].append(r)
+                # self.info["rollout_values"].append(r)
                 return r
             else:
                 total_rwrd = r + self.discount * self.simulate(state_id, depth + 1)
@@ -184,5 +185,5 @@ class MctsApw(Planner):
             starting_depth += 1
 
         self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], np.array(trajectory)))
-        self.info["rollout_values"].append(total_reward)
+        # self.info["rollout_values"].append(total_reward)
         return total_reward

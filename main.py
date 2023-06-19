@@ -137,16 +137,17 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         exp_name
     )
 
-    df = pd.DataFrame({
+    data = {
         "algorithm": arguments.algorithm,
         "nsim": arguments.nsim,
         "outRwrd": arguments.rwrd,
         "dtSim": arguments.dt,
         "cumRwrd": round(sum(rewards), 2),
         "nSteps": step_n,
-        "MeanStepTime": {np.round(mean(times), 2)},
-        "StdStepTime": {np.round(std(times), 2)}
-    })
+        "MeanStepTime": np.round(mean(times), 2),
+        "StdStepTime": np.round(std(times), 2)
+    }
+    df = pd.Series(data)
     df.to_csv(f'{exp_name}.csv')
 
     if ANIMATION:

@@ -30,7 +30,8 @@ def create_env_continuous(initial_pos, goal, obs, discrete: bool, rwrd_in_sim: b
     return real_env, sim_env
 
 
-def create_env_five_small_obs_continuous(initial_pos: tuple, goal: tuple, discrete: bool, rwrd_in_sim: bool):
+def create_env_five_small_obs_continuous(initial_pos: tuple, goal: tuple, discrete: bool, rwrd_in_sim: bool,
+                                         out_boundaries_rwrd: int, dt_sim: float):
     obstacles_positions = np.array([
         [4.0, 4.0],
         [4.0, 6.0],
@@ -39,11 +40,13 @@ def create_env_five_small_obs_continuous(initial_pos: tuple, goal: tuple, discre
         [6.0, 6.0]
     ])
     real_c = Config()
-    sim_c = Config(dt=1)
+    sim_c = Config(dt=dt_sim)
     obs = [RobotArenaState(np.pad(ob, (0, 2), 'constant'), goal=None, obstacles=None, radius=real_c.obs_size) for ob in
            obstacles_positions]
-    return create_env_continuous(initial_pos=initial_pos, goal=goal, obs=obs, discrete=discrete,
-                                 rwrd_in_sim=rwrd_in_sim, real_c=real_c, sim_c=sim_c)
+    real_env, sim_env = create_env_continuous(initial_pos=initial_pos, goal=goal, obs=obs, discrete=discrete,
+                                              rwrd_in_sim=rwrd_in_sim, real_c=real_c, sim_c=sim_c)
+    sim_env.gym_env.WALL_REWARD = out_boundaries_rwrd
+    return real_env, sim_env
 
 
 def create_env_four_obs_difficult_continuous(initial_pos: tuple, goal: tuple, discrete: bool, rwrd_in_sim: bool):

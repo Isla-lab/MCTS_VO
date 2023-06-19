@@ -87,6 +87,7 @@ class RobotArena:
         self.max_eudist = math.hypot(ur_corner[0] - bl_corner[0], ur_corner[1] - bl_corner[1])
         self.config = config
         self.dist_goal = None
+        self.WALL_REWARD: float = -100.0
 
         if gradient:
             self.reward = self.reward_grad
@@ -205,8 +206,11 @@ class RobotArena:
         if is_goal:
             return GOAL_REWARD
 
-        if is_collision or out_boundaries:
+        if is_collision:
             return COLLISION_REWARD
+
+        if out_boundaries:
+            return self.WALL_REWARD
 
         return STEP_REWARD
 
@@ -228,8 +232,12 @@ class RobotArena:
         if is_goal:
             return GOAL_REWARD
 
-        if is_collision or out_boundaries:
+        if is_collision:
             return COLLISION_REWARD
+
+        if out_boundaries:
+            return self.WALL_REWARD
+
         return -self.dist_goal / self.max_eudist
 
 
@@ -269,13 +277,20 @@ class BetterRobotArena(BetterGym):
 
     def get_actions_discrete(self, state: RobotArenaState):
         config = self.gym_env.config
-
-        actions = np.linspace(
-            start=np.array([config.min_speed, state.x[2] - config.max_angle_change], dtype=np.float64),
-            stop=np.array([config.max_speed, state.x[2] + config.max_angle_change], dtype=np.float64),
-            num=config.num_discrete_actions
+        available_angles = np.linspace(
+            start=state.x[2] - config.max_angle_change,
+            stop=state.x[2] + config.max_angle_change,
+            num=10
         )
-        actions[:, 1] = sorted((actions[:, 1] + np.pi) % (2 * np.pi) - np.pi)
+        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
+        available_velocities = np.linspace(
+            start=config.min_speed,
+            stop=config.max_speed,
+            num=10
+        )
+
+        actions = np.transpose([np.tile(available_velocities, len(available_angles)),
+                                np.repeat(available_angles, len(available_velocities))])
         return actions
 
     def set_state(self, state: RobotArenaState) -> None:

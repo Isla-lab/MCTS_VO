@@ -32,9 +32,6 @@ class Config:
     right_limit: float = 11.5
     left_limit: float = -0.5
 
-    num_discrete_actions: int = 101
-
-
 class RobotArenaState:
     def __init__(self, x: np.ndarray, goal: np.ndarray, obstacles: list, radius: float):
         # x, y, angle ,vel_lin, vel_ang
@@ -87,6 +84,7 @@ class RobotArena:
         self.max_eudist = math.hypot(ur_corner[0] - bl_corner[0], ur_corner[1] - bl_corner[1])
         self.config = config
         self.dist_goal = None
+        self.dist_goal_t = None
         self.WALL_REWARD: float = -100.0
 
         if gradient:
@@ -164,6 +162,7 @@ class RobotArena:
         :param action: action performed by the agent
         :return:
         """
+        self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.motion(self.state.x, action)
         self.dist_goal = dist_to_goal(self.state.x[:2], self.state.goal)
         collision = self.check_collision(self.state)
@@ -199,7 +198,7 @@ class RobotArena:
         :param out_boundaries: boolean value indicating if the robot is out of the map
         :return: The numerical reward of the agent
         """
-        GOAL_REWARD: float = 1.0
+        GOAL_REWARD: float = 100.0
         COLLISION_REWARD: float = -100.0
         STEP_REWARD: float = -0.01
 
@@ -238,7 +237,7 @@ class RobotArena:
         if out_boundaries:
             return self.WALL_REWARD
 
-        return -self.dist_goal / self.max_eudist
+        return -((self.dist_goal-self.dist_goal_t) / self.max_eudist)
 
 
 class UniformActionSpace:

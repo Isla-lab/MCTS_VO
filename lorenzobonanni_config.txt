@@ -1,0 +1,2 @@
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-200 --dt=1
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1

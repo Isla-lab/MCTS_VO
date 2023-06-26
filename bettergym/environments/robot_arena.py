@@ -282,12 +282,14 @@ class BetterRobotArena(BetterGym):
             stop=state.x[2] + config.max_angle_change,
             num=10
         )
+        available_angles = np.append(available_angles, state.x[2])
         available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
         available_velocities = np.linspace(
             start=config.min_speed,
             stop=config.max_speed,
             num=10
         )
+        available_velocities = np.append(available_velocities, 0.0)
 
         actions = np.transpose([np.tile(available_velocities, len(available_angles)),
                                 np.repeat(available_angles, len(available_velocities))])

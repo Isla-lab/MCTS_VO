@@ -148,6 +148,7 @@ class Mcts(Planner):
             state_id = new_state_id
             if terminal or depth+1 >= self.computational_budget:
                 # self.info["rollout_values"].append(r)
+                prev_node.a_values[action_idx] += r
                 return r
             else:
                 total_rwrd = r + self.discount * self.simulate(state_id, depth + 1)

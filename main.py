@@ -204,12 +204,12 @@ def argument_parser():
 
 def get_experiment_data(arguments):
     # var_angle = 0.38 * 2
-    std_angle_rollout = arguments.std_angle_rollout
+    std_angle_rollout = arguments.std
     if arguments.algorithm == "VOR":
         # VORONOI + VO (albero + reward ostacoli)
         return ExperimentData(
             action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal, var_angle=std_angle_rollout),
+            rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
             discrete=False,
             obstacle_reward=True,
             variance=0.38 * 2,
@@ -219,7 +219,7 @@ def get_experiment_data(arguments):
         # VORONOI
         return ExperimentData(
             action_expansion_policy=partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal, var_angle=std_angle_rollout),
+            rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
             discrete=False,
             obstacle_reward=True,
             variance=0.38 * 2,
@@ -229,7 +229,7 @@ def get_experiment_data(arguments):
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,
-            rollout_policy=partial(towards_goal, var_angle=std_angle_rollout),
+            rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
             discrete=True,
             obstacle_reward=True,
             variance=0.38 * 2,
@@ -239,7 +239,7 @@ def get_experiment_data(arguments):
         # VORONOI + VO (albero + rollout)
         return ExperimentData(
             action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal_vo, var_angle=std_angle_rollout),
+            rollout_policy=partial(towards_goal_vo, std_angle_rollout=std_angle_rollout),
             discrete=False,
             obstacle_reward=False,
             variance=0.38 * 2,

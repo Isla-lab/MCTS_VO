@@ -12,7 +12,7 @@ from bettergym.agents.utils.utils import voronoi, clip_act, compute_towards_goal
 from mcts_utils import get_intersections
 
 
-def towards_goal_vo(node: Any, planner: Planner, var_angle: float):
+def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     # Extract obstacle information
     obstacles = node.state.obstacles
     obs_x = np.array([ob.x for ob in obstacles])
@@ -38,7 +38,7 @@ def towards_goal_vo(node: Any, planner: Planner, var_angle: float):
     config = planner.environment.gym_env.config
     # If there are no intersection points
     if not any(intersection_points):
-        return compute_towards_goal_jit(x, node.state.goal, config.max_angle_change, var_angle, config.min_speed,
+        return compute_towards_goal_jit(x, node.state.goal, config.max_angle_change, std_angle_rollout, config.min_speed,
                                         config.max_speed)
     else:
         # convert intersection points into ranges of available velocities/angles

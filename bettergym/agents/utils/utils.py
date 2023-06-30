@@ -23,11 +23,10 @@ def uniform_discrete(node: Any, planner: Planner):
 
 
 @njit
-def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, var_angle: float,
-                             min_speed: float,
-                             max_speed: float):
+def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, std_angle_rollout: float,
+                             min_speed: float, max_speed: float):
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
-    angle = np.random.normal(mean_angle, var_angle)
+    angle = np.random.normal(mean_angle, std_angle_rollout)
     linear_velocity = np.random.uniform(
         low=min_speed,
         high=max_speed
@@ -40,9 +39,9 @@ def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: 
     return np.array([linear_velocity, angle])
 
 
-def towards_goal(node: Any, planner: Planner, var_angle: float):
+def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.config
-    return compute_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, var_angle, config.min_speed,
+    return compute_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, std_angle_rollout, config.min_speed,
                                     config.max_speed)
 
 

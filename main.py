@@ -197,17 +197,19 @@ def argument_parser():
     parser.add_argument('--nsim', default=1000, type=int, help='The number of simulation the algorithm will run')
     parser.add_argument('--rwrd', default=-100, type=int, help='')
     parser.add_argument('--dt', default=0.2, type=float, help='')
+    parser.add_argument('--std', default=0.38*2, type=float, help='')
 
     return parser
 
 
 def get_experiment_data(arguments):
-    var_angle = 0.38 * 2
+    # var_angle = 0.38 * 2
+    std_angle_rollout = arguments.std_angle_rollout
     if arguments.algorithm == "VOR":
         # VORONOI + VO (albero + reward ostacoli)
         return ExperimentData(
             action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal, var_angle=var_angle),
+            rollout_policy=partial(towards_goal, var_angle=std_angle_rollout),
             discrete=False,
             obstacle_reward=True,
             variance=0.38 * 2,
@@ -217,7 +219,7 @@ def get_experiment_data(arguments):
         # VORONOI
         return ExperimentData(
             action_expansion_policy=partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal, var_angle=var_angle),
+            rollout_policy=partial(towards_goal, var_angle=std_angle_rollout),
             discrete=False,
             obstacle_reward=True,
             variance=0.38 * 2,
@@ -227,7 +229,7 @@ def get_experiment_data(arguments):
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,
-            rollout_policy=partial(towards_goal, var_angle=var_angle),
+            rollout_policy=partial(towards_goal, var_angle=std_angle_rollout),
             discrete=True,
             obstacle_reward=True,
             variance=0.38 * 2,
@@ -237,7 +239,7 @@ def get_experiment_data(arguments):
         # VORONOI + VO (albero + rollout)
         return ExperimentData(
             action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal_vo, var_angle=var_angle),
+            rollout_policy=partial(towards_goal_vo, var_angle=std_angle_rollout),
             discrete=False,
             obstacle_reward=False,
             variance=0.38 * 2,

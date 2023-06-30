@@ -1,6 +1,6 @@
 python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-200 --dt=1 --std=1.5
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.38*2
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.76
 python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=2
 python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=1
 python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=1.9
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=1.9*2
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=3.8

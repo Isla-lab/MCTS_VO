@@ -1,0 +1,9 @@
+,0
+algorithm,VANILLA
+nsim,1000
+outRwrd,-200
+dtSim,1.0
+cumRwrd,0.28
+nSteps,1000
+MeanStepTime,3.33
+StdStepTime,0.28

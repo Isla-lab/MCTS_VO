@@ -123,11 +123,15 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         obs.append(s.obstacles)
         gc.collect()
 
-    exp_name = arguments.algorithm + '_' + str(arguments.nsim) + '_' + str(arguments.rwrd) + '_' + str(arguments.dt)
+    exp_name = arguments.algorithm + '_' + \
+               str(arguments.nsim) + '_' + \
+               str(arguments.rwrd) + '_' + \
+               str(arguments.dt) + '_' + \
+               str(arguments.std)
     print_and_notify(
         f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
         f"Discrete: {experiment.discrete}\n"
-        f"Variance Angle: {experiment.variance}\n"
+        f"Std Rollout Angle: {experiment.variance}\n"
         f"Number of Steps: {step_n}\n"
         f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
         f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
@@ -197,7 +201,7 @@ def argument_parser():
     parser.add_argument('--nsim', default=1000, type=int, help='The number of simulation the algorithm will run')
     parser.add_argument('--rwrd', default=-100, type=int, help='')
     parser.add_argument('--dt', default=0.2, type=float, help='')
-    parser.add_argument('--std', default=0.38*2, type=float, help='')
+    parser.add_argument('--std', default=0.38 * 2, type=float, help='')
 
     return parser
 
@@ -212,7 +216,7 @@ def get_experiment_data(arguments):
             rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
             discrete=False,
             obstacle_reward=True,
-            variance=0.38 * 2,
+            variance=std_angle_rollout,
             n_sim=arguments.nsim
         )
     elif arguments.algorithm == "VOO":
@@ -222,7 +226,7 @@ def get_experiment_data(arguments):
             rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
             discrete=False,
             obstacle_reward=True,
-            variance=0.38 * 2,
+            variance=std_angle_rollout,
             n_sim=arguments.nsim
         )
     elif arguments.algorithm == "VANILLA":
@@ -232,7 +236,7 @@ def get_experiment_data(arguments):
             rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
             discrete=True,
             obstacle_reward=True,
-            variance=0.38 * 2,
+            variance=std_angle_rollout,
             n_sim=arguments.nsim
         )
     else:
@@ -242,7 +246,7 @@ def get_experiment_data(arguments):
             rollout_policy=partial(towards_goal_vo, std_angle_rollout=std_angle_rollout),
             discrete=False,
             obstacle_reward=False,
-            variance=0.38 * 2,
+            variance=std_angle_rollout,
             n_sim=arguments.nsim
         )
 

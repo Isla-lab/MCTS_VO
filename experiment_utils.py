@@ -183,9 +183,13 @@ def create_animation_tree_trajectory(goal, config, obs, exp_num, exp_name):
         fig,
         plot_frame_tree_traj,
         fargs=(goal, config, obs, trajectories, values, fig),
-        frames=len(trajectories)
+        frames=len(trajectories),
+        # blit=True,
+        save_count=None,
+        cache_frame_data=False
     )
     ani.save(f"./debug/tree_trajectory_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
+    plt.close(fig)
 
 
 def create_animation_tree_trajectory_w_steps(goal, config, obs, exp_num):

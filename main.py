@@ -161,11 +161,14 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
             fig,
             plot_frame,
             fargs=(goal, config, obs, trajectory, ax),
-            frames=len(trajectory)
+            frames=len(trajectory),
+            # blit=True,
+            save_count=None,
+            cache_frame_data=False
         )
         ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=150)
-        plot_real_trajectory_information(trajectory, exp_num)
-        plt.close()
+        # plot_real_trajectory_information(trajectory, exp_num)
+        plt.close(fig)
 
     if DEBUG_DATA:
         trajectories = [i["trajectories"] for i in infos]
@@ -191,7 +194,7 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         print("Creating Tree Trajectories Animation...")
         create_animation_tree_trajectory(goal, config, obs, exp_num, exp_name)
         # create_animation_tree_trajectory_w_steps(goal, config, obs, exp_num)
-
+    gc.collect()
     print("Done")
 
 

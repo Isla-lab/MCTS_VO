@@ -32,10 +32,10 @@ def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: 
         high=max_speed
     )
     # Make sure angle is within range of -π to π
-    min_angle = (x[2] - max_angle_change + math.pi) % (2 * math.pi) - math.pi
-    max_angle = (x[2] + max_angle_change + math.pi) % (2 * math.pi) - math.pi
-    angle = (angle + math.pi) % (2 * math.pi) - math.pi
+    min_angle = x[2] - max_angle_change
+    max_angle = x[2] + max_angle_change
     angle = max(min(angle, max_angle), min_angle)
+    angle = (angle + math.pi) % (2 * math.pi) - math.pi
     return np.array([linear_velocity, angle])
 
 

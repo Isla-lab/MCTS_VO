@@ -173,11 +173,7 @@ def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig)
     plt.colorbar(cmap)
 
 
-def create_animation_tree_trajectory(goal, config, obs, exp_num, exp_name):
-    with open(f"debug/trajectories_{exp_name}_{exp_num}.pkl", 'rb') as f:
-        trajectories = pickle.load(f)
-    with open(f"debug/rollout_values_{exp_name}_{exp_num}.pkl", 'rb') as f:
-        values = pickle.load(f)
+def create_animation_tree_trajectory(goal, config, obs, exp_num, exp_name, values, trajectories):
     fig, ax = plt.subplots()
     ani = FuncAnimation(
         fig,

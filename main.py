@@ -24,6 +24,7 @@ from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_
     create_animation_tree_trajectory
 
 DEBUG_DATA = True
+DEBUG_ANIMATION = True
 ANIMATION = True
 
 
@@ -170,10 +171,9 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         # plot_real_trajectory_information(trajectory, exp_num)
         plt.close(fig)
 
+    trajectories = [i["trajectories"] for i in infos]
+    rollout_values = [i["rollout_values"] for i in infos]
     if DEBUG_DATA:
-        trajectories = [i["trajectories"] for i in infos]
-        rollout_values = [i["rollout_values"] for i in infos]
-
         print("Saving Debug Data...")
         q_vals = [i["q_values"] for i in infos]
         a = [[an.action for an in i["actions"]] for i in infos]
@@ -190,9 +190,9 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         with open(f"debug/chosen_a_{exp_name}_{exp_num}.pkl", 'wb') as f:
             pickle.dump(actions, f)
 
-        time.sleep(1)
+    if DEBUG_ANIMATION:
         print("Creating Tree Trajectories Animation...")
-        create_animation_tree_trajectory(goal, config, obs, exp_num, exp_name)
+        create_animation_tree_trajectory(goal, config, obs, exp_num, exp_name, rollout_values, trajectories)
         # create_animation_tree_trajectory_w_steps(goal, config, obs, exp_num)
     gc.collect()
     print("Done")

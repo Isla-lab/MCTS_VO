@@ -1,5 +1,6 @@
 import argparse
 import gc
+import math
 import os
 import pickle
 import random
@@ -17,11 +18,10 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import voo, towards_goal, visualize_tree, uniform_towards_goal
-from bettergym.agents.utils.vo import sample_centered_robot_arena, towards_goal_vo, voo_vo
+from bettergym.agents.utils.utils import voo, towards_goal, uniform_towards_goal
+from bettergym.agents.utils.vo import sample_centered_robot_arena, voo_vo
 from environment_creator import create_env_five_small_obs_continuous
-from experiment_utils import print_and_notify, plot_frame, plot_real_trajectory_information, \
-    create_animation_tree_trajectory
+from experiment_utils import print_and_notify, plot_frame, create_animation_tree_trajectory
 
 DEBUG_DATA = True
 DEBUG_ANIMATION = True
@@ -34,7 +34,7 @@ class ExperimentData:
     action_expansion_policy: Callable
     discrete: bool
     obstacle_reward: bool
-    std_rollout: float
+    std_angle: float
     n_sim: int = 1000
     c: float = 150
 
@@ -108,7 +108,7 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 2:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -126,16 +126,11 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         obs.append(s.obstacles)
         gc.collect()
 
-    exp_name = arguments.algorithm + '_' + \
-               str(arguments.nsim) + '_' + \
-               str(arguments.rwrd) + '_' + \
-               str(arguments.dt) + '_' + \
-               str(arguments.std) + '_' + \
-               str(arguments.c)
+    exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
     print_and_notify(
         f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
         f"Discrete: {experiment.discrete}\n"
-        f"Std Rollout Angle: {experiment.std_rollout}\n"
+        f"Std Rollout Angle: {experiment.std_angle}\n"
         f"Number of Steps: {step_n}\n"
         f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
         f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
@@ -207,7 +202,9 @@ def argument_parser():
     parser.add_argument('--rwrd', default=-100, type=int, help='')
     parser.add_argument('--dt', default=0.2, type=float, help='')
     parser.add_argument('--std', default=0.38 * 2, type=float, help='')
-    parser.add_argument('--c', default=0.38 * 2, type=float, help='')
+    parser.add_argument('--amplitude', default=1, type=float, help='')
+    parser.add_argument('--c', default=1, type=float, help='')
+    parser.add_argument('--rollout', default="normal_towards_goal", type=str, help='')
 
     return parser
 
@@ -215,25 +212,34 @@ def argument_parser():
 def get_experiment_data(arguments):
     # var_angle = 0.38 * 2
     std_angle_rollout = arguments.std
+
+    if arguments.rollout == "normal_towards_goal":
+        rollout_policy = partial(towards_goal, std_angle_rollout=std_angle_rollout)
+    elif arguments.rollout == "uniform_towards_goal":
+        rollout_policy = partial(uniform_towards_goal, amplitude=math.radians(arguments.amplitude))
+    else:
+        raise ValueError("rollout function not valid")
+
+    sample_centered = partial(sample_centered_robot_arena, std_angle=std_angle_rollout)
     if arguments.algorithm == "VOR":
         # VORONOI + VO (albero + reward ostacoli)
         return ExperimentData(
-            action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
+            action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered),
+            rollout_policy=rollout_policy,
             discrete=False,
             obstacle_reward=True,
-            std_rollout=std_angle_rollout,
+            std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c
         )
     elif arguments.algorithm == "VOO":
         # VORONOI
         return ExperimentData(
-            action_expansion_policy=partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
+            action_expansion_policy=partial(voo, eps=0.3, sample_centered=sample_centered),
+            rollout_policy=rollout_policy,
             discrete=False,
             obstacle_reward=True,
-            std_rollout=std_angle_rollout,
+            std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c
         )
@@ -241,22 +247,21 @@ def get_experiment_data(arguments):
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,
-            # rollout_policy=partial(towards_goal, std_angle_rollout=std_angle_rollout),
-            rollout_policy=uniform_towards_goal,
+            rollout_policy=rollout_policy,
             discrete=True,
             obstacle_reward=True,
-            std_rollout=std_angle_rollout,
+            std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c
         )
     else:
         # VORONOI + VO (albero + rollout)
         return ExperimentData(
-            action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered_robot_arena),
-            rollout_policy=partial(towards_goal_vo, std_angle_rollout=std_angle_rollout),
+            action_expansion_policy=partial(voo_vo, eps=0.3, sample_centered=sample_centered),
+            rollout_policy=rollout_policy,
             discrete=False,
             obstacle_reward=False,
-            std_rollout=std_angle_rollout,
+            std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c
         )

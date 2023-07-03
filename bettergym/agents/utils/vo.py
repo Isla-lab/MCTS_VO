@@ -46,10 +46,10 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
         return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 
 
-def sample_centered_robot_arena(center: np.ndarray, number: int, clip_fn: Callable):
+def sample_centered_robot_arena(center: np.ndarray, number: int, clip_fn: Callable, std_angle: float):
     chosen = np.random.multivariate_normal(
         mean=center,
-        cov=np.diag([0.3 / 2, 0.38 * 2]),
+        cov=np.diag([0.3 / 2, std_angle]),
         size=number
     )
     chosen = clip_fn(chosen=chosen)

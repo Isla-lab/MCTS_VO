@@ -1,3 +1,6 @@
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.76
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=1
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --amplitude=60
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --amplitude=45
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --amplitude=60
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --amplitude=45

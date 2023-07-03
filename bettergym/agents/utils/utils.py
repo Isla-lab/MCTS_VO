@@ -1,5 +1,6 @@
 import math
 import random
+import subprocess
 from functools import partial
 from typing import Any, Callable
 
@@ -49,7 +50,7 @@ def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
 
 
 @njit
-def compute_uniform_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, min_speed: float, max_speed: float):
+def compute_uniform_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, min_speed: float, max_speed: float, amplitude: float):
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
     linear_velocity = np.random.uniform(
         low=min_speed,
@@ -59,8 +60,8 @@ def compute_uniform_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_
     min_angle = x[2] - max_angle_change
     max_angle = x[2] + max_angle_change
     angle = np.random.uniform(
-        low=mean_angle-0.6981,
-        high=mean_angle+0.6981
+        low=mean_angle-amplitude,
+        high=mean_angle+amplitude
     )
 
     angle = max(min(angle, max_angle), min_angle)
@@ -68,10 +69,10 @@ def compute_uniform_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_
     return np.array([linear_velocity, angle])
 
 
-def uniform_towards_goal(node: Any, planner: Planner):
+def uniform_towards_goal(node: Any, planner: Planner, amplitude: float):
     config = planner.environment.config
     return compute_uniform_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, config.min_speed,
-                                            config.max_speed)
+                                            config.max_speed, amplitude)
 
 
 def epsilon_greedy(eps: float, other_func: Callable, node: Any, planner: Planner):
@@ -191,21 +192,24 @@ def visualize_state_node(node: StateNode, father: str | None, g: graphviz.Digrap
     if father is not None:
         g.edge(father, name)
     n += 1
+    angles = [a.action[1] for a in node.actions]
+    min_angle = np.min(angles)
+    max_angle = np.max(angles)
     # add its child nodes
     for idx, action_node in enumerate(node.actions):
-        # add the node its self
-        g.attr('node', shape='box')
-        child_name = f"node{n}"
-        g.node(name,
-               f"{action_node.action}\nn={node.num_visits_actions[idx]}\nQ={(node.a_values[idx] / node.num_visits_actions[idx]):.3f}")
-        # connect to father node
-        g.edge(name, child_name)
-        n += 1
-        # add its child nodes
-        for state_node_id in action_node.state_to_id.values():
-            father = child_name
-            state_node = planner.id_to_state_node[state_node_id]
-            n = visualize_state_node(state_node, father, g, n, planner)
+        if action_node.action[1] == max_angle or action_node.action[1] == min_angle:
+            # add the node its self
+            g.attr('node', shape='box')
+            child_name = f"node{n}"
+            g.node(child_name, f"{action_node.action}\nn={node.num_visits_actions[idx]}\nQ={(node.a_values[idx] / node.num_visits_actions[idx]):.3f}")
+            # connect to father node
+            g.edge(name, child_name)
+            n += 1
+            # add its child nodes
+            for state_node_id in action_node.state_to_id.values():
+                father = child_name
+                state_node = planner.id_to_state_node[state_node_id]
+                n = visualize_state_node(state_node, father, g, n, planner)
 
     # to avoid losing the updated n value every time the function end returns the most updated n value
     return n
@@ -223,5 +227,5 @@ def visualize_tree(planner, n):
     g.save(directory='debug/tree', filename=f'{filename}.gv')
     # g.render(f'{filename}', format="svgz")
     # # render gv file to an svg
-    # with open(f'debug/tree/{filename}.svg', 'w') as f:
-    #     subprocess.Popen(['dot', '-Tsvgz', f'debug/tree/{filename}.gv'], stdout=f)
+    with open(f'debug/tree/{filename}.svg', 'w') as f:
+        subprocess.Popen(['dot', '-Tsvg', f'debug/tree/{filename}.gv'], stdout=f)

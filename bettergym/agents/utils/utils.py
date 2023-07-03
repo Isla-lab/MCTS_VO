@@ -3,11 +3,13 @@ import random
 from functools import partial
 from typing import Any, Callable
 
+import graphviz
 import numpy as np
 from numba import njit
 from scipy.spatial.distance import cdist
 
 from bettergym.agents.planner import Planner
+from bettergym.agents.planner_mcts import StateNode
 
 
 def uniform(node: Any, planner: Planner):
@@ -41,8 +43,35 @@ def compute_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: 
 
 def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.config
-    return compute_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, std_angle_rollout, config.min_speed,
+    return compute_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, std_angle_rollout,
+                                    config.min_speed,
                                     config.max_speed)
+
+
+@njit
+def compute_uniform_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, min_speed: float, max_speed: float):
+    mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
+    linear_velocity = np.random.uniform(
+        low=min_speed,
+        high=max_speed
+    )
+    # Make sure angle is within range of -π to π
+    min_angle = x[2] - max_angle_change
+    max_angle = x[2] + max_angle_change
+    angle = np.random.uniform(
+        low=mean_angle-0.6981,
+        high=mean_angle+0.6981
+    )
+
+    angle = max(min(angle, max_angle), min_angle)
+    angle = (angle + math.pi) % (2 * math.pi) - math.pi
+    return np.array([linear_velocity, angle])
+
+
+def uniform_towards_goal(node: Any, planner: Planner):
+    config = planner.environment.config
+    return compute_uniform_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, config.min_speed,
+                                            config.max_speed)
 
 
 def epsilon_greedy(eps: float, other_func: Callable, node: Any, planner: Planner):
@@ -150,3 +179,49 @@ def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
         )
     else:
         return uniform(node, planner)
+
+
+def visualize_state_node(node: StateNode, father: str | None, g: graphviz.Digraph, n: int, planner):
+    # add the node its self
+    g.attr('node', shape='circle')
+    name = f"node{n}"
+    g.node(name, f"ID={node.id}\n{node.state.x}\nn={node.num_visits}")
+    g.attr('node', fillcolor='white', style='filled')
+    # for root node father is None
+    if father is not None:
+        g.edge(father, name)
+    n += 1
+    # add its child nodes
+    for idx, action_node in enumerate(node.actions):
+        # add the node its self
+        g.attr('node', shape='box')
+        child_name = f"node{n}"
+        g.node(name,
+               f"{action_node.action}\nn={node.num_visits_actions[idx]}\nQ={(node.a_values[idx] / node.num_visits_actions[idx]):.3f}")
+        # connect to father node
+        g.edge(name, child_name)
+        n += 1
+        # add its child nodes
+        for state_node_id in action_node.state_to_id.values():
+            father = child_name
+            state_node = planner.id_to_state_node[state_node_id]
+            n = visualize_state_node(state_node, father, g, n, planner)
+
+    # to avoid losing the updated n value every time the function end returns the most updated n value
+    return n
+
+
+def visualize_tree(planner, n):
+    filename = f'mcts_{n}'
+    # g = graphviz.Digraph('g', filename=f'{filename}.svg', directory='debug/tree')
+    g = graphviz.Digraph('g', engine='dot')
+    root: StateNode = planner.id_to_state_node[0]
+    node_counter = 0
+    visualize_state_node(root, None, g, node_counter, planner)
+
+    # save gv file
+    g.save(directory='debug/tree', filename=f'{filename}.gv')
+    # g.render(f'{filename}', format="svgz")
+    # # render gv file to an svg
+    # with open(f'debug/tree/{filename}.svg', 'w') as f:
+    #     subprocess.Popen(['dot', '-Tsvgz', f'debug/tree/{filename}.gv'], stdout=f)

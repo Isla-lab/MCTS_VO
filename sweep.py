@@ -28,7 +28,7 @@ def argument_parser():
     parser.add_argument('--rollout', default='random', type=str, help='the function to select actions during rollout')
     parser.add_argument('--max_depth', default=100, type=int, help='max number of steps during rollout')
     parser.add_argument('--n_actions', default=10, type=int, help='number of actions for vanilla mcts')
-    parser.add_argument('--alpha1', default=0, type=float, help='alpha')
+    parser.add_argument('--alpha1', default=0, type=float, help='alpha_vals')
     parser.add_argument('--alpha2', default=0.1, type=float, help='alpha2')
     parser.add_argument('--k1', default=1, type=int, help='k1')
     parser.add_argument('--k2', default=1, type=int, help='k2')

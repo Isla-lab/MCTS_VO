@@ -32,6 +32,9 @@ class Config:
     right_limit: float = 11.5
     left_limit: float = -0.5
 
+    n_vel: int = None
+    n_angles: int = None
+
 
 class RobotArenaState:
     def __init__(self, x: np.ndarray, goal: np.ndarray, obstacles: list, radius: float):
@@ -281,16 +284,18 @@ class BetterRobotArena(BetterGym):
         available_angles = np.linspace(
             start=state.x[2] - config.max_angle_change,
             stop=state.x[2] + config.max_angle_change,
-            num=10
+            num=config.n_angles
         )
-        available_angles = np.append(available_angles, state.x[2])
+        if curr_angle := state.x[2] not in available_angles:
+            available_angles = np.append(available_angles, curr_angle)
         available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
         available_velocities = np.linspace(
             start=config.min_speed,
             stop=config.max_speed,
-            num=10
+            num=config.n_vel
         )
-        available_velocities = np.append(available_velocities, 0.0)
+        if zero_vel := 0.0 not in available_velocities:
+            available_velocities = np.append(available_velocities, zero_vel)
 
         actions = np.transpose([np.tile(available_velocities, len(available_angles)),
                                 np.repeat(available_angles, len(available_velocities))])

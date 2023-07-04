@@ -62,7 +62,9 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
                                                              discrete=experiment.discrete,
                                                              rwrd_in_sim=experiment.obstacle_reward,
                                                              out_boundaries_rwrd=arguments.rwrd,
-                                                             dt_sim=arguments.dt)
+                                                             dt_sim=arguments.dt,
+                                                             n_vel=arguments.v,
+                                                             n_angles=arguments.a)
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
@@ -81,11 +83,11 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     obs = [s0.obstacles]
     planner_apw = MctsApw(
         num_sim=experiment.n_sim,
-        c=150,
+        c=experiment.c,
         environment=sim_env,
         computational_budget=100,
-        k=50,
-        alpha=0.1,
+        k=arguments.k,
+        alpha=arguments.alpha,
         discount=0.99,
         action_expansion_function=experiment.action_expansion_policy,
         rollout_policy=experiment.rollout_policy
@@ -98,7 +100,14 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         discount=0.99,
         rollout_policy=experiment.rollout_policy
     )
-    planner = planner_apw if not experiment.discrete else planner_mcts
+    if not experiment.discrete:
+        planner = planner_apw
+        del arguments.__dict__['v']
+        del arguments.__dict__['a']
+    else:
+        planner = planner_mcts
+        del arguments.__dict__['alpha']
+        del arguments.__dict__['k']
 
     print("Simulation Started")
     terminal = False
@@ -109,7 +118,7 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 2:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -207,6 +216,10 @@ def argument_parser():
     parser.add_argument('--amplitude', default=1, type=float, help='')
     parser.add_argument('--c', default=1, type=float, help='')
     parser.add_argument('--rollout', default="normal_towards_goal", type=str, help='')
+    parser.add_argument('--alpha', default=0.1, type=float, help='')
+    parser.add_argument('--k', default=50, type=float, help='')
+    parser.add_argument('--a', default=10, type=int, help='number of discretization of angles')
+    parser.add_argument('--v', default=10, type=int, help='number of discretization of velocities')
 
     return parser
 

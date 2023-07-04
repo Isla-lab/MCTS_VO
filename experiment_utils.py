@@ -17,7 +17,7 @@ def plot_robot(x, y, yaw, config, ax, color="b"):
     ax.add_artist(circle)
     out_x, out_y = (np.array([x, y]) +
                     np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius)
-    ax.plot([x, out_x], [y, out_y], "-k")
+    ax.plot([x, out_x], [y, out_y], "-k_vals")
 
 
 def plot_frame(i, goal, config, obs, traj, ax):
@@ -30,7 +30,7 @@ def plot_frame(i, goal, config, obs, traj, ax):
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
     for ob in obs[i]:
-        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k_vals")
         ax.add_artist(circle)
     # BOX AROUND ROBOT
     plot_robot(x[0], x[1], x[2], config, ax)
@@ -38,7 +38,7 @@ def plot_frame(i, goal, config, obs, traj, ax):
     sub_traj = traj[:i]
     ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")
 
-    # ax.plot([70, 70], [100, 250], 'k-', lw=2)
+    # ax.plot([70, 70], [100, 250], 'k_vals-', lw=2)
 
     ax.set_xlim([config.left_limit, config.right_limit])
     ax.set_ylim([config.bottom_limit, config.upper_limit])
@@ -133,7 +133,7 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
     for ob in obs[i]:
-        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k_vals")
         ax.add_artist(circle)
 
     cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker='x')
@@ -157,7 +157,7 @@ def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig)
 
     # OBSTACLES
     for ob in obs[i]:
-        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k_vals")
         ax.add_artist(circle)
 
     for trj in step:
@@ -218,7 +218,7 @@ def plot_frame_multiagent(i, goal1, goal2, config, obs, traj1, traj2, ax):
     ax.plot(goal2[0], goal2[1], "xb")
     # OBSTACLES
     for ob in obs[i][:-1]:
-        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k_vals")
         ax.add_artist(circle)
     # CIRCLE AROUND ROBOT1
     plot_robot(x1[0], x1[1], x1[2], config, ax, color="b")

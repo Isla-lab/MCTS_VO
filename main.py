@@ -118,7 +118,7 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 2:
+        if step_n == 1000:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()

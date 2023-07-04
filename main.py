@@ -57,7 +57,8 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(2, 10),
     #                                                              discrete=experiment.discrete,
     #                                                              rwrd_in_sim=experiment.obstacle_reward)
-    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1), goal=(10, 10),
+    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1),
+                                                             goal=(10, 10),
                                                              discrete=experiment.discrete,
                                                              rwrd_in_sim=experiment.obstacle_reward,
                                                              out_boundaries_rwrd=arguments.rwrd,
@@ -141,15 +142,12 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     )
 
     data = {
-        "algorithm": arguments.algorithm,
-        "nsim": arguments.nsim,
-        "outRwrd": arguments.rwrd,
-        "dtSim": arguments.dt,
         "cumRwrd": round(sum(rewards), 2),
         "nSteps": step_n,
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2)
     }
+    data = data | arguments.__dict__
     df = pd.Series(data)
     df.to_csv(f'{exp_name}.csv')
 

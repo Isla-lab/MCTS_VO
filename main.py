@@ -114,6 +114,10 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         print(f"Step Number {step_n}")
         initial_time = time.time()
         u, info = planner.plan(s)
+        min_angle = s.x[2] - 1.9 * config.dt
+        max_angle = s.x[2] + 1.9 * config.dt
+        u[1] = max(min(u[1], max_angle), min_angle)
+        u[1] = (u[1] + math.pi) % (2 * math.pi) - math.pi
         final_time = time.time() - initial_time
         # visualize_tree(planner, step_n)
         actions.append(u)

@@ -62,7 +62,9 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
                                                              discrete=experiment.discrete,
                                                              rwrd_in_sim=experiment.obstacle_reward,
                                                              out_boundaries_rwrd=arguments.rwrd,
-                                                             dt_sim=arguments.dt)
+                                                             dt_sim=arguments.dt,
+                                                             n_vel=arguments.v,
+                                                             n_angles=arguments.a)
     s0, _ = real_env.reset()
     seed_everything(seed_val)
     trajectory = np.array(s0.x)
@@ -81,11 +83,11 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     obs = [s0.obstacles]
     planner_apw = MctsApw(
         num_sim=experiment.n_sim,
-        c=150,
+        c=experiment.c,
         environment=sim_env,
         computational_budget=100,
-        k=50,
-        alpha=0.1,
+        k=arguments.k,
+        alpha=arguments.alpha,
         discount=0.99,
         action_expansion_function=experiment.action_expansion_policy,
         rollout_policy=experiment.rollout_policy
@@ -98,7 +100,14 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         discount=0.99,
         rollout_policy=experiment.rollout_policy
     )
-    planner = planner_apw if not experiment.discrete else planner_mcts
+    if not experiment.discrete:
+        planner = planner_apw
+        del arguments.__dict__['v']
+        del arguments.__dict__['a']
+    else:
+        planner = planner_mcts
+        del arguments.__dict__['alpha']
+        del arguments.__dict__['k']
 
     print("Simulation Started")
     terminal = False
@@ -114,13 +123,18 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         print(f"Step Number {step_n}")
         initial_time = time.time()
         u, info = planner.plan(s)
+        actions.append(u)
+        min_angle = s.x[2] - 1.9 * config.dt
+        max_angle = s.x[2] + 1.9 * config.dt
+        u_copy = np.array(u, copy=True)
+        u_copy[1] = max(min(u_copy[1], max_angle), min_angle)
+        u_copy[1] = (u_copy[1] + math.pi) % (2 * math.pi) - math.pi
         final_time = time.time() - initial_time
         # visualize_tree(planner, step_n)
-        actions.append(u)
         infos.append(info)
 
         times.append(final_time)
-        s, r, terminal, truncated, env_info = real_env.step(s, u)
+        s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
@@ -171,11 +185,14 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     if DEBUG_DATA:
         print("Saving Debug Data...")
         q_vals = [i["q_values"] for i in infos]
+        visits = [i["visits"] for i in infos]
         a = [[an.action for an in i["actions"]] for i in infos]
         with open(f"debug/trajectories_{exp_name}_{exp_num}.pkl", 'wb') as f:
             pickle.dump(trajectories, f)
         with open(f"debug/rollout_values_{exp_name}_{exp_num}.pkl", 'wb') as f:
             pickle.dump(rollout_values, f)
+        with open(f"debug/visits_{exp_name}_{exp_num}.pkl", 'wb') as f:
+            pickle.dump(visits, f)
         with open(f"debug/q_values_{exp_name}_{exp_num}.pkl", 'wb') as f:
             pickle.dump(q_vals, f)
         with open(f"debug/actions_{exp_name}_{exp_num}.pkl", 'wb') as f:
@@ -203,6 +220,10 @@ def argument_parser():
     parser.add_argument('--amplitude', default=1, type=float, help='')
     parser.add_argument('--c', default=1, type=float, help='')
     parser.add_argument('--rollout', default="normal_towards_goal", type=str, help='')
+    parser.add_argument('--alpha', default=0.1, type=float, help='')
+    parser.add_argument('--k', default=50, type=float, help='')
+    parser.add_argument('--a', default=10, type=int, help='number of discretization of angles')
+    parser.add_argument('--v', default=10, type=int, help='number of discretization of velocities')
 
     return parser
 

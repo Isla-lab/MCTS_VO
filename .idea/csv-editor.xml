@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CsvFileAttributes">
+    <option name="attributeMap">
+      <map>
+        <entry key="/algorithm:VANILLA_nsim:1000_rwrd:-100_dt:1.0_std:0.5_amplitude:60.0_c:1_rollout:uniform_towards_goal.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="/algorithm:VANILLA_nsim:1000_rwrd:-100_dt:1.0_std:0.5_amplitude:60.0_c:1_rollout:uniform_towards_goal_a:10_v:10.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

@@ -1,6 +1,5 @@
 import math
 import random
-import subprocess
 from functools import partial
 from typing import Any, Callable
 
@@ -10,7 +9,6 @@ from numba import njit
 from scipy.spatial.distance import cdist
 
 from bettergym.agents.planner import Planner
-from bettergym.agents.planner_mcts import StateNode
 
 
 def uniform(node: Any, planner: Planner):
@@ -49,8 +47,17 @@ def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
                                     config.max_speed)
 
 
+def towards_goal_discrete(node: Any, planner: Planner, std_angle_rollout: float):
+    config = planner.environment.config
+    action = compute_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, std_angle_rollout,
+                                      config.min_speed, config.max_speed)
+    discrete_actions = planner.environment.get_actions(node.state)
+    return bin_action(action, discrete_actions)
+
+
 @njit
-def compute_uniform_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, min_speed: float, max_speed: float, amplitude: float):
+def compute_uniform_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_change: float, min_speed: float,
+                                     max_speed: float, amplitude: float):
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
     linear_velocity = np.random.uniform(
         low=min_speed,
@@ -60,8 +67,8 @@ def compute_uniform_towards_goal_jit(x: np.ndarray, goal: np.ndarray, max_angle_
     min_angle = x[2] - max_angle_change
     max_angle = x[2] + max_angle_change
     angle = np.random.uniform(
-        low=mean_angle-amplitude,
-        high=mean_angle+amplitude
+        low=mean_angle - amplitude,
+        high=mean_angle + amplitude
     )
 
     angle = max(min(angle, max_angle), min_angle)
@@ -73,6 +80,20 @@ def uniform_towards_goal(node: Any, planner: Planner, amplitude: float):
     config = planner.environment.config
     return compute_uniform_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, config.min_speed,
                                             config.max_speed, amplitude)
+
+
+def bin_action(action, bins):
+    diff_vector = np.linalg.norm(action - bins, axis=1)
+    idx = diff_vector.argmin()
+    return bins[idx]
+
+
+def uniform_towards_goal_discrete(node: Any, planner: Planner, amplitude: float):
+    config = planner.environment.config
+    action = compute_uniform_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, config.min_speed,
+                                              config.max_speed, amplitude)
+    discrete_actions = planner.environment.get_actions(node.state)
+    return bin_action(action, discrete_actions)
 
 
 def epsilon_greedy(eps: float, other_func: Callable, node: Any, planner: Planner):
@@ -180,7 +201,6 @@ def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
         )
     else:
         return uniform(node, planner)
-
 
 # def visualize_state_node(node: StateNode, father: str | None, g: graphviz.Digraph, n: int, planner):
 #     # add the node its self

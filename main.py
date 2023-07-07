@@ -25,8 +25,8 @@ from environment_creator import create_env_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame, create_animation_tree_trajectory
 from mcts_utils import uniform_random
 
-DEBUG_DATA = True
-DEBUG_ANIMATION = True
+DEBUG_DATA = False
+DEBUG_ANIMATION = False
 ANIMATION = True
 
 

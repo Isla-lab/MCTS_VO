@@ -1,23 +1,6 @@
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0 --k=10 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0 --k=20 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0 --k=30 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0 --k=40 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0 --k=50 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.1 --k=10 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.1 --k=20 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.1 --k=30 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.1 --k=40 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.1 --k=50 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.5 --k=10 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.5 --k=20 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.5 --k=30 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.5 --k=40 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.5 --k=50 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --amplitude=60 --v=11 --a=11 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --amplitude=60 --v=11 --a=5 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --amplitude=60 --v=5 --a=11 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --amplitude=60 --v=5 --a=5 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --v=11 --a=11 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --v=11 --a=5 --c=10
 python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --v=5 --a=11 --c=10
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --v=5 --a=5 --c=10
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --v=5 --a=11 --c=10
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform --v=5 --a=11 --c=10
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=normal_towards_goal --alpha=0.5 --k=20 --c=10
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform_towards_goal --alpha=0.5 --k=20 --c=10
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VOO --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=uniform --alpha=0.5 --k=20 --c=10

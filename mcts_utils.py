@@ -5,8 +5,8 @@ import numpy as np
 
 def uniform_random(node, planner):
     state = node.state
-    config = planner.config
-    return np.uniform(
+    config = planner.environment.gym_env.config
+    return np.random.uniform(
         low=np.array([config.min_speed, state.x[2] - config.max_angle_change], dtype=np.float64),
         high=np.array([config.max_speed, state.x[2] + config.max_angle_change], dtype=np.float64)
     )

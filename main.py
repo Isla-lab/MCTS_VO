@@ -18,15 +18,14 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import voo, towards_goal, uniform_towards_goal, uniform_towards_goal_discrete, \
-    towards_goal_discrete, uniform_discrete
+from bettergym.agents.utils.utils import voo, towards_goal, uniform_towards_goal
 from bettergym.agents.utils.vo import sample_centered_robot_arena, voo_vo
 from environment_creator import create_env_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame, create_animation_tree_trajectory
 from mcts_utils import uniform_random
 
-DEBUG_DATA = False
-DEBUG_ANIMATION = False
+DEBUG_DATA = True
+DEBUG_ANIMATION = True
 ANIMATION = True
 
 
@@ -235,20 +234,21 @@ def get_experiment_data(arguments):
     std_angle_rollout = arguments.std
 
     if arguments.rollout == "normal_towards_goal":
-        if arguments.algorithm == "VANILLA":
-            rollout_policy = partial(towards_goal_discrete, std_angle_rollout=std_angle_rollout)
-        else:
-            rollout_policy = partial(towards_goal, std_angle_rollout=std_angle_rollout)
+        # if arguments.algorithm == "VANILLA":
+        #     rollout_policy = partial(towards_goal_discrete, std_angle_rollout=std_angle_rollout)
+        # else:
+        rollout_policy = partial(towards_goal, std_angle_rollout=std_angle_rollout)
     elif arguments.rollout == "uniform_towards_goal":
-        if arguments.algorithm == "VANILLA":
-            rollout_policy = partial(uniform_towards_goal_discrete, amplitude=math.radians(arguments.amplitude))
-        else:
-            rollout_policy = partial(uniform_towards_goal, amplitude=math.radians(arguments.amplitude))
+        # if arguments.algorithm == "VANILLA":
+        #     rollout_policy = partial(uniform_towards_goal_discrete, amplitude=math.radians(arguments.amplitude))
+        # else:
+        rollout_policy = partial(uniform_towards_goal, amplitude=math.radians(arguments.amplitude))
     elif arguments.rollout == "uniform":
-        if arguments.algorithm == "VANILLA":
-            rollout_policy = uniform_random
-        else:
-            rollout_policy = uniform_discrete
+        rollout_policy = uniform_random
+        # if arguments.algorithm == "VANILLA":
+        #     rollout_policy = uniform_random
+        # else:
+        #     rollout_policy = uniform_discrete
     else:
         raise ValueError("rollout function not valid")
 

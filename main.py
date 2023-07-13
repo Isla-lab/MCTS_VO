@@ -82,33 +82,37 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
         sim_env.gym_env.state = s0
 
     obs = [s0.obstacles]
-    planner_apw = MctsApw(
-        num_sim=experiment.n_sim,
-        c=experiment.c,
-        environment=sim_env,
-        computational_budget=100,
-        k=arguments.k,
-        alpha=arguments.alpha,
-        discount=0.99,
-        action_expansion_function=experiment.action_expansion_policy,
-        rollout_policy=experiment.rollout_policy
-    )
-    planner_mcts = Mcts(
-        num_sim=experiment.n_sim,
-        c=experiment.c,
-        environment=sim_env,
-        computational_budget=100,
-        discount=0.99,
-        rollout_policy=experiment.rollout_policy
-    )
     if not experiment.discrete:
-        planner = planner_apw
-        del arguments.__dict__['v']
-        del arguments.__dict__['a']
+        planner = MctsApw(
+            num_sim=experiment.n_sim,
+            c=experiment.c,
+            environment=sim_env,
+            computational_budget=100,
+            k=arguments.k,
+            alpha=arguments.alpha,
+            discount=0.99,
+            action_expansion_function=experiment.action_expansion_policy,
+            rollout_policy=experiment.rollout_policy
+        )
+        try:
+            del arguments.__dict__['v']
+            del arguments.__dict__['a']
+        except KeyError:
+            pass
     else:
-        planner = planner_mcts
-        del arguments.__dict__['alpha']
-        del arguments.__dict__['k']
+        planner = Mcts(
+            num_sim=experiment.n_sim,
+            c=experiment.c,
+            environment=sim_env,
+            computational_budget=100,
+            discount=0.99,
+            rollout_policy=experiment.rollout_policy
+        )
+        try:
+            del arguments.__dict__['alpha']
+            del arguments.__dict__['k']
+        except KeyError:
+            pass
 
     print("Simulation Started")
     terminal = False
@@ -119,7 +123,7 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 5:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -164,7 +168,7 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
     }
     data = data | arguments.__dict__
     df = pd.Series(data)
-    df.to_csv(f'{exp_name}.csv')
+    df.to_csv(f'{exp_name}_{exp_num}.csv')
 
     if ANIMATION:
         print("Creating Gif...")
@@ -225,6 +229,7 @@ def argument_parser():
     parser.add_argument('--k', default=50, type=float, help='')
     parser.add_argument('--a', default=10, type=int, help='number of discretization of angles')
     parser.add_argument('--v', default=10, type=int, help='number of discretization of velocities')
+    parser.add_argument('--num', default=1, type=int, help='number of experiments to run')
 
     return parser
 
@@ -303,7 +308,7 @@ def main():
     global exp_num
     args = argument_parser().parse_args()
     exp = get_experiment_data(args)
-    for exp_num in range(1):
+    for exp_num in range(args.num):
         run_experiment(seed_val=2, experiment=exp, arguments=args)
 
 

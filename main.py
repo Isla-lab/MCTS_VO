@@ -52,7 +52,7 @@ def seed_everything(seed_value: int):
     seed_numba(seed_value)
 
 
-def run_experiment(seed_val, experiment: ExperimentData, arguments):
+def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(2, 10),
@@ -67,7 +67,6 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
                                                              n_vel=arguments.v,
                                                              n_angles=arguments.a)
     s0, _ = real_env.reset()
-    seed_everything(seed_val)
     trajectory = np.array(s0.x)
     config = real_env.config
 
@@ -94,11 +93,6 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
             action_expansion_function=experiment.action_expansion_policy,
             rollout_policy=experiment.rollout_policy
         )
-        try:
-            del arguments.__dict__['v']
-            del arguments.__dict__['a']
-        except KeyError:
-            pass
     else:
         planner = Mcts(
             num_sim=experiment.n_sim,
@@ -108,12 +102,6 @@ def run_experiment(seed_val, experiment: ExperimentData, arguments):
             discount=0.99,
             rollout_policy=experiment.rollout_policy
         )
-        try:
-            del arguments.__dict__['alpha']
-            del arguments.__dict__['k']
-        except KeyError:
-            pass
-
     print("Simulation Started")
     terminal = False
     rewards = []
@@ -308,8 +296,9 @@ def main():
     global exp_num
     args = argument_parser().parse_args()
     exp = get_experiment_data(args)
+    seed_everything(2)
     for exp_num in range(args.num):
-        run_experiment(seed_val=2, experiment=exp, arguments=args)
+        run_experiment(experiment=exp, arguments=args)
 
 
 if __name__ == '__main__':

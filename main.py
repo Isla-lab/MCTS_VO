@@ -24,7 +24,7 @@ from environment_creator import create_env_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame, create_animation_tree_trajectory
 from mcts_utils import uniform_random
 
-DEBUG_DATA = True
+DEBUG_DATA = False
 DEBUG_ANIMATION = True
 ANIMATION = True
 
@@ -111,11 +111,17 @@ def run_experiment(experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 10:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
         u, info = planner.plan(s)
+        del info['action_trajectories']
+        del info['q_values']
+        del info['actions']
+        del info['visits']
+        gc.collect()
+
         actions.append(u)
         min_angle = s.x[2] - 1.9 * config.dt
         max_angle = s.x[2] + 1.9 * config.dt
@@ -170,7 +176,6 @@ def run_experiment(experiment: ExperimentData, arguments):
             cache_frame_data=False
         )
         ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=150)
-        # plot_real_trajectory_information(trajectory, exp_num)
         plt.close(fig)
 
     trajectories = [i["trajectories"] for i in infos]

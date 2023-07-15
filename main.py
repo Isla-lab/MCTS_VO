@@ -116,7 +116,6 @@ def run_experiment(experiment: ExperimentData, arguments):
         print(f"Step Number {step_n}")
         initial_time = time.time()
         u, info = planner.plan(s)
-        del info['action_trajectories']
         del info['q_values']
         del info['actions']
         del info['visits']

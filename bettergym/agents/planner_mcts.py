@@ -65,8 +65,7 @@ class Mcts(Planner):
             "q_values": [],
             "actions": [],
             "visits": [],
-            "rollout_values": [],
-            "action_trajectories": []
+            "rollout_values": []
         }
 
     def get_id(self):
@@ -119,10 +118,6 @@ class Mcts(Planner):
         action_node = node.actions[action_idx]
         action = action_node.action
 
-        if state_id == 0:
-            self.info["action_trajectories"].append(np.array([action]))
-        else:
-            self.info["action_trajectories"][-1] = np.vstack((self.info["action_trajectories"][-1], action))
 
         # increase action visits
         node.num_visits_actions[action_idx] += 1
@@ -166,7 +161,6 @@ class Mcts(Planner):
         starting_depth = 0
         while not terminal and curr_depth + starting_depth != self.computational_budget:
             chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
-            self.info["action_trajectories"][-1] = np.vstack((self.info["action_trajectories"][-1], chosen_action))
             current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
             total_reward += r * pow(self.discount, starting_depth)
             trajectory.append(current_state.x)  # store state history

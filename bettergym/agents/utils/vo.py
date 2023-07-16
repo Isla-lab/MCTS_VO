@@ -9,7 +9,7 @@ from scipy.special import softmax
 
 from bettergym.agents.planner import Planner
 from bettergym.agents.utils.utils import voronoi, clip_act, compute_towards_goal_jit
-from mcts_utils import get_intersections
+from mcts_utils import get_intersections, uniform_random
 
 
 def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
@@ -38,7 +38,8 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.gym_env.config
     # If there are no intersection points
     if not any(intersection_points):
-        return compute_towards_goal_jit(x, node.state.goal, config.max_angle_change, std_angle_rollout, config.min_speed,
+        return compute_towards_goal_jit(x, node.state.goal, config.max_angle_change, std_angle_rollout,
+                                        config.min_speed,
                                         config.max_speed)
     else:
         # convert intersection points into ranges of available velocities/angles
@@ -224,7 +225,9 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
     # If there are no intersection points
     if not any(intersection_points):
         if prob <= 1 - eps and len(actions) != 0:
-            return voronoi(actions, q_vals, partial(sample_centered, clip_fn=partial(clip_act, max_angle_change=config.max_angle_change, x=x, allow_negative=False)))
+            return voronoi(actions, q_vals, partial(sample_centered,
+                                                    clip_fn=partial(clip_act, max_angle_change=config.max_angle_change,
+                                                                    x=x, allow_negative=False)))
         else:
             velocity_space = [0.0, config.max_speed]
             min_angle = (x[2] - config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
@@ -286,3 +289,36 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     chosen = voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config, obs_x, eps, r1)
 
     return chosen
+
+
+def uniform_random_vo(node, planner):
+    # Extract obstacle information
+    obstacles = node.state.obstacles
+    obs_x = np.array([ob.x for ob in obstacles])
+    obs_rad = np.array([ob.radius for ob in obstacles])
+
+    # Extract robot information
+    x = node.state.x
+    dt = planner.environment.config.dt
+    ROBOT_RADIUS = planner.environment.config.robot_radius
+    VMAX = 0.3
+
+    # Calculate velocities
+    v = get_relative_velocity(VMAX, obs_x, x)
+
+    # Calculate radii
+    r0 = np.linalg.norm(v, axis=1) * dt
+    r1 = ROBOT_RADIUS + obs_rad
+    # increment by ten percent radius 5 percent
+    r1 *= 1.05
+
+    # Calculate intersection points
+    intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]
+    config = planner.environment.gym_env.config
+    # If there are no intersection points
+    if not any(intersection_points):
+        return uniform_random(node, planner)
+    else:
+        # convert intersection points into ranges of available velocities/angles
+        angle_space, velocity_space = get_spaces(intersection_points, x, obs_x, r1, config)
+        return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]

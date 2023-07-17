@@ -20,7 +20,7 @@ from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import voo, towards_goal, uniform_towards_goal
 from bettergym.agents.utils.vo import sample_centered_robot_arena, voo_vo, towards_goal_vo, uniform_random_vo
-from environment_creator import create_env_five_small_obs_continuous
+from environment_creator import create_env_five_small_obs_continuous, create_env_four_obs_difficult_continuous
 from experiment_utils import print_and_notify, plot_frame, create_animation_tree_trajectory
 from mcts_utils import uniform_random
 
@@ -55,17 +55,23 @@ def seed_everything(seed_value: int):
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
-    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1), goal=(2, 10),
-    #                                                              discrete=experiment.discrete,
-    #                                                              rwrd_in_sim=experiment.obstacle_reward)
-    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1),
-                                                             goal=(10, 10),
-                                                             discrete=experiment.discrete,
-                                                             rwrd_in_sim=experiment.obstacle_reward,
-                                                             out_boundaries_rwrd=arguments.rwrd,
-                                                             dt_sim=arguments.dt,
-                                                             n_vel=arguments.v,
-                                                             n_angles=arguments.a)
+    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
+                                                                 goal=(2, 10),
+                                                                 discrete=experiment.discrete,
+                                                                 rwrd_in_sim=experiment.obstacle_reward,
+                                                                 out_boundaries_rwrd=arguments.rwrd,
+                                                                 dt_sim=arguments.dt,
+                                                                 n_vel=arguments.v,
+                                                                 n_angles=arguments.a)
+
+    # real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1),
+    #                                                          goal=(10, 10),
+    #                                                          discrete=experiment.discrete,
+    #                                                          rwrd_in_sim=experiment.obstacle_reward,
+    #                                                          out_boundaries_rwrd=arguments.rwrd,
+    #                                                          dt_sim=arguments.dt,
+    #                                                          n_vel=arguments.v,
+    #                                                          n_angles=arguments.a)
     s0, _ = real_env.reset()
     trajectory = np.array(s0.x)
     config = real_env.config

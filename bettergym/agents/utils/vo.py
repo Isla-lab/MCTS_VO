@@ -106,16 +106,16 @@ def get_spaces(intersection_points, x, obs, r1, config):
 
 
 def range_difference(rr, fr):
+    # CASE 2 the forbidden range all the robot angles
+    if fr[0] <= rr[0] and fr[1] >= rr[1]:
+        # all angles collide
+        angle_space = None
     # CASE 1 the forbidden range is inside the robot angles
-    if rr[0] <= fr[0] <= rr[1] and rr[0] <= fr[1] <= rr[1]:
+    elif rr[0] <= fr[0] <= rr[1] and rr[0] <= fr[1] <= rr[1]:
         angle_space = [
             [rr[0], fr[0]],
             [fr[1], rr[1]]
         ]
-    # CASE 2 the forbidden range all the robot angles
-    elif fr[0] <= rr[0] and fr[1] >= rr[1]:
-        # all angles collide
-        angle_space = None
     # CASE 3 the forbidden range starts before the robot angles and ends inside
     elif fr[0] <= rr[0] <= fr[1] <= rr[1]:
         angle_space = [
@@ -136,18 +136,7 @@ def range_difference(rr, fr):
     return angle_space
 
 
-def compute_safe_angle_space(intersection_points, max_angle_change, x):
-    # convert points into angles and define the forbidden angles space
-    forbidden_ranges = []
-    for point in intersection_points:
-        if point is not None:
-            p1, p2 = point
-            angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
-            angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
-            if angle1 > angle2:
-                forbidden_ranges.extend([[angle1, math.pi], [-math.pi, angle2]])
-            else:
-                forbidden_ranges.append([angle1, angle2])
+def get_robot_angles(x, max_angle_change):
     robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
     robot_angles = np.array(robot_angles)
     # Make sure angle is within range of -π to π
@@ -160,6 +149,25 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
             new_robot_angles.extend([[a[0], math.pi], [-math.pi, a[1]]])
         else:
             new_robot_angles.append(a)
+    return new_robot_angles
+
+
+def compute_safe_angle_space(intersection_points, max_angle_change, x):
+    robot_angles = get_robot_angles(x, max_angle_change)
+
+    # convert points into angles and define the forbidden angles space
+    forbidden_ranges = []
+    for point in intersection_points:
+        if point is np.inf:
+            forbidden_ranges.extend(robot_angles)
+        elif point is not None:
+            p1, p2 = point
+            angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
+            angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
+            if angle1 > angle2:
+                forbidden_ranges.extend([[angle1, math.pi], [-math.pi, angle2]])
+            else:
+                forbidden_ranges.append([angle1, angle2])
 
     new_ranges = []
     for fr in forbidden_ranges:
@@ -275,9 +283,9 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
 
     # Calculate radii
     r0 = np.linalg.norm(v, axis=1) * dt
-    r1 = ROBOT_RADIUS + obs_rad
-    # increment by ten percent radius 5 percent
-    r1 *= 1.05
+    r1 = ROBOT_RADIUS + obs_rad * 1.05
+    # increment by 5 percent
+    # r1 *= 1.05
 
     # Calculate intersection points
     intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]

@@ -117,8 +117,6 @@ class Mcts(Planner):
         # get action corresponding to the index
         action_node = node.actions[action_idx]
         action = action_node.action
-
-
         # increase action visits
         node.num_visits_actions[action_idx] += 1
 

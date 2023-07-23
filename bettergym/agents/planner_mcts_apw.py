@@ -95,7 +95,8 @@ class MctsApw(Planner):
             total_reward = self.simulate(state_id=root_id, depth=0)
             self.info["rollout_values"].append(total_reward)
 
-        q_vals = root_node.a_values / root_node.num_visits_actions
+        q_vals = np.divide(root_node.a_values, root_node.num_visits_actions, out=np.full_like(root_node.a_values, -np.inf),
+                           where=root_node.num_visits_actions != 0)
         # DEBUG INFORMATION
         self.info["q_values"] = q_vals
         self.info["actions"] = root_node.actions

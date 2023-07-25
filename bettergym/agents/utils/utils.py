@@ -9,6 +9,7 @@ from numba import njit
 from scipy.spatial.distance import cdist
 
 from bettergym.agents.planner import Planner
+from mcts_utils import uniform_random
 
 
 def uniform(node: Any, planner: Planner):
@@ -45,6 +46,17 @@ def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
     return compute_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, std_angle_rollout,
                                     config.min_speed,
                                     config.max_speed)
+
+
+def epsilon_normal_uniform(node: Any, planner: Planner, std_angle_rollout: float):
+    config = planner.environment.config
+    eps = 0.1
+    prob = random.random()
+    if prob <= 1 - eps:
+        return compute_towards_goal_jit(node.state.x, node.state.goal, config.max_angle_change, std_angle_rollout,
+                                        config.min_speed, config.max_speed)
+    else:
+        return uniform_random(node, planner)
 
 
 def towards_goal_discrete(node: Any, planner: Planner, std_angle_rollout: float):
@@ -134,7 +146,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
         if n_iter >= 100:
             return tmp_best
 
-        # generate random points centered around the best action
+        # generate random points centered around the best actionepsilon_normal_uniform_vo
         points = sample_centered(center=best_action, number=N_SAMPLE)
 
         # compute the Euclidean distances between each point and each action

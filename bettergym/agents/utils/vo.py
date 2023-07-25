@@ -58,8 +58,9 @@ def sample_centered_robot_arena(center: np.ndarray, number: int, clip_fn: Callab
 
 
 def sample_multiple_spaces(center, a_space, number, v_space):
-    lengths = np.linalg.norm(a_space, axis=0)
-    percentages = np.cumsum(softmax(lengths))
+    lengths = np.linalg.norm(a_space, axis=1)
+    # percentages = np.cumsum(softmax(lengths))
+    percentages = np.cumsum(lengths / np.sum(lengths))
     pct = random.random()
     idx_space = np.flatnonzero(pct <= percentages)[0]
     return np.vstack([
@@ -283,7 +284,7 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
 
     # Calculate radii
     r0 = np.linalg.norm(v, axis=1) * dt
-    r1 = ROBOT_RADIUS + obs_rad * 1.05
+    r1 = ROBOT_RADIUS + obs_rad
     # increment by 5 percent
     # r1 *= 1.05
 
@@ -330,3 +331,13 @@ def uniform_random_vo(node, planner):
         # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(intersection_points, x, obs_x, r1, config)
         return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+
+
+def epsilon_normal_uniform_vo(node: Any, planner: Planner, std_angle_rollout: float):
+    config = planner.environment.config
+    eps = 0.1
+    prob = random.random()
+    if prob <= 1 - eps:
+        return towards_goal_vo(node, planner, std_angle_rollout)
+    else:
+        return uniform_random_vo(node, planner)

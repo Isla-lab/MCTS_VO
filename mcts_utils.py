@@ -6,10 +6,12 @@ import numpy as np
 def uniform_random(node, planner):
     state = node.state
     config = planner.environment.gym_env.config
-    return np.random.uniform(
+    action = np.random.uniform(
         low=np.array([config.min_speed, state.x[2] - config.max_angle_change], dtype=np.float64),
         high=np.array([config.max_speed, state.x[2] + config.max_angle_change], dtype=np.float64)
     )
+    action[1] = (action[1] + math.pi) % (2 * math.pi) - math.pi
+    return action
 
 
 def compute_int(r0, r1, d, x0, x1, y0, y1):

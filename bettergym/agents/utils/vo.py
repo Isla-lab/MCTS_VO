@@ -8,7 +8,7 @@ import numpy as np
 from scipy.special import softmax
 
 from bettergym.agents.planner import Planner
-from bettergym.agents.utils.utils import voronoi, clip_act, compute_towards_goal_jit
+from bettergym.agents.utils.utils import voronoi, clip_act, compute_towards_goal_jit, get_robot_angles
 from mcts_utils import get_intersections, uniform_random
 
 
@@ -130,22 +130,6 @@ def range_difference(rr, fr):
                         f"the following angles available to the robot: {rr}")
 
     return angle_space
-
-
-def get_robot_angles(x, max_angle_change):
-    robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
-    robot_angles = np.array(robot_angles)
-    # Make sure angle is within range of -π to π
-    robot_angles = (robot_angles + np.pi) % (2 * np.pi) - np.pi
-    if type(robot_angles[0]) is np.float64:
-        robot_angles = [robot_angles]
-    new_robot_angles = []
-    for a in robot_angles:
-        if a[0] > a[1]:
-            new_robot_angles.extend([[a[0], math.pi], [-math.pi, a[1]]])
-        else:
-            new_robot_angles.append(a)
-    return new_robot_angles
 
 
 def compute_safe_angle_space(intersection_points, max_angle_change, x):

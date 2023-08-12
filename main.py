@@ -17,6 +17,7 @@ from matplotlib.animation import FuncAnimation
 from numba import njit
 from numpy import mean, std
 
+from bettergym.agents.controller import Controller
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import voo, towards_goal, uniform_towards_goal, epsilon_normal_uniform
@@ -118,6 +119,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     infos = []
     actions = []
     step_n = 0
+    controller = Controller()
     while not terminal:
         step_n += 1
         if step_n == 1000:
@@ -136,52 +138,50 @@ def run_experiment(experiment: ExperimentData, arguments):
         actions.append(u)
 
         # Clip action
-        min_angle = s.x[2] - 1.9 * config.dt
-        max_angle = s.x[2] + 1.9 * config.dt
         u_copy = np.array(u, copy=True)
         if arguments.algorithm in ["VOR", "VO2"]:
-            # Extract obstacle information
-            obstacles = s.obstacles
-            obs_x = np.array([ob.x for ob in obstacles])
-            obs_rad = np.array([ob.radius for ob in obstacles])
-
-            # Extract robot information
-            x = s.x
-            dt = config.dt
-            ROBOT_RADIUS = config.robot_radius
-            VMAX = 0.3
-
-            # Calculate velocities
-            v = get_relative_velocity(VMAX, obs_x, x)
-
-            # Calculate radii
-            r0 = np.linalg.norm(v, axis=1) * dt
-            r1 = ROBOT_RADIUS + (obs_rad * 1.05)
-            # increment by 5 percent
-            # r1 *= 1.05
-
-            # Calculate intersection points
-            intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]
-
-            # If there are no intersection points
-            if not any(intersection_points):
-                u_copy[1] = max(min(u_copy[1], max_angle), min_angle)
-                u_copy[1] = (u_copy[1] + math.pi) % (2 * math.pi) - math.pi
-            else:
-                # convert intersection points into ranges of available velocities/angles
-                angle_space, _ = get_spaces(intersection_points, x, obs_x, r1, config)
-                flag = False
-                for aspace in angle_space:
-                    if aspace[0] <= u_copy[1] <= aspace[1]:
-                        flag = True
-                if not flag:
-                    angle_space = list(itertools.chain(*angle_space))
-                    u_copy[1] = min(angle_space, key=lambda e: abs(e - u_copy[1]))
-        else:
-            u_copy[1] = max(min(u_copy[1], max_angle), min_angle)
-            u_copy[1] = (u_copy[1] + math.pi) % (2 * math.pi) - math.pi
+            u_copy = controller.plan(x=s.x, config=config, action=u_copy)
+        #     # Extract obstacle information
+        #     obstacles = s.obstacles
+        #     obs_x = np.array([ob.x for ob in obstacles])
+        #     obs_rad = np.array([ob.radius for ob in obstacles])
+        #
+        #     # Extract robot information
+        #     x = s.x
+        #     dt = config.dt
+        #     ROBOT_RADIUS = config.robot_radius
+        #     VMAX = 0.3
+        #
+        #     # Calculate velocities
+        #     v = get_relative_velocity(VMAX, obs_x, x)
+        #
+        #     # Calculate radii
+        #     r0 = np.linalg.norm(v, axis=1) * dt
+        #     r1 = ROBOT_RADIUS + (obs_rad * 1.05)
+        #     # increment by 5 percent
+        #     # r1 *= 1.05
+        #
+        #     # Calculate intersection points
+        #     intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]
+        #
+        #     # If there are no intersection points
+        #     if not any(intersection_points):
+        #         u_copy[1] = max(min(u_copy[1], max_angle), min_angle)
+        #         u_copy[1] = (u_copy[1] + math.pi) % (2 * math.pi) - math.pi
+        #     else:
+        #         # convert intersection points into ranges of available velocities/angles
+        #         angle_space, _ = get_spaces(intersection_points, x, obs_x, r1, config)
+        #         flag = False
+        #         for aspace in angle_space:
+        #             if aspace[0] <= u_copy[1] <= aspace[1]:
+        #                 flag = True
+        #         if not flag:
+        #             angle_space = list(itertools.chain(*angle_space))
+        #             u_copy[1] = min(angle_space, key=lambda e: abs(e - u_copy[1]))
+        # else:
+        #     u_copy[1] = max(min(u_copy[1], max_angle), min_angle)
+        #     u_copy[1] = (u_copy[1] + math.pi) % (2 * math.pi) - math.pi
         final_time = time.time() - initial_time
-        # visualize_tree(planner, step_n)
         infos.append(info)
 
         times.append(final_time)

@@ -11,6 +11,20 @@ from scipy.spatial.distance import cdist
 from bettergym.agents.planner import Planner
 from mcts_utils import uniform_random
 
+def get_robot_angles(x, max_angle_change):
+    robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
+    robot_angles = np.array(robot_angles)
+    # Make sure angle is within range of -π to π
+    robot_angles = (robot_angles + np.pi) % (2 * np.pi) - np.pi
+    if type(robot_angles[0]) is np.float64:
+        robot_angles = [robot_angles]
+    new_robot_angles = []
+    for a in robot_angles:
+        if a[0] > a[1]:
+            new_robot_angles.extend([[a[0], math.pi], [-math.pi, a[1]]])
+        else:
+            new_robot_angles.append(a)
+    return new_robot_angles
 
 def uniform(node: Any, planner: Planner):
     current_state = node.state

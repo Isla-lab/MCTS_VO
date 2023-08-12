@@ -59,23 +59,23 @@ def seed_everything(seed_value: int):
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
-    real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
-                                                                 goal=(2, 10),
-                                                                 discrete=experiment.discrete,
-                                                                 rwrd_in_sim=experiment.obstacle_reward,
-                                                                 out_boundaries_rwrd=arguments.rwrd,
-                                                                 dt_sim=arguments.dt,
-                                                                 n_vel=arguments.v,
-                                                                 n_angles=arguments.a)
+    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
+    #                                                              goal=(2, 10),
+    #                                                              discrete=experiment.discrete,
+    #                                                              rwrd_in_sim=experiment.obstacle_reward,
+    #                                                              out_boundaries_rwrd=arguments.rwrd,
+    #                                                              dt_sim=arguments.dt,
+    #                                                              n_vel=arguments.v,
+    #                                                              n_angles=arguments.a)
 
-    # real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1),
-    #                                                          goal=(10, 10),
-    #                                                          discrete=experiment.discrete,
-    #                                                          rwrd_in_sim=experiment.obstacle_reward,
-    #                                                          out_boundaries_rwrd=arguments.rwrd,
-    #                                                          dt_sim=arguments.dt,
-    #                                                          n_vel=arguments.v,
-    #                                                          n_angles=arguments.a)
+    real_env, sim_env = create_env_five_small_obs_continuous(initial_pos=(1, 1),
+                                                             goal=(10, 10),
+                                                             discrete=experiment.discrete,
+                                                             rwrd_in_sim=experiment.obstacle_reward,
+                                                             out_boundaries_rwrd=arguments.rwrd,
+                                                             dt_sim=arguments.dt,
+                                                             n_vel=arguments.v,
+                                                             n_angles=arguments.a)
     s0, _ = real_env.reset()
     trajectory = np.array(s0.x)
     config = real_env.config
@@ -139,8 +139,8 @@ def run_experiment(experiment: ExperimentData, arguments):
 
         # Clip action
         u_copy = np.array(u, copy=True)
-        if arguments.algorithm in ["VOR", "VO2"]:
-            u_copy = controller.plan(x=s.x, config=config, action=u_copy)
+        # if arguments.algorithm in ["VOR", "VO2"]:
+        u_copy = controller.plan(x=s.x, config=config, action=u_copy)
         #     # Extract obstacle information
         #     obstacles = s.obstacles
         #     obs_x = np.array([ob.x for ob in obstacles])

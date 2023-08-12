@@ -22,6 +22,7 @@ from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import voo, towards_goal, uniform_towards_goal, epsilon_normal_uniform
 from bettergym.agents.utils.vo import sample_centered_robot_arena, voo_vo, towards_goal_vo, uniform_random_vo, \
     get_relative_velocity, get_spaces, epsilon_normal_uniform_vo
+from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import create_env_five_small_obs_continuous, create_env_four_obs_difficult_continuous
 from experiment_utils import print_and_notify, plot_frame, create_animation_tree_trajectory
 from mcts_utils import uniform_random, get_intersections
@@ -205,11 +206,15 @@ def run_experiment(experiment: ExperimentData, arguments):
         exp_name
     )
 
+    dist_goal = dist_to_goal(s.x[:2], s.goal)
+    reach_goal = dist_goal <= real_env.config.robot_radius
+
     data = {
         "cumRwrd": round(sum(rewards), 2),
         "nSteps": step_n,
         "MeanStepTime": np.round(mean(times), 2),
-        "StdStepTime": np.round(std(times), 2)
+        "StdStepTime": np.round(std(times), 2),
+        "reachGoal": int(reach_goal)
     }
     data = data | arguments.__dict__
     df = pd.Series(data)

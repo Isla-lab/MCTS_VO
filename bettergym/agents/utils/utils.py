@@ -146,7 +146,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
         if n_iter >= 100:
             return tmp_best
 
-        # generate random points centered around the best actionepsilon_normal_uniform_vo
+        # generate random points centered around the best action
         points = sample_centered(center=best_action, number=N_SAMPLE)
 
         # compute the Euclidean distances between each point and each action
@@ -173,7 +173,8 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
         # find the index of the point closest to the best action among the valid rows
         valid_points = best_action_distances[all_true_rows]
         if len(valid_points >= 0):
-            closest_point_idx = np.argmin(valid_points)
+            # closest_point_idx = np.argmin(valid_points)
+            closest_point_idx = all_true_rows[np.argmin(valid_points)]
             # return the closest point to the best action
             return points[closest_point_idx]
         else:

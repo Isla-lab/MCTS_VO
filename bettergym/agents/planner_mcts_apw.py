@@ -117,15 +117,10 @@ class MctsApw(Planner):
 
             # add child
             new_action_node = ActionNode(new_action)
-            node.actions.append(new_action_node)
-            # remove duplicate nodes
-            node.actions = list(dict.fromkeys(node.actions))
-
-            if len(node.num_visits_actions) != len(node.actions):
-                # the node we added was a duplicate node
+            if new_action_node not in node.actions:
+                node.actions.append(new_action_node)
                 node.num_visits_actions = np.append(node.num_visits_actions, 0.0)
                 node.a_values = np.append(node.a_values, 0.0)
-
         # UCB
         # Q + c * sqrt(ln(Parent_Visit)/Child_visit)
         q_vals = np.divide(node.a_values, node.num_visits_actions, out=np.full_like(node.a_values, np.inf),

@@ -96,36 +96,31 @@ def get_spaces(intersection_points, x, obs, r1, config):
             velocity_space = [config.min_speed, 0.0]
         else:
             velocity_space = [0.0]
-            min_angle = ((x[2] - config.max_angle_change) + math.pi) % (2 * math.pi) - math.pi
-            max_angle = ((x[2] + config.max_angle_change) + math.pi) % (2 * math.pi) - math.pi
-            if min_angle > max_angle:
-                angle_space = [[min_angle, math.pi], [-math.pi, max_angle]]
-            else:
-                angle_space = [[min_angle, max_angle]]
+            angle_space = get_robot_angles(x, config.max_angle_change)
 
     return angle_space, velocity_space
 
 
 def range_difference(rr, fr):
-    # CASE 2 the forbidden range all the robot angles
+    # CASE 2 the forbidden range is all the robot angles
     if fr[0] <= rr[0] and fr[1] >= rr[1]:
         # all angles collide
         angle_space = None
+    # CASE 4 the forbidden range starts in the robot angles and ends after
+    elif rr[0] < fr[0] < rr[1] <= fr[1]:
+        angle_space = [
+            [rr[0], fr[0]]
+        ]
     # CASE 1 the forbidden range is inside the robot angles
-    elif rr[0] <= fr[0] <= rr[1] and rr[0] <= fr[1] <= rr[1]:
+    elif rr[0] < fr[0] < rr[1] and rr[0] < fr[1] < rr[1]:
         angle_space = [
             [rr[0], fr[0]],
             [fr[1], rr[1]]
         ]
     # CASE 3 the forbidden range starts before the robot angles and ends inside
-    elif fr[0] <= rr[0] <= fr[1] <= rr[1]:
+    elif fr[0] <= rr[0] < fr[1] < rr[1]:
         angle_space = [
             [fr[1], rr[1]]
-        ]
-    # CASE 4 the forbidden range starts in the robot angles and ends after
-    elif fr[1] >= rr[1] >= fr[0] >= rr[0]:
-        angle_space = [
-            [rr[0], fr[0]]
         ]
     # CASE 5 no overlap
     elif (fr[0] >= rr[1] and fr[1] >= rr[1]) or (fr[0] <= rr[0] and fr[0] <= rr[0]):
@@ -239,12 +234,7 @@ def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config,
                                                                     x=x, allow_negative=False)))
         else:
             velocity_space = [0.0, config.max_speed]
-            min_angle = (x[2] - config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
-            max_angle = (x[2] + config.max_angle_change + math.pi) % (2 * math.pi) - math.pi
-            if min_angle > max_angle:
-                angle_space = [[min_angle, math.pi], [-math.pi, max_angle]]
-            else:
-                angle_space = [[min_angle, max_angle]]
+            angle_space = get_robot_angles(x, config.max_angle_change)
             # Generate random actions
             return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
     # If there are intersection points

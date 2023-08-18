@@ -5,7 +5,7 @@ from functools import partial
 from typing import Callable, Any
 
 import numpy as np
-from scipy.special import softmax
+import portion as P
 
 from bettergym.agents.planner import Planner
 from bettergym.agents.utils.utils import voronoi, clip_act, compute_towards_goal_jit, get_robot_angles
@@ -102,34 +102,37 @@ def get_spaces(intersection_points, x, obs, r1, config):
 
 
 def range_difference(rr, fr):
-    # CASE 2 the forbidden range is all the robot angles
-    if fr[0] <= rr[0] and fr[1] >= rr[1]:
-        # all angles collide
-        angle_space = None
-    # CASE 4 the forbidden range starts in the robot angles and ends after
-    elif rr[0] < fr[0] < rr[1] <= fr[1]:
-        angle_space = [
-            [rr[0], fr[0]]
-        ]
-    # CASE 1 the forbidden range is inside the robot angles
-    elif rr[0] < fr[0] < rr[1] and rr[0] < fr[1] < rr[1]:
-        angle_space = [
-            [rr[0], fr[0]],
-            [fr[1], rr[1]]
-        ]
-    # CASE 3 the forbidden range starts before the robot angles and ends inside
-    elif fr[0] <= rr[0] < fr[1] < rr[1]:
-        angle_space = [
-            [fr[1], rr[1]]
-        ]
-    # CASE 5 no overlap
-    elif (fr[0] >= rr[1] and fr[1] >= rr[1]) or (fr[0] <= rr[0] and fr[0] <= rr[0]):
-        angle_space = [rr]
-    else:
-        raise Exception(f"The provided forbidden angles: {fr} does not match any case with "
-                        f"the following angles available to the robot: {rr}")
+    # # CASE 2 the forbidden range is all the robot angles
+    # if fr[0] <= rr[0] and fr[1] >= rr[1]:
+    #     # all angles collide
+    #     angle_space = None
+    # # CASE 4 the forbidden range starts in the robot angles and ends after
+    # elif rr[0] < fr[0] < rr[1] <= fr[1]:
+    #     angle_space = [
+    #         [rr[0], fr[0]]
+    #     ]
+    # # CASE 1 the forbidden range is inside the robot angles
+    # elif rr[0] < fr[0] < rr[1] and rr[0] < fr[1] < rr[1]:
+    #     angle_space = [
+    #         [rr[0], fr[0]],
+    #         [fr[1], rr[1]]
+    #     ]
+    # # CASE 3 the forbidden range starts before the robot angles and ends inside
+    # elif fr[0] <= rr[0] < fr[1] < rr[1]:
+    #     angle_space = [
+    #         [fr[1], rr[1]]
+    #     ]
+    # # CASE 5 no overlap
+    # elif (fr[0] >= rr[1] and fr[1] >= rr[1]) or (fr[0] <= rr[0] and fr[0] <= rr[0]):
+    #     angle_space = [rr]
+    # else:
+    #     raise Exception(f"The provided forbidden angles: {fr} does not match any case with "
+    #                     f"the following angles available to the robot: {rr}")
 
-    return angle_space
+    rr = P.closed(rr[0], rr[1])
+    fr = P.closed(fr[0], fr[1])
+    angle_space = [list(r[1:3]) for r in P.to_data(rr - fr)]
+    return angle_space if angle_space is not [()] else None
 
 
 def compute_safe_angle_space(intersection_points, max_angle_change, x):

@@ -17,7 +17,6 @@ from matplotlib.animation import FuncAnimation
 from numba import njit
 from numpy import mean, std
 
-from bettergym.agents.controller import Controller
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import voo, towards_goal, uniform_towards_goal, epsilon_normal_uniform

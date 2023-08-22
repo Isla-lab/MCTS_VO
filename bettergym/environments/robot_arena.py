@@ -20,7 +20,7 @@ class Config:
     # Min U[0]
     min_speed: float = -0.1  # [m/s]
     # Max and Min U[1]
-    max_angle_change: float = 0.38  # [rad/s]
+    max_angle_change: float = None  # [rad/s]
 
     dt: float = 0.2  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check

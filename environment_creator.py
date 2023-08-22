@@ -39,7 +39,7 @@ def create_env_five_small_obs_continuous(initial_pos: tuple, goal: tuple, discre
         [6.0, 4.0],
         [6.0, 6.0]
     ])
-    dt_real = 0.2
+    dt_real = 1.
     real_c = Config(max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel)
     sim_c = Config(dt=dt_sim, max_angle_change=1.9 * dt_sim, n_angles=n_angles, n_vel=n_vel)
     obs = [RobotArenaState(np.pad(ob, (0, 2), 'constant'), goal=None, obstacles=None, radius=real_c.obs_size) for ob in
@@ -59,7 +59,7 @@ def create_env_four_obs_difficult_continuous(initial_pos: tuple, goal: tuple, di
         [9.5, 7.0],
     ])
     radiuses = [1.8, 1, 2, 2]
-    dt_real = 0.2
+    dt_real = 1.
     real_c = Config(max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel)
     sim_c = Config(dt=dt_sim, max_angle_change=1.9 * dt_sim, n_angles=n_angles, n_vel=n_vel)
     obs = [RobotArenaState(np.pad(obstacles_positions[i], (0, 2), 'constant'), goal=None, obstacles=None,

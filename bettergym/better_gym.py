@@ -6,7 +6,9 @@ class BetterGym:
     def __init__(self, env):
         self.gym_env = env
 
-    def step(self, state, action) -> tuple[Any, Union[float, int], bool, bool, Union[dict[str, Any]]]:
+    def step(
+        self, state, action
+    ) -> tuple[Any, Union[float, int], bool, bool, Union[dict[str, Any]]]:
         """
         A transition function that works by
         :param state: the state of the environments

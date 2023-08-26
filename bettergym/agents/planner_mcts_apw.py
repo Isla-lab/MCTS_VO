@@ -41,9 +41,18 @@ class RolloutStateNode:
 
 
 class MctsApw(Planner):
-    def __init__(self, num_sim: int, c: float | int, environment: BetterGym, computational_budget: int, k: float | int,
-                 alpha: float | int, action_expansion_function: Callable, rollout_policy: Callable,
-                 discount: float | int = 1):
+    def __init__(
+        self,
+        num_sim: int,
+        c: float | int,
+        environment: BetterGym,
+        computational_budget: int,
+        k: float | int,
+        alpha: float | int,
+        action_expansion_function: Callable,
+        rollout_policy: Callable,
+        discount: float | int = 1,
+    ):
         """
         Mcts algorithm with Action Progressive Widening
         :param num_sim: number of simulations
@@ -77,7 +86,7 @@ class MctsApw(Planner):
             "q_values": [],
             "actions": [],
             "visits": [],
-            "rollout_values": []
+            "rollout_values": [],
         }
 
     def get_id(self):
@@ -95,8 +104,12 @@ class MctsApw(Planner):
             total_reward = self.simulate(state_id=root_id, depth=0)
             self.info["rollout_values"].append(total_reward)
 
-        q_vals = np.divide(root_node.a_values, root_node.num_visits_actions, out=np.full_like(root_node.a_values, -np.inf),
-                           where=root_node.num_visits_actions != 0)
+        q_vals = np.divide(
+            root_node.a_values,
+            root_node.num_visits_actions,
+            out=np.full_like(root_node.a_values, -np.inf),
+            where=root_node.num_visits_actions != 0,
+        )
         # DEBUG INFORMATION
         self.info["q_values"] = q_vals
         self.info["actions"] = root_node.actions
@@ -112,8 +125,13 @@ class MctsApw(Planner):
         node.num_visits += 1
         current_state = node.state
 
-        if len(node.actions) <= math.ceil(self.k * (node.num_visits ** self.alpha)) or len(node.actions) == 0:
-            new_action: np.ndarray = self.action_expansion_function(node=node, planner=self)
+        if (
+            len(node.actions) <= math.ceil(self.k * (node.num_visits**self.alpha))
+            or len(node.actions) == 0
+        ):
+            new_action: np.ndarray = self.action_expansion_function(
+                node=node, planner=self
+            )
 
             # add child
             new_action_node = ActionNode(new_action)
@@ -123,13 +141,20 @@ class MctsApw(Planner):
                 node.a_values = np.append(node.a_values, 0.0)
         # UCB
         # Q + c * sqrt(ln(Parent_Visit)/Child_visit)
-        q_vals = np.divide(node.a_values, node.num_visits_actions, out=np.full_like(node.a_values, np.inf),
-                           where=node.num_visits_actions != 0)
+        q_vals = np.divide(
+            node.a_values,
+            node.num_visits_actions,
+            out=np.full_like(node.a_values, np.inf),
+            where=node.num_visits_actions != 0,
+        )
 
         ucb_scores = q_vals + self.c * np.sqrt(
-            np.divide(np.log(node.num_visits), node.num_visits_actions,
-                      out=np.full_like(node.num_visits_actions, np.inf),
-                      where=node.num_visits_actions != 0)
+            np.divide(
+                np.log(node.num_visits),
+                node.num_visits_actions,
+                out=np.full_like(node.num_visits_actions, np.inf),
+                where=node.num_visits_actions != 0,
+            )
         )
         # randomly choose between actions which have the maximum ucb value
         action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
@@ -141,10 +166,16 @@ class MctsApw(Planner):
 
         current_state, r, terminal, _, _ = self.environment.step(current_state, action)
         new_state_id = action_node.state_to_id.get(current_state, None)
-        self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], current_state.x))
+        self.info["trajectories"][-1] = np.vstack(
+            (self.info["trajectories"][-1], current_state.x)
+        )
 
         prev_node = node
-        if new_state_id is None and depth + 1 < self.computational_budget and not terminal:
+        if (
+            new_state_id is None
+            and depth + 1 < self.computational_budget
+            and not terminal
+        ):
             # Leaf Node
             state_id = self.get_id()
             # Initialize State Data
@@ -178,11 +209,15 @@ class MctsApw(Planner):
         starting_depth = 0
         while not terminal and curr_depth + starting_depth != self.computational_budget:
             chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
-            current_state, r, terminal, _, _ = self.environment.step(current_state, chosen_action)
+            current_state, r, terminal, _, _ = self.environment.step(
+                current_state, chosen_action
+            )
             total_reward += r * pow(self.discount, starting_depth)
             trajectory.append(current_state.x)
             starting_depth += 1
 
-        self.info["trajectories"][-1] = np.vstack((self.info["trajectories"][-1], np.array(trajectory)))
+        self.info["trajectories"][-1] = np.vstack(
+            (self.info["trajectories"][-1], np.array(trajectory))
+        )
         # self.info["rollout_values"].append(total_reward)
         return total_reward

@@ -8,7 +8,12 @@ import numpy as np
 import portion as P
 
 from bettergym.agents.planner import Planner
-from bettergym.agents.utils.utils import voronoi, clip_act, compute_towards_goal_jit, get_robot_angles
+from bettergym.agents.utils.utils import (
+    voronoi,
+    clip_act,
+    compute_towards_goal_jit,
+    get_robot_angles,
+)
 from mcts_utils import get_intersections, uniform_random
 
 
@@ -34,24 +39,35 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     r1 *= 1.05
 
     # Calculate intersection points
-    intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]
+    intersection_points = [
+        get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
+    ]
     config = planner.environment.gym_env.config
     # If there are no intersection points
     if not any(intersection_points):
-        return compute_towards_goal_jit(x, node.state.goal, config.max_angle_change, std_angle_rollout,
-                                        config.min_speed,
-                                        config.max_speed)
+        return compute_towards_goal_jit(
+            x,
+            node.state.goal,
+            config.max_angle_change,
+            std_angle_rollout,
+            config.min_speed,
+            config.max_speed,
+        )
     else:
         # convert intersection points into ranges of available velocities/angles
-        angle_space, velocity_space = get_spaces(intersection_points, x, obs_x, r1, config)
-        return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+        angle_space, velocity_space = get_spaces(
+            intersection_points, x, obs_x, r1, config
+        )
+        return sample(
+            center=None, a_space=angle_space, v_space=velocity_space, number=1
+        )[0]
 
 
-def sample_centered_robot_arena(center: np.ndarray, number: int, clip_fn: Callable, std_angle: float):
+def sample_centered_robot_arena(
+    center: np.ndarray, number: int, clip_fn: Callable, std_angle: float
+):
     chosen = np.random.multivariate_normal(
-        mean=center,
-        cov=np.diag([0.3 / 2, std_angle]),
-        size=number
+        mean=center, cov=np.diag([0.3 / 2, std_angle]), size=number
     )
     chosen = clip_fn(chosen=chosen)
     return chosen
@@ -63,17 +79,23 @@ def sample_multiple_spaces(center, a_space, number, v_space):
     percentages = np.cumsum(lengths / np.sum(lengths))
     pct = random.random()
     idx_space = np.flatnonzero(pct <= percentages)[0]
-    return np.vstack([
-        np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
-        np.random.uniform(low=a_space[idx_space][0], high=a_space[idx_space][1], size=number)
-    ]).T
+    return np.vstack(
+        [
+            np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
+            np.random.uniform(
+                low=a_space[idx_space][0], high=a_space[idx_space][1], size=number
+            ),
+        ]
+    ).T
 
 
 def sample_single_space(center, a_space, number, v_space):
-    return np.vstack([
-        np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
-        np.random.uniform(low=a_space[0], high=a_space[1], size=number)
-    ]).T
+    return np.vstack(
+        [
+            np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
+            np.random.uniform(low=a_space[0], high=a_space[1], size=number),
+        ]
+    ).T
 
 
 def sample(center, a_space, v_space, number):
@@ -84,8 +106,11 @@ def sample(center, a_space, v_space, number):
 
 
 def get_spaces(intersection_points, x, obs, r1, config):
-    angle_space = compute_safe_angle_space(intersection_points=intersection_points,
-                                           max_angle_change=config.max_angle_change, x=x)
+    angle_space = compute_safe_angle_space(
+        intersection_points=intersection_points,
+        max_angle_change=config.max_angle_change,
+        x=x,
+    )
     velocity_space = [0.0, config.max_speed]
 
     # No angle at positive velocity is safe
@@ -171,7 +196,9 @@ def vo_negative_speed(obs, x, r1, config):
     VELOCITY = np.abs(config.min_speed)
     v = get_relative_velocity(VELOCITY, obs, x)
     r0 = np.linalg.norm(v, axis=1) * config.dt
-    intersection_points = [get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))]
+    intersection_points = [
+        get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))
+    ]
 
     # check if there are any intersections
     if not any(intersection_points):
@@ -190,8 +217,11 @@ def vo_negative_speed(obs, x, r1, config):
         x_copy = x.copy()
         x_copy[2] += math.pi
         x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
-        angle_space = compute_safe_angle_space(intersection_points=intersection_points,
-                                               max_angle_change=config.max_angle_change, x=x_copy)
+        angle_space = compute_safe_angle_space(
+            intersection_points=intersection_points,
+            max_angle_change=config.max_angle_change,
+            x=x_copy,
+        )
 
         if angle_space is not None:
             # since angle_space was computed using the flipped angle
@@ -210,37 +240,63 @@ def vo_negative_speed(obs, x, r1, config):
             return False, angle_space
 
 
-def voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config, obs, eps, r1):
+def voronoi_vo(
+    actions, q_vals, sample_centered, x, intersection_points, config, obs, eps, r1
+):
     prob = random.random()
 
     # If there are no intersection points
     if not any(intersection_points):
         if prob <= 1 - eps and len(actions) != 0:
-            return voronoi(actions, q_vals, partial(sample_centered,
-                                                    clip_fn=partial(clip_act, max_angle_change=config.max_angle_change,
-                                                                    x=x, allow_negative=False)))
+            return voronoi(
+                actions,
+                q_vals,
+                partial(
+                    sample_centered,
+                    clip_fn=partial(
+                        clip_act,
+                        max_angle_change=config.max_angle_change,
+                        x=x,
+                        allow_negative=False,
+                    ),
+                ),
+            )
         else:
             velocity_space = [0.0, config.max_speed]
             angle_space = get_robot_angles(x, config.max_angle_change)
             # Generate random actions
-            return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+            return sample(
+                center=None, a_space=angle_space, v_space=velocity_space, number=1
+            )[0]
     # If there are intersection points
     else:
         # convert intersection points into ranges of available velocities/angles
-        angle_space, velocity_space = get_spaces(intersection_points, x, obs, r1, config)
+        angle_space, velocity_space = get_spaces(
+            intersection_points, x, obs, r1, config
+        )
 
         # Use Voronoi with probability 1-eps, otherwise sample random actions
         if prob <= 1 - eps and len(actions) != 0:
-            chosen = voronoi(actions, q_vals, partial(sample, a_space=angle_space, v_space=velocity_space))
+            chosen = voronoi(
+                actions,
+                q_vals,
+                partial(sample, a_space=angle_space, v_space=velocity_space),
+            )
             return chosen
         else:
-            return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+            return sample(
+                center=None, a_space=angle_space, v_space=velocity_space, number=1
+            )[0]
 
 
 def get_relative_velocity(velocity: float, obs_x: np.ndarray, x: np.ndarray):
     conjunction_angle = np.arctan2(obs_x[:, 1] - x[1], obs_x[:, 0] - x[0])
-    v1_vec = velocity * np.column_stack((np.cos(conjunction_angle), np.sin(conjunction_angle)))
-    v2_vec = obs_x[:, 3][:, np.newaxis] * np.column_stack((np.cos(obs_x[:, 2]), np.sin(obs_x[:, 2])))
+    v1_vec = velocity * np.column_stack(
+        (np.cos(conjunction_angle), np.sin(conjunction_angle))
+    )
+    v2_vec = obs_x[:, 3][:, np.newaxis] * np.column_stack(
+        (np.cos(obs_x[:, 2]), np.sin(obs_x[:, 2]))
+    )
     return v1_vec - v2_vec
 
 
@@ -266,13 +322,17 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     # r1 *= 1.05
 
     # Calculate intersection points
-    intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]
+    intersection_points = [
+        get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
+    ]
 
     # Choose the best action using Voronoi VO
     actions = np.array([n.action for n in node.actions])
     q_vals = node.a_values
     config = planner.environment.gym_env.config
-    chosen = voronoi_vo(actions, q_vals, sample_centered, x, intersection_points, config, obs_x, eps, r1)
+    chosen = voronoi_vo(
+        actions, q_vals, sample_centered, x, intersection_points, config, obs_x, eps, r1
+    )
 
     return chosen
 
@@ -299,20 +359,26 @@ def uniform_random_vo(node, planner):
     r1 *= 1.05
 
     # Calculate intersection points
-    intersection_points = [get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))]
+    intersection_points = [
+        get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
+    ]
     config = planner.environment.gym_env.config
     # If there are no intersection points
     if not any(intersection_points):
         return uniform_random(node, planner)
     else:
         # convert intersection points into ranges of available velocities/angles
-        angle_space, velocity_space = get_spaces(intersection_points, x, obs_x, r1, config)
-        return sample(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+        angle_space, velocity_space = get_spaces(
+            intersection_points, x, obs_x, r1, config
+        )
+        return sample(
+            center=None, a_space=angle_space, v_space=velocity_space, number=1
+        )[0]
 
 
-def epsilon_normal_uniform_vo(node: Any, planner: Planner, std_angle_rollout: float):
-    config = planner.environment.config
-    eps = 0.1
+def epsilon_normal_uniform_vo(
+    node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
+):
     prob = random.random()
     if prob <= 1 - eps:
         return towards_goal_vo(node, planner, std_angle_rollout)

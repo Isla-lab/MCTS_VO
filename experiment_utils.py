@@ -15,8 +15,9 @@ from matplotlib.animation import FuncAnimation
 def plot_robot(x, y, yaw, config, ax, color="b"):
     circle = plt.Circle((x, y), config.robot_radius, color=color)
     ax.add_artist(circle)
-    out_x, out_y = (np.array([x, y]) +
-                    np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius)
+    out_x, out_y = (
+        np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
+    )
     ax.plot([x, out_x], [y, out_y], "-k")
 
 
@@ -49,16 +50,17 @@ def plot_frame(i, goal, config, obs, traj, ax):
 def plot_action_evolution(actions: np.ndarray, exp_num: int):
     def plot(data):
         fig, axs = plt.subplots(2, sharex=True)
-        sns.lineplot(data=data, x=data.index, y="Linear Velocity", ax=axs[0], color='#4c72b0')
-        sns.lineplot(data=data, x=data.index, y="Angular Velocity", ax=axs[1], color='#c44e52')
-        fig.savefig(f'debug/action_evolution_{len(data)}_e{exp_num}.svg')
+        sns.lineplot(
+            data=data, x=data.index, y="Linear Velocity", ax=axs[0], color="#4c72b0"
+        )
+        sns.lineplot(
+            data=data, x=data.index, y="Angular Velocity", ax=axs[1], color="#c44e52"
+        )
+        fig.savefig(f"debug/action_evolution_{len(data)}_e{exp_num}.svg")
 
     sns.set_theme()
     df = pd.DataFrame(
-        {
-            "Linear Velocity": actions[:, 1],
-            "Angular Velocity": actions[:, 0]
-        }
+        {"Linear Velocity": actions[:, 1], "Angular Velocity": actions[:, 0]}
     )
     plot(df.iloc[:100])
     plot(df.iloc[:200])
@@ -70,7 +72,7 @@ def plot_action_evolution(actions: np.ndarray, exp_num: int):
 def print_and_notify(message: str, exp_num: int, exp_name: str):
     print(message)
     # notify.send(message)
-    with open(f'debug/{exp_name}_{exp_num}.txt', 'w') as f:
+    with open(f"debug/{exp_name}_{exp_num}.txt", "w") as f:
         f.write(message)
 
 
@@ -95,21 +97,21 @@ def plot_real_trajectory_information(trj: np.ndarray, exp_num: int):
     sns.lineplot(x=range(len(y_vals)), y=y_vals)
     plt.xlabel("Step")
     plt.ylabel("Y")
-    plt.savefig(f'debug/Y_{exp_num}.svg', dpi=300)
+    plt.savefig(f"debug/Y_{exp_num}.svg", dpi=300)
 
     # Lin Vel
     plt.clf()
     sns.lineplot(x=range(len(lin_vel)), y=lin_vel)
     plt.xlabel("Step")
     plt.ylabel("Linear Velocity")
-    plt.savefig(f'debug/Lin Vel_{exp_num}.svg', dpi=300)
+    plt.savefig(f"debug/Lin Vel_{exp_num}.svg", dpi=300)
 
     # Angles
     plt.clf()
     sns.lineplot(x=range(len(angles)), y=angles)
     plt.xlabel("Step")
     plt.ylabel("Angles")
-    plt.savefig(f'debug/Angles_{exp_num}.svg', dpi=300)
+    plt.savefig(f"debug/Angles_{exp_num}.svg", dpi=300)
     sns.reset_orig()
 
 
@@ -136,7 +138,7 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
 
-    cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker='x')
+    cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker="x")
     plt.colorbar(cmap)
 
 
@@ -162,8 +164,8 @@ def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig)
 
     for trj in step:
         last_points_trj = trj[:-1][:, :2]
-        ax.plot(last_points_trj[:, 0], last_points_trj[:, 1], 'r--', alpha=0.5)
-    cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker='x')
+        ax.plot(last_points_trj[:, 0], last_points_trj[:, 1], "r--", alpha=0.5)
+    cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker="x")
 
     # ROBOT POSITION
     ax.plot(x0[0], x0[1], "xr")
@@ -173,7 +175,9 @@ def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig)
     plt.colorbar(cmap)
 
 
-def create_animation_tree_trajectory(goal, config, obs, exp_num, exp_name, values, trajectories):
+def create_animation_tree_trajectory(
+    goal, config, obs, exp_num, exp_name, values, trajectories
+):
     fig, ax = plt.subplots()
     ani = FuncAnimation(
         fig,
@@ -182,23 +186,23 @@ def create_animation_tree_trajectory(goal, config, obs, exp_num, exp_name, value
         frames=len(trajectories),
         # blit=True,
         save_count=None,
-        cache_frame_data=False
+        cache_frame_data=False,
     )
     ani.save(f"./debug/tree_trajectory_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
     plt.close(fig)
 
 
 def create_animation_tree_trajectory_w_steps(goal, config, obs, exp_num):
-    with open(f"./debug/trajectories_{exp_num}.pkl", 'rb') as f:
+    with open(f"./debug/trajectories_{exp_num}.pkl", "rb") as f:
         trajectories = pickle.load(f)
-    with open(f"./debug/rollout_values_{exp_num}.pkl", 'rb') as f:
+    with open(f"./debug/rollout_values_{exp_num}.pkl", "rb") as f:
         values = pickle.load(f)
     fig, ax = plt.subplots()
     ani = FuncAnimation(
         fig,
         plot_frame_tree_traj_wsteps,
         fargs=(goal, config, obs, trajectories, values, fig),
-        frames=len(trajectories)
+        frames=len(trajectories),
     )
     ani.save(f"./debug/tree_trajectory_steps_{exp_num}.mp4", fps=5, dpi=300)
 

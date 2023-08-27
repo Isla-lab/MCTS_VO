@@ -51,7 +51,7 @@ def create_env_five_small_obs_continuous(
     obstacles_positions = np.array(
         [[4.0, 4.0], [4.0, 6.0], [5.0, 5.0], [6.0, 4.0], [6.0, 6.0]]
     )
-    dt_real = 1.0
+    dt_real = dt_sim
     real_c = Config(max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel)
     sim_c = Config(
         dt=dt_sim, max_angle_change=1.9 * dt_sim, n_angles=n_angles, n_vel=n_vel
@@ -97,7 +97,7 @@ def create_env_four_obs_difficult_continuous(
         ]
     )
     radiuses = [1.8, 1, 2, 2]
-    dt_real = 1.0
+    dt_real = dt_sim
     real_c = Config(max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel)
     sim_c = Config(
         dt=dt_sim, max_angle_change=1.9 * dt_sim, n_angles=n_angles, n_vel=n_vel

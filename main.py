@@ -31,7 +31,7 @@ from bettergym.agents.utils.vo import (
 )
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
-    create_env_five_small_obs_continuous,
+    create_env_five_small_obs_continuous, create_env_four_obs_difficult_continuous,
 )
 from experiment_utils import (
     print_and_notify,
@@ -71,25 +71,26 @@ def seed_everything(seed_value: int):
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
-    # real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
-    #                                                              goal=(2, 10),
-    #                                                              discrete=experiment.discrete,
-    #                                                              rwrd_in_sim=experiment.obstacle_reward,
-    #                                                              out_boundaries_rwrd=arguments.rwrd,
-    #                                                              dt_sim=arguments.dt,
-    #                                                              n_vel=arguments.v,
-    #                                                              n_angles=arguments.a)
-
-    real_env, sim_env = create_env_five_small_obs_continuous(
-        initial_pos=(1, 1),
-        goal=(10, 10),
-        discrete=experiment.discrete,
-        rwrd_in_sim=experiment.obstacle_reward,
-        out_boundaries_rwrd=arguments.rwrd,
-        dt_sim=arguments.dt,
-        n_vel=arguments.v,
-        n_angles=arguments.a,
-    )
+    if arguments.env == "HARD":
+        real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
+                                                                     goal=(2, 10),
+                                                                     discrete=experiment.discrete,
+                                                                     rwrd_in_sim=experiment.obstacle_reward,
+                                                                     out_boundaries_rwrd=arguments.rwrd,
+                                                                     dt_sim=arguments.dt,
+                                                                     n_vel=arguments.v,
+                                                                     n_angles=arguments.a)
+    else:
+        real_env, sim_env = create_env_five_small_obs_continuous(
+            initial_pos=(1, 1),
+            goal=(10, 10),
+            discrete=experiment.discrete,
+            rwrd_in_sim=experiment.obstacle_reward,
+            out_boundaries_rwrd=arguments.rwrd,
+            dt_sim=arguments.dt,
+            n_vel=arguments.v,
+            n_angles=arguments.a,
+        )
     s0, _ = real_env.reset()
     trajectory = np.array(s0.x)
     config = real_env.config
@@ -275,6 +276,12 @@ def argument_parser():
         default=100,
         type=int,
         help="Maximum Depth of the tree",
+    )
+    parser.add_argument(
+        "--env",
+        default="EASY",
+        type=str,
+        help="Environment",
     )
 
     return parser

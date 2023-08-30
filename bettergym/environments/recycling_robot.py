@@ -42,8 +42,8 @@ class RecyclingRobot(gym.Env):
         # Defining the environments variables
         self.observation_space = 2
         self.action_space = 3
-        self.actions = {0: 'SEARCH', 1: 'WAIT', 2: 'RECHARGE'}
-        self.states = {0: 'HIGH', 1: 'LOW'}
+        self.actions = {0: "SEARCH", 1: "WAIT", 2: "RECHARGE"}
+        self.states = {0: "HIGH", 1: "LOW"}
         self.state = None
         self.reset()
 
@@ -60,20 +60,12 @@ class RecyclingRobot(gym.Env):
                 0: {
                     "probabilities": [self.alfa, 1 - self.alfa],
                     "states": [0, 1],
-                    "rewards": [self.r_search, self.r_search]
+                    "rewards": [self.r_search, self.r_search],
                 },
                 # wait action
-                1: {
-                    "probabilities": [1],
-                    "states": [0],
-                    "rewards": [self.r_wait]
-                },
+                1: {"probabilities": [1], "states": [0], "rewards": [self.r_wait]},
                 # recharge action
-                2: {
-                    "probabilities": [1],
-                    "states": [0],
-                    "rewards": [0]
-                }
+                2: {"probabilities": [1], "states": [0], "rewards": [0]},
             },
             # low state
             1: {
@@ -81,31 +73,21 @@ class RecyclingRobot(gym.Env):
                 0: {
                     "probabilities": [1 - self.beta, self.beta],
                     "states": [0, 1],
-                    "rewards": [-3, self.r_search]
+                    "rewards": [-3, self.r_search],
                 },
                 # wait action
-                1: {
-                    "probabilities": [1],
-                    "states": [1],
-                    "rewards": [self.r_wait]
-                },
+                1: {"probabilities": [1], "states": [1], "rewards": [self.r_wait]},
                 # recharge action
-                2: {
-                    "probabilities": [1],
-                    "states": [0],
-                    "rewards": [0]
-                }
-            }
+                2: {"probabilities": [1], "states": [0], "rewards": [0]},
+            },
         }
 
         probs, states, rewards = transition_table[self.state][action].values()
-        state_idx = random.choices(
-            population=range(len(states)),
-            weights=probs
-        )[0]
+        state_idx = random.choices(population=range(len(states)), weights=probs)[0]
         self.state = states[state_idx]
         reward = rewards[state_idx]
         return self.state, reward, False, False, None
+
 
 class RecyclingRobot2(gym.Env):
     """
@@ -144,8 +126,8 @@ class RecyclingRobot2(gym.Env):
         # Defining the environments variables
         self.observation_space = 2
         self.action_space = 3
-        self.actions = {0: 'SEARCH', 1: 'WAIT', 2: 'RECHARGE'}
-        self.states = {0: 'HIGH', 1: 'LOW'}
+        self.actions = {0: "SEARCH", 1: "WAIT", 2: "RECHARGE"}
+        self.states = {0: "HIGH", 1: "LOW"}
         self.state = None
         self.reset()
 
@@ -169,20 +151,12 @@ class RecyclingRobot2(gym.Env):
                 0: {
                     "probabilities": [self.alfa, 1 - self.alfa],
                     "states": [0, 1],
-                    "rewards": [self.r_search, self.r_search]
+                    "rewards": [self.r_search, self.r_search],
                 },
                 # wait action
-                1: {
-                    "probabilities": [1],
-                    "states": [0],
-                    "rewards": [self.r_wait]
-                },
+                1: {"probabilities": [1], "states": [0], "rewards": [self.r_wait]},
                 # recharge action
-                2: {
-                    "probabilities": [1],
-                    "states": [0],
-                    "rewards": [0]
-                }
+                2: {"probabilities": [1], "states": [0], "rewards": [0]},
             },
             # low state
             1: {
@@ -190,28 +164,17 @@ class RecyclingRobot2(gym.Env):
                 0: {
                     "probabilities": [1 - self.beta, self.beta],
                     "states": [0, 1],
-                    "rewards": [-3, self.r_search]
+                    "rewards": [-3, self.r_search],
                 },
                 # wait action
-                1: {
-                    "probabilities": [1],
-                    "states": [1],
-                    "rewards": [self.r_wait]
-                },
+                1: {"probabilities": [1], "states": [1], "rewards": [self.r_wait]},
                 # recharge action
-                2: {
-                    "probabilities": [1],
-                    "states": [0],
-                    "rewards": [0]
-                }
-            }
+                2: {"probabilities": [1], "states": [0], "rewards": [0]},
+            },
         }
 
         probs, states, rewards = transition_table[self.state][action].values()
-        state_idx = random.choices(
-            population=range(len(states)),
-            weights=probs
-        )[0]
+        state_idx = random.choices(population=range(len(states)), weights=probs)[0]
         self.state = states[state_idx]
         reward = rewards[state_idx]
         return self.state, reward, False, False, None

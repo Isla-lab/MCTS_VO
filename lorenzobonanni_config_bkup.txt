@@ -1,0 +1,1 @@
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VANILLA --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=10

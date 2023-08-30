@@ -23,7 +23,7 @@ class UnitTestMcts(TestCase):
             s0=s,
             environment=env,
             computational_budget=100,
-            discount=0.9
+            discount=0.9,
         )
         # when
         value = planner.rollout(s)
@@ -51,7 +51,7 @@ class UnitTestMcts(TestCase):
             s0=s,
             environment=env,
             computational_budget=3,
-            discount=0.9
+            discount=0.9,
         )
         # when
         value = planner.rollout(s)
@@ -77,7 +77,7 @@ class UnitTestMcts(TestCase):
             s0=s,
             environment=env,
             computational_budget=3,
-            discount=0.9
+            discount=0.9,
         )
         # when
         value = planner.rollout(s)

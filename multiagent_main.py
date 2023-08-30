@@ -28,15 +28,23 @@ def seed_numba(seed_value: int):
 def seed_everything(seed_value: int):
     random.seed(seed_value)
     np.random.seed(seed_value)
-    os.environ['PYTHONHASHSEED'] = str(seed_value)
+    os.environ["PYTHONHASHSEED"] = str(seed_value)
     seed_numba(seed_value)
 
 
-def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_angle: float = 0.38):
+def run_experiment(
+    seed_val, num_actions=1, policy=None, discrete=False, var_angle: float = 0.38
+):
     global exp_num
     # input [forward speed, yaw_rate]
-    real_env_1, real_env_2, sim_env_1, sim_env_2 = create_env_multiagent_five_small_obs_continuous(initial_pos=(1, 1),
-                                                                                             goal=(10, 10))
+    (
+        real_env_1,
+        real_env_2,
+        sim_env_1,
+        sim_env_2,
+    ) = create_env_multiagent_five_small_obs_continuous(
+        initial_pos=(1, 1), goal=(10, 10)
+    )
     s0_1, _ = real_env_1.reset()
     s0_2, _ = real_env_2.reset()
     seed_everything(seed_val)
@@ -73,7 +81,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         alpha=0.1,
         discount=0.99,
         action_expansion_function=policy,
-        rollout_policy=partial(towards_goal, var_angle=var_angle)
+        rollout_policy=partial(towards_goal, var_angle=var_angle),
     )
     planner2 = MctsApw(
         num_sim=1000,
@@ -84,7 +92,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         alpha=0.1,
         discount=0.99,
         action_expansion_function=policy,
-        rollout_policy=partial(towards_goal, var_angle=var_angle)
+        rollout_policy=partial(towards_goal, var_angle=var_angle),
     )
 
     print("Simulation Started")
@@ -114,7 +122,6 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         sim_env_1.gym_env.state = real_env_1.gym_env.state.copy()
         sim_env_2.gym_env.state = real_env_2.gym_env.state.copy()
 
-
         rewards.append(r1)
         trajectory_1 = np.vstack((trajectory_1, s1.x))  # store state history
         trajectory_2 = np.vstack((trajectory_2, s2.x))  # store state history
@@ -129,7 +136,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
         f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
         f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
         f"Total Time: {sum(times)}",
-        exp_num
+        exp_num,
     )
 
     if ANIMATION:
@@ -139,7 +146,7 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
             fig,
             plot_frame_multiagent,
             fargs=(goal_1, goal_2, config, obs1, trajectory_1, trajectory_2, ax),
-            frames=len(trajectory_1)
+            frames=len(trajectory_1),
         )
         ani.save(f"debug/trajectory_{exp_num}.gif", fps=150)
         plt.close()
@@ -148,10 +155,18 @@ def run_experiment(seed_val, num_actions=1, policy=None, discrete=False, var_ang
 def main():
     global exp_num
     exp_num = 0
-    for p, na, var in [(partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena), 1, 0.38 * 2)]:
-        run_experiment(seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var)
+    for p, na, var in [
+        (
+            partial(voo, eps=0.3, sample_centered=sample_centered_robot_arena),
+            1,
+            0.38 * 2,
+        )
+    ]:
+        run_experiment(
+            seed_val=2, policy=p, num_actions=na, discrete=False, var_angle=var
+        )
         exp_num += 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

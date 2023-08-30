@@ -86,6 +86,7 @@ class RobotArena:
         config: Config = Config(),
         gradient: bool = True,
         collision_rwrd: bool = False,
+        multiagent: bool = False
     ):
         self.state = initial_state
         bl_corner = np.array([config.bottom_limit, config.left_limit])
@@ -103,10 +104,16 @@ class RobotArena:
         else:
             self.reward = self.reward_no_grad
 
-        if collision_rwrd:
-            self.step = self.step_check_coll
+        if multiagent:
+            if collision_rwrd:
+                self.step = self.multiagent_step_check_coll
+            else:
+                self.step = self.multiagent_step_no_check_coll
         else:
-            self.step = self.step_no_check_coll
+            if collision_rwrd:
+                self.step = self.step_check_coll
+            else:
+                self.step = self.step_no_check_coll
 
     def reset(
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
@@ -176,6 +183,24 @@ class RobotArena:
         new_x[3] = u[0]
 
         return new_x
+
+    def multiagent_step_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
+        s1, r1, terminal1, truncated1, env_info1 = self.step_check_coll(action)
+        dynamic_obs = self.state.obstacles[-1]
+        action_dynamic_obs = dynamic_obs.x[-2:][::-1]
+        self.state = dynamic_obs
+        s2, _, _, _, _ = self.step_check_coll(action_dynamic_obs)
+        s1.obstacles[-1] = s2
+        return s1, r1, terminal1, truncated1, env_info1
+
+    def multiagent_step_no_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
+        s1, r1, terminal1, truncated1, env_info1 = self.step_no_check_coll(action)
+        dynamic_obs = self.state.obstacles[-1]
+        action_dynamic_obs = dynamic_obs.x[:-2]
+        self.state = dynamic_obs
+        s2, _, _, _, _ = self.step_no_check_coll(action_dynamic_obs)
+        s1.obstacles[-1] = s2
+        return s1, r1, terminal1, truncated1, env_info1
 
     def step_check_coll(
         self, action: np.ndarray
@@ -306,6 +331,7 @@ class BetterRobotArena(BetterGym):
         discrete_env: bool,
         config: Config,
         collision_rwrd: bool,
+        multiagent: bool = False
     ):
         if discrete_env:
             self.get_actions = self.get_actions_discrete
@@ -318,6 +344,7 @@ class BetterRobotArena(BetterGym):
                 config=config,
                 gradient=gradient,
                 collision_rwrd=collision_rwrd,
+                multiagent=multiagent
             )
         )
 

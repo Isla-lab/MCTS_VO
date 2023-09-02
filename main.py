@@ -129,7 +129,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 5:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -177,6 +177,10 @@ def run_experiment(experiment: ExperimentData, arguments):
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),
         "reachGoal": int(reach_goal),
+        "meanSmoothVelocity": np.diff(trajectory[:, 3]).mean(),
+        "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
+        "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
+        "stdSmoothAngle": np.diff(trajectory[:, 2]).std(),
     }
     data = data | arguments.__dict__
     df = pd.Series(data)

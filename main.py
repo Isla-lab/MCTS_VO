@@ -40,8 +40,8 @@ from experiment_utils import (
 )
 from mcts_utils import uniform_random
 
-DEBUG_DATA = False
-DEBUG_ANIMATION = False
+DEBUG_DATA = True
+DEBUG_ANIMATION = True
 ANIMATION = True
 
 
@@ -98,6 +98,12 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
+
+    if experiment.action_expansion_policy is not voo_vo:
+        for o in s0.obstacles:
+            o.radius *= 1.05
+        sim_env.gym_env.state = s0
+
     obs = [s0.obstacles]
     if not experiment.discrete:
         planner = MctsApw(

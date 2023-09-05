@@ -1,4 +1,6 @@
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=0.2 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=3 --env=HARD --eps_rollout=0.2
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=0.4 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=3 --env=HARD --eps_rollout=0.2
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=0.6 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=3 --env=HARD --eps_rollout=0.2
-python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=3 --env=HARD --eps_rollout=0.2
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=0.6 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=1 --env=HARD --eps_rollout=0.2
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=1 --env=HARD --eps_rollout=0.2
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=0.2 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=1 --env=EASY --eps_rollout=0.2
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=0.4 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=1 --env=EASY --eps_rollout=0.2
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=0.6 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=1 --env=EASY --eps_rollout=0.2
+python /home/lorenzobonanni/robotArena/main.py --algorithm=VO2 --nsim=1000 --rwrd=-100 --dt=1 --std=0.5 --rollout=epsilon_normal_uniform --v=5 --a=11 --c=10 --num=1 --env=EASY --eps_rollout=0.2

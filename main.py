@@ -82,7 +82,7 @@ def run_experiment(experiment: ExperimentData, arguments):
                                                                      n_angles=arguments.a)
     else:
         real_env, sim_env = create_env_five_small_obs_continuous(
-            initial_pos=(1, 1),
+            initial_pos=(4, 2),
             goal=(10, 10),
             discrete=experiment.discrete,
             rwrd_in_sim=experiment.obstacle_reward,

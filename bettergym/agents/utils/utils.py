@@ -42,12 +42,12 @@ def uniform_discrete(node: Any, planner: Planner):
 
 @njit
 def compute_towards_goal_jit(
-    x: np.ndarray,
-    goal: np.ndarray,
-    max_angle_change: float,
-    std_angle_rollout: float,
-    min_speed: float,
-    max_speed: float,
+        x: np.ndarray,
+        goal: np.ndarray,
+        max_angle_change: float,
+        std_angle_rollout: float,
+        min_speed: float,
+        max_speed: float,
 ):
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
     angle = np.random.normal(mean_angle, std_angle_rollout)
@@ -58,7 +58,6 @@ def compute_towards_goal_jit(
     angle = max(min(angle, max_angle), min_angle)
     angle = (angle + math.pi) % (2 * math.pi) - math.pi
     return np.array([linear_velocity, angle])
-
 
 def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.config
@@ -73,7 +72,7 @@ def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
 
 
 def epsilon_normal_uniform(
-    node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
+        node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
 ):
     config = planner.environment.config
     prob = random.random()
@@ -90,28 +89,32 @@ def epsilon_normal_uniform(
         return uniform_random(node, planner)
 
 
-def towards_goal_discrete(node: Any, planner: Planner, std_angle_rollout: float):
+def epsilon_uniform_uniform(
+        node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
+):
     config = planner.environment.config
-    action = compute_towards_goal_jit(
-        node.state.x,
-        node.state.goal,
-        config.max_angle_change,
-        std_angle_rollout,
-        config.min_speed,
-        config.max_speed,
-    )
-    discrete_actions = planner.environment.get_actions(node.state)
-    return bin_action(action, discrete_actions)
+    prob = random.random()
+    if prob <= 1 - eps:
+        return compute_uniform_towards_goal_jit(
+            x=node.state.x,
+            goal=node.state.goal,
+            max_angle_change=config.max_angle_change,
+            amplitude=std_angle_rollout,
+            min_speed=config.min_speed,
+            max_speed=config.max_speed,
+        )
+    else:
+        return uniform_random(node, planner)
 
 
 @njit
 def compute_uniform_towards_goal_jit(
-    x: np.ndarray,
-    goal: np.ndarray,
-    max_angle_change: float,
-    min_speed: float,
-    max_speed: float,
-    amplitude: float,
+        x: np.ndarray,
+        goal: np.ndarray,
+        max_angle_change: float,
+        min_speed: float,
+        max_speed: float,
+        amplitude: float,
 ):
     mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
     linear_velocity = np.random.uniform(low=min_speed, high=max_speed)
@@ -135,26 +138,6 @@ def uniform_towards_goal(node: Any, planner: Planner, amplitude: float):
         config.max_speed,
         amplitude,
     )
-
-
-def bin_action(action, bins):
-    diff_vector = np.linalg.norm(action - bins, axis=1)
-    idx = diff_vector.argmin()
-    return bins[idx]
-
-
-def uniform_towards_goal_discrete(node: Any, planner: Planner, amplitude: float):
-    config = planner.environment.config
-    action = compute_uniform_towards_goal_jit(
-        node.state.x,
-        node.state.goal,
-        config.max_angle_change,
-        config.min_speed,
-        config.max_speed,
-        amplitude,
-    )
-    discrete_actions = planner.environment.get_actions(node.state)
-    return bin_action(action, discrete_actions)
 
 
 def epsilon_greedy(eps: float, other_func: Callable, node: Any, planner: Planner):
@@ -253,7 +236,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
 
 @njit
 def clip_act(
-    chosen: np.ndarray, max_angle_change: float, x: np.ndarray, allow_negative: bool
+        chosen: np.ndarray, max_angle_change: float, x: np.ndarray, allow_negative: bool
 ):
     if allow_negative:
         chosen[:, 0] = (chosen[:, 0] % 0.4) - 0.1
@@ -263,7 +246,7 @@ def clip_act(
     max_available_angle = x[2] + max_angle_change
     # Make sure angle is within range of -min_angle to max_angle
     chosen[:, 1] = (
-        chosen[:, 1] % (max_available_angle - min_available_angle) + min_available_angle
+            chosen[:, 1] % (max_available_angle - min_available_angle) + min_available_angle
     )
     # Make sure angle is within range of -π to π
     chosen[:, 1] = (chosen[:, 1] + math.pi) % (2 * math.pi) - math.pi
@@ -289,7 +272,6 @@ def voo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
         )
     else:
         return uniform(node, planner)
-
 
 # def visualize_state_node(node: StateNode, father: str | None, g: graphviz.Digraph, n: int, planner):
 #     # add the node its self

@@ -20,14 +20,14 @@ from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import (
     voo,
     towards_goal,
-    epsilon_normal_uniform,
+    epsilon_normal_uniform, epsilon_uniform_uniform,
 )
 from bettergym.agents.utils.vo import (
     sample_centered_robot_arena,
     voo_vo,
     towards_goal_vo,
     uniform_random_vo,
-    epsilon_normal_uniform_vo,
+    epsilon_normal_uniform_vo, epsilon_uniform_uniform_vo,
 )
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
@@ -254,6 +254,7 @@ def argument_parser():
     parser.add_argument("--rwrd", default=-100, type=int, help="")
     parser.add_argument("--dt", default=0.2, type=float, help="")
     parser.add_argument("--std", default=0.38 * 2, type=float, help="")
+    parser.add_argument("--stdRollout", default=0.5, type=float, help="")
     parser.add_argument("--amplitude", default=1, type=float, help="")
     parser.add_argument("--c", default=1, type=float, help="")
     parser.add_argument("--rollout", default="normal_towards_goal", type=str, help="")
@@ -292,7 +293,7 @@ def argument_parser():
 
 def get_experiment_data(arguments):
     # var_angle = 0.38 * 2
-    std_angle_rollout = arguments.std
+    std_angle_rollout = arguments.stdRollout
 
     if arguments.rollout == "normal_towards_goal":
         if arguments.algorithm == "VO2":
@@ -308,6 +309,19 @@ def get_experiment_data(arguments):
             rollout_policy = uniform_random_vo
         else:
             rollout_policy = uniform_random
+    elif arguments.rollout == "epsilon_uniform_uniform":
+        if arguments.algorithm == "VO2":
+            rollout_policy = partial(
+                epsilon_uniform_uniform_vo,
+                std_angle_rollout=std_angle_rollout,
+                eps=arguments.eps_rollout,
+            )
+        else:
+            rollout_policy = partial(
+                epsilon_uniform_uniform,
+                std_angle_rollout=std_angle_rollout,
+                eps=arguments.eps_rollout,
+            )
     elif arguments.rollout == "epsilon_normal_uniform":
         if arguments.algorithm == "VO2":
             rollout_policy = partial(
@@ -324,7 +338,7 @@ def get_experiment_data(arguments):
     else:
         raise ValueError("rollout function not valid")
 
-    sample_centered = partial(sample_centered_robot_arena, std_angle=std_angle_rollout)
+    sample_centered = partial(sample_centered_robot_arena, std_angle=arguments.std)
     if arguments.algorithm == "VOR":
         # VORONOI + VO (albero + reward ostacoli)
         return ExperimentData(

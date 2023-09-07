@@ -12,7 +12,7 @@ from bettergym.agents.utils.utils import (
     voronoi,
     clip_act,
     compute_towards_goal_jit,
-    get_robot_angles,
+    get_robot_angles, compute_uniform_towards_goal_jit,
 )
 from mcts_utils import get_intersections, uniform_random
 
@@ -62,8 +62,53 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
         )[0]
 
 
+def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
+    # Extract obstacle information
+    obstacles = node.state.obstacles
+    obs_x = np.array([ob.x for ob in obstacles])
+    obs_rad = np.array([ob.radius for ob in obstacles])
+
+    # Extract robot information
+    x = node.state.x
+    dt = planner.environment.config.dt
+    ROBOT_RADIUS = planner.environment.config.robot_radius
+    VMAX = 0.3
+
+    # Calculate velocities
+    v = get_relative_velocity(VMAX, obs_x, x)
+
+    # Calculate radii
+    r0 = np.linalg.norm(v, axis=1) * dt
+    r1 = ROBOT_RADIUS + obs_rad
+    r1 *= 1.05
+
+    # Calculate intersection points
+    intersection_points = [
+        get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
+    ]
+    config = planner.environment.gym_env.config
+    # If there are no intersection points
+    if not any(intersection_points):
+        return compute_uniform_towards_goal_jit(
+            x,
+            node.state.goal,
+            config.max_angle_change,
+            std_angle_rollout,
+            config.min_speed,
+            config.max_speed,
+        )
+    else:
+        # convert intersection points into ranges of available velocities/angles
+        angle_space, velocity_space = get_spaces(
+            intersection_points, x, obs_x, r1, config
+        )
+        return sample(
+            center=None, a_space=angle_space, v_space=velocity_space, number=1
+        )[0]
+
+
 def sample_centered_robot_arena(
-    center: np.ndarray, number: int, clip_fn: Callable, std_angle: float
+        center: np.ndarray, number: int, clip_fn: Callable, std_angle: float
 ):
     chosen = np.random.multivariate_normal(
         mean=center, cov=np.diag([0.3 / 2, std_angle]), size=number
@@ -240,7 +285,7 @@ def vo_negative_speed(obs, x, r1, config):
 
 
 def voronoi_vo(
-    actions, q_vals, sample_centered, x, intersection_points, config, obs, eps, r1
+        actions, q_vals, sample_centered, x, intersection_points, config, obs, eps, r1
 ):
     prob = random.random()
 
@@ -374,10 +419,20 @@ def uniform_random_vo(node, planner):
 
 
 def epsilon_normal_uniform_vo(
-    node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
+        node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
 ):
     prob = random.random()
     if prob <= 1 - eps:
         return towards_goal_vo(node, planner, std_angle_rollout)
+    else:
+        return uniform_random_vo(node, planner)
+
+
+def epsilon_uniform_uniform_vo(
+        node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
+):
+    prob = random.random()
+    if prob <= 1 - eps:
+        return uniform_towards_goal_vo(node, planner, std_angle_rollout)
     else:
         return uniform_random_vo(node, planner)

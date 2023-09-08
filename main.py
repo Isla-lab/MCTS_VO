@@ -72,7 +72,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.env == "HARD":
-        real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
+        real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(4, 2),
                                                                      goal=(2, 10),
                                                                      discrete=experiment.discrete,
                                                                      rwrd_in_sim=experiment.obstacle_reward,

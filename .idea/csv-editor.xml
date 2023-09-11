@@ -10,6 +10,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="/algorithm:VO2_nsim:10_rwrd:-100_dt:1.0_std:0.5_stdRollout:1.0_amplitude:1_c:10.0_rollout:epsilon_uniform_uniform_alpha:0.1_k:50.0_a:10_v:10_num:10_eps_rollout:0.2_max_depth:100_env:EASY_0.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>

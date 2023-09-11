@@ -27,7 +27,8 @@ from bettergym.agents.utils.vo import (
     voo_vo,
     towards_goal_vo,
     uniform_random_vo,
-    epsilon_normal_uniform_vo, epsilon_uniform_uniform_vo,
+    epsilon_normal_uniform_vo,
+    epsilon_uniform_uniform_vo,
 )
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
@@ -41,7 +42,7 @@ from experiment_utils import (
 from mcts_utils import uniform_random
 
 DEBUG_DATA = True
-DEBUG_ANIMATION = True
+DEBUG_ANIMATION = False
 ANIMATION = True
 
 

@@ -41,8 +41,8 @@ from experiment_utils import (
 )
 from mcts_utils import uniform_random
 
-DEBUG_DATA = True
-DEBUG_ANIMATION = False
+DEBUG_DATA = False
+DEBUG_ANIMATION = True
 ANIMATION = True
 
 
@@ -72,6 +72,7 @@ def seed_everything(seed_value: int):
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
+    start_pos = (4, 2) if arguments.start == "middle" else (1, 1)
     if arguments.env == "HARD":
         real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(4, 2),
                                                                      goal=(2, 10),
@@ -83,7 +84,7 @@ def run_experiment(experiment: ExperimentData, arguments):
                                                                      n_angles=arguments.a)
     else:
         real_env, sim_env = create_env_five_small_obs_continuous(
-            initial_pos=(4, 2),
+            initial_pos=start_pos,
             goal=(10, 10),
             discrete=experiment.discrete,
             rwrd_in_sim=experiment.obstacle_reward,
@@ -288,7 +289,12 @@ def argument_parser():
         type=str,
         help="Environment",
     )
-
+    parser.add_argument(
+        "--start",
+        default="corner",
+        type=str,
+        help="Where to start",
+    )
     return parser
 
 

@@ -128,18 +128,6 @@ def compute_uniform_towards_goal_jit(
     return np.array([linear_velocity, angle])
 
 
-def uniform_towards_goal(node: Any, planner: Planner, amplitude: float):
-    config = planner.environment.config
-    return compute_uniform_towards_goal_jit(
-        node.state.x,
-        node.state.goal,
-        config.max_angle_change,
-        config.min_speed,
-        config.max_speed,
-        amplitude,
-    )
-
-
 def epsilon_greedy(eps: float, other_func: Callable, node: Any, planner: Planner):
     """
     :param node:

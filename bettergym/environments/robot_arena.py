@@ -81,12 +81,12 @@ def dist_to_goal(goal: np.ndarray, x: np.ndarray):
 
 class RobotArena:
     def __init__(
-        self,
-        initial_state: RobotArenaState,
-        config: Config = Config(),
-        gradient: bool = True,
-        collision_rwrd: bool = False,
-        multiagent: bool = False
+            self,
+            initial_state: RobotArenaState,
+            config: Config = Config(),
+            gradient: bool = True,
+            collision_rwrd: bool = False,
+            multiagent: bool = False
     ):
         self.state = initial_state
         bl_corner = np.array([config.bottom_limit, config.left_limit])
@@ -96,7 +96,7 @@ class RobotArena:
         )
         self.config = config
         self.dist_goal_t1 = None
-        # self.dist_goal_t = None
+        self.dist_goal_t = None
         self.WALL_REWARD: float = -100.0
 
         if gradient:
@@ -116,7 +116,7 @@ class RobotArena:
                 self.step = self.step_no_check_coll
 
     def reset(
-        self, *, seed: int | None = None, options: dict[str, Any] | None = None
+            self, *, seed: int | None = None, options: dict[str, Any] | None = None
     ) -> tuple[RobotArenaState, Any]:
         return self.state.copy(), None
 
@@ -130,14 +130,14 @@ class RobotArena:
         c = self.config
         # Right and Left Map Limit
         if (
-            x_pos + c.robot_radius > c.right_limit
-            or x_pos - c.robot_radius < c.left_limit
+                x_pos + c.robot_radius > c.right_limit
+                or x_pos - c.robot_radius < c.left_limit
         ):
             return True
         # Upper and Bottom Map Limit
         if (
-            y_pos + c.robot_radius > c.upper_limit
-            or y_pos - c.robot_radius < c.bottom_limit
+                y_pos + c.robot_radius > c.upper_limit
+                or y_pos - c.robot_radius < c.bottom_limit
         ):
             return True
 
@@ -203,14 +203,14 @@ class RobotArena:
         return s1, r1, terminal1, truncated1, env_info1
 
     def step_check_coll(
-        self, action: np.ndarray
+            self, action: np.ndarray
     ) -> tuple[RobotArenaState, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
         :return:
         """
-        # self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
+        self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.motion(self.state.x, action)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
         collision = self.check_collision(self.state)
@@ -227,7 +227,7 @@ class RobotArena:
         )
 
     def step_no_check_coll(
-        self, action: np.ndarray
+            self, action: np.ndarray
     ) -> tuple[RobotArenaState, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
@@ -245,12 +245,12 @@ class RobotArena:
         return self.state.copy(), reward, goal or out_boundaries, None, None
 
     def reward_no_grad(
-        self,
-        state: RobotArenaState,
-        action: np.ndarray,
-        is_collision: bool,
-        is_goal: bool,
-        out_boundaries: bool,
+            self,
+            state: RobotArenaState,
+            action: np.ndarray,
+            is_collision: bool,
+            is_goal: bool,
+            out_boundaries: bool,
     ) -> float:
         """
         Defines the reward the agent receives
@@ -277,12 +277,12 @@ class RobotArena:
         return STEP_REWARD
 
     def reward_grad(
-        self,
-        state: RobotArenaState,
-        action: np.ndarray,
-        is_collision: bool,
-        is_goal: bool,
-        out_boundaries: bool,
+            self,
+            state: RobotArenaState,
+            action: np.ndarray,
+            is_collision: bool,
+            is_goal: bool,
+            out_boundaries: bool,
     ) -> float:
         """
         Defines the reward the agent receives
@@ -306,7 +306,7 @@ class RobotArena:
         if out_boundaries:
             return self.WALL_REWARD
 
-        return -(self.dist_goal_t1 / self.max_eudist)
+        return (self.dist_goal_t - self.dist_goal_t1) / self.max_eudist
 
 
 class UniformActionSpace:
@@ -325,13 +325,13 @@ class UniformActionSpace:
 
 class BetterRobotArena(BetterGym):
     def __init__(
-        self,
-        initial_state: RobotArenaState,
-        gradient: bool,
-        discrete_env: bool,
-        config: Config,
-        collision_rwrd: bool,
-        multiagent: bool = False
+            self,
+            initial_state: RobotArenaState,
+            gradient: bool,
+            discrete_env: bool,
+            config: Config,
+            collision_rwrd: bool,
+            multiagent: bool = False
     ):
         if discrete_env:
             self.get_actions = self.get_actions_discrete

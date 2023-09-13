@@ -62,12 +62,12 @@ def compute_towards_goal_jit(
 def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.config
     return compute_towards_goal_jit(
-        node.state.x,
-        node.state.goal,
-        config.max_angle_change,
-        std_angle_rollout,
-        config.min_speed,
-        config.max_speed,
+        x=node.state.x,
+        goal=node.state.goal,
+        max_angle_change=config.max_angle_change,
+        std_angle_rollout=std_angle_rollout,
+        min_speed=config.min_speed,
+        max_speed=config.max_speed,
     )
 
 
@@ -78,12 +78,12 @@ def epsilon_normal_uniform(
     prob = random.random()
     if prob <= 1 - eps:
         return compute_towards_goal_jit(
-            node.state.x,
-            node.state.goal,
-            config.max_angle_change,
-            std_angle_rollout,
-            config.min_speed,
-            config.max_speed,
+            x=node.state.x,
+            goal=node.state.goal,
+            max_angle_change=config.max_angle_change,
+            std_angle_rollout=std_angle_rollout,
+            min_speed=config.min_speed,
+            max_speed=config.max_speed,
         )
     else:
         return uniform_random(node, planner)

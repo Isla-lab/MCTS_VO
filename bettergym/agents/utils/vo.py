@@ -45,12 +45,12 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     # If there are no intersection points
     if not any(intersection_points):
         return compute_towards_goal_jit(
-            x,
-            node.state.goal,
-            config.max_angle_change,
-            std_angle_rollout,
-            config.min_speed,
-            config.max_speed,
+            x=x,
+            goal=node.state.goal,
+            max_angle_change=config.max_angle_change,
+            std_angle_rollout=std_angle_rollout,
+            min_speed=config.min_speed,
+            max_speed=config.max_speed,
         )
     else:
         # convert intersection points into ranges of available velocities/angles

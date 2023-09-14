@@ -55,6 +55,7 @@ class ExperimentData:
     std_angle: float
     n_sim: int = 1000
     c: float = 150
+    vo: bool = False
 
 
 @njit
@@ -92,6 +93,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             dt_sim=arguments.dt,
             n_vel=arguments.v,
             n_angles=arguments.a,
+            vo=experiment.vo
         )
     s0, _ = real_env.reset()
     trajectory = np.array(s0.x)
@@ -317,7 +319,7 @@ def get_experiment_data(arguments):
         else:
             rollout_policy = uniform_random
     elif arguments.rollout == "epsilon_uniform_uniform":
-        if arguments.algorithm == "VO2":
+        if arguments.algorithm == "VO2" or arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
             rollout_policy = partial(
                 epsilon_uniform_uniform_vo,
                 std_angle_rollout=std_angle_rollout,
@@ -374,9 +376,21 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA":
+    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
         # VANILLA
         return ExperimentData(
+            action_expansion_policy=None,
+            rollout_policy=rollout_policy,
+            discrete=True,
+            obstacle_reward=True,
+            std_angle=std_angle_rollout,
+            n_sim=arguments.nsim,
+            c=arguments.c,
+        )
+    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ALBERO":
+        # VANILLA
+        return ExperimentData(
+            vo=True,
             action_expansion_policy=None,
             rollout_policy=rollout_policy,
             discrete=True,

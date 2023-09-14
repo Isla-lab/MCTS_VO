@@ -6,7 +6,9 @@ from typing import Any
 import numpy as np
 from numba import njit
 
+from bettergym.agents.utils.vo import get_relative_velocity, get_spaces
 from bettergym.better_gym import BetterGym
+from mcts_utils import get_intersections
 
 
 @dataclass(frozen=True)
@@ -99,10 +101,7 @@ class RobotArena:
         self.dist_goal_t = None
         self.WALL_REWARD: float = -100.0
 
-        if gradient:
-            self.reward = self.reward_grad
-        else:
-            self.reward = self.reward_no_grad
+        self.reward = self.reward_grad
 
         if multiagent:
             if collision_rwrd:
@@ -244,38 +243,6 @@ class RobotArena:
         # observation, reward, terminal, truncated, info
         return self.state.copy(), reward, goal or out_boundaries, None, None
 
-    def reward_no_grad(
-            self,
-            state: RobotArenaState,
-            action: np.ndarray,
-            is_collision: bool,
-            is_goal: bool,
-            out_boundaries: bool,
-    ) -> float:
-        """
-        Defines the reward the agent receives
-        :param state: current robot state
-        :param action: action performed by the agent
-        :param is_collision: boolean value indicating if the robot is colliding
-        :param is_goal: boolean value indicating if the robot has reached the goal
-        :param out_boundaries: boolean value indicating if the robot is out of the map
-        :return: The numerical reward of the agent
-        """
-        GOAL_REWARD: float = 100.0
-        COLLISION_REWARD: float = -100.0
-        STEP_REWARD: float = -0.01
-
-        if is_goal:
-            return GOAL_REWARD
-
-        if is_collision:
-            return COLLISION_REWARD
-
-        if out_boundaries:
-            return self.WALL_REWARD
-
-        return STEP_REWARD
-
     def reward_grad(
             self,
             state: RobotArenaState,
@@ -306,7 +273,7 @@ class RobotArena:
         if out_boundaries:
             return self.WALL_REWARD
 
-        return (self.dist_goal_t - self.dist_goal_t1) / self.max_eudist
+        return - self.dist_goal_t1 / self.max_eudist
 
 
 class UniformActionSpace:
@@ -329,12 +296,16 @@ class BetterRobotArena(BetterGym):
             initial_state: RobotArenaState,
             gradient: bool,
             discrete_env: bool,
+            vo: bool,
             config: Config,
             collision_rwrd: bool,
             multiagent: bool = False
     ):
         if discrete_env:
-            self.get_actions = self.get_actions_discrete
+            if not vo:
+                self.get_actions = self.get_actions_discrete
+            else:
+                self.get_actions = self.get_actions_discrete_vo2
         else:
             self.get_actions = self.get_actions_continuous
 
@@ -384,6 +355,78 @@ class BetterRobotArena(BetterGym):
                 np.repeat(available_angles, len(available_velocities)),
             ]
         )
+        return actions
+
+    def get_actions_discrete_vo2(self, state: RobotArenaState):
+        config = self.gym_env.config
+        available_angles = np.linspace(
+            start=state.x[2] - config.max_angle_change,
+            stop=state.x[2] + config.max_angle_change,
+            num=config.n_angles,
+        )
+        if (curr_angle := state.x[2]) not in available_angles:
+            available_angles = np.append(available_angles, curr_angle)
+        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
+        available_velocities = np.linspace(
+            start=config.min_speed, stop=config.max_speed, num=config.n_vel
+        )
+        if 0.0 not in available_velocities:
+            available_velocities = np.append(available_velocities, 0.0)
+
+        actions = np.transpose(
+            [
+                np.tile(available_velocities, len(available_angles)),
+                np.repeat(available_angles, len(available_velocities)),
+            ]
+        )
+
+        # Extract obstacle information
+        obstacles = state.obstacles
+        obs_x = np.array([ob.x for ob in obstacles])
+        obs_rad = np.array([ob.radius for ob in obstacles])
+
+        # Extract robot information
+        x = state.x
+        dt = self.config.dt
+        ROBOT_RADIUS = self.config.robot_radius
+        VMAX = 0.3
+
+        # Calculate velocities
+        v = get_relative_velocity(VMAX, obs_x, x)
+
+        # Calculate radii
+        r0 = np.linalg.norm(v, axis=1) * dt
+        r1 = ROBOT_RADIUS + obs_rad
+        r1 *= 1.05
+
+        # Calculate intersection points
+        intersection_points = [
+            get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
+        ]
+        config = self.gym_env.config
+        to_delete = []
+        # If there are no intersection points
+        if not any(intersection_points):
+            return actions
+        else:
+            # convert intersection points into ranges of available velocities/angles
+            angle_spaces, velocity_space = get_spaces(
+                intersection_points, x, obs_x, r1, config
+            )
+
+            feasible = False
+            actions_copy = np.array(actions, copy=True)
+            for idx, a in enumerate(actions_copy):
+                if velocity_space[0] <= a[0] <= velocity_space[1]:
+                    for a_space in angle_spaces:
+                        if a_space[0] <= a[1] <= a_space[1]:
+                            feasible = True
+                            break
+                        feasible = False
+                if not feasible:
+                    to_delete.append(idx)
+
+        actions = np.delete(actions, to_delete, axis=0)
         return actions
 
     def set_state(self, state: RobotArenaState) -> None:

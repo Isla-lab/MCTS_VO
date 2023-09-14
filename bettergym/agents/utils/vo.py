@@ -125,7 +125,7 @@ def sample_multiple_spaces(center, a_space, number, v_space):
     idx_space = np.flatnonzero(pct <= percentages)[0]
     return np.vstack(
         [
-            np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
+            np.random.uniform(low=v_space[0], high=v_space[1], size=number),
             np.random.uniform(
                 low=a_space[idx_space][0], high=a_space[idx_space][1], size=number
             ),
@@ -136,7 +136,7 @@ def sample_multiple_spaces(center, a_space, number, v_space):
 def sample_single_space(center, a_space, number, v_space):
     return np.vstack(
         [
-            np.random.uniform(low=v_space[0], high=v_space[-1], size=number),
+            np.random.uniform(low=v_space[0], high=v_space[1], size=number),
             np.random.uniform(low=a_space[0], high=a_space[1], size=number),
         ]
     ).T
@@ -164,7 +164,7 @@ def get_spaces(intersection_points, x, obs, r1, config):
             # If VO with negative speed is possible, use it
             velocity_space = [config.min_speed, 0.0]
         else:
-            velocity_space = [0.0]
+            velocity_space = [0.0, 0.0]
             angle_space = get_robot_angles(x, config.max_angle_change)
 
     return angle_space, velocity_space

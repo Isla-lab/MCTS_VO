@@ -14,6 +14,7 @@ def create_env_continuous(
     rwrd_in_sim: bool,
     real_c: Config,
     sim_c: Config,
+    vo: bool
 ):
     initial_state = RobotArenaState(
         x=np.array([initial_pos[0], initial_pos[1], math.pi / 8.0, 0.0]),
@@ -27,6 +28,7 @@ def create_env_continuous(
         discrete_env=discrete,
         config=real_c,
         collision_rwrd=True,
+        vo=vo
     )
     sim_env = BetterRobotArena(
         initial_state=initial_state,
@@ -34,6 +36,7 @@ def create_env_continuous(
         discrete_env=discrete,
         config=sim_c,
         collision_rwrd=rwrd_in_sim,
+        vo=vo
     )
     return real_env, sim_env
 
@@ -47,6 +50,7 @@ def create_env_five_small_obs_continuous(
     dt_sim: float,
     n_angles: int,
     n_vel: int,
+    vo: bool
 ):
     obstacles_positions = np.array(
         [[4.0, 4.0], [4.0, 6.0], [5.0, 5.0], [6.0, 4.0], [6.0, 6.0]]
@@ -73,6 +77,7 @@ def create_env_five_small_obs_continuous(
         rwrd_in_sim=rwrd_in_sim,
         real_c=real_c,
         sim_c=sim_c,
+        vo=vo
     )
     sim_env.gym_env.WALL_REWARD = out_boundaries_rwrd
     return real_env, sim_env

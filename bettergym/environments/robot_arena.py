@@ -99,10 +99,8 @@ class RobotArena:
         self.dist_goal_t = None
         self.WALL_REWARD: float = -100.0
 
-        if gradient:
-            self.reward = self.reward_grad
-        else:
-            self.reward = self.reward_no_grad
+
+        self.reward = self.reward_grad
 
         if multiagent:
             if collision_rwrd:
@@ -244,38 +242,6 @@ class RobotArena:
         # observation, reward, terminal, truncated, info
         return self.state.copy(), reward, goal or out_boundaries, None, None
 
-    def reward_no_grad(
-            self,
-            state: RobotArenaState,
-            action: np.ndarray,
-            is_collision: bool,
-            is_goal: bool,
-            out_boundaries: bool,
-    ) -> float:
-        """
-        Defines the reward the agent receives
-        :param state: current robot state
-        :param action: action performed by the agent
-        :param is_collision: boolean value indicating if the robot is colliding
-        :param is_goal: boolean value indicating if the robot has reached the goal
-        :param out_boundaries: boolean value indicating if the robot is out of the map
-        :return: The numerical reward of the agent
-        """
-        GOAL_REWARD: float = 100.0
-        COLLISION_REWARD: float = -100.0
-        STEP_REWARD: float = -0.01
-
-        if is_goal:
-            return GOAL_REWARD
-
-        if is_collision:
-            return COLLISION_REWARD
-
-        if out_boundaries:
-            return self.WALL_REWARD
-
-        return STEP_REWARD
-
     def reward_grad(
             self,
             state: RobotArenaState,
@@ -296,17 +262,18 @@ class RobotArena:
 
         GOAL_REWARD: float = 100.0
         COLLISION_REWARD: float = -100.0
-
+        rwrd = 0
         if is_goal:
-            return GOAL_REWARD
+            rwrd += GOAL_REWARD
 
         if is_collision:
-            return COLLISION_REWARD
+            rwrd += COLLISION_REWARD
 
         if out_boundaries:
-            return self.WALL_REWARD
+            rwrd += self.WALL_REWARD
 
-        return (self.dist_goal_t - self.dist_goal_t1) / self.max_eudist
+        rwrd += - self.dist_goal_t1 / self.max_eudist
+        return rwrd
 
 
 class UniformActionSpace:

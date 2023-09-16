@@ -195,7 +195,7 @@ class RobotArena:
     def multiagent_step_no_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
         s1, r1, terminal1, truncated1, env_info1 = self.step_no_check_coll(action)
         dynamic_obs = self.state.obstacles[-1]
-        action_dynamic_obs = dynamic_obs.x[:-2]
+        action_dynamic_obs = dynamic_obs.x[-2:][::-1]
         self.state = dynamic_obs
         s2, _, _, _, _ = self.step_no_check_coll(action_dynamic_obs)
         s1.obstacles[-1] = s2

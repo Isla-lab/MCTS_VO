@@ -19,6 +19,7 @@ from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import towards_goal, voo, epsilon_normal_uniform, epsilon_uniform_uniform
 from bettergym.agents.utils.vo import towards_goal_vo, uniform_random_vo, epsilon_normal_uniform_vo, \
     sample_centered_robot_arena, voo_vo, epsilon_uniform_uniform_vo
+from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import create_env_multiagent_five_small_obs_continuous
 from experiment_utils import print_and_notify, plot_frame_multiagent
 from mcts_utils import uniform_random
@@ -119,13 +120,16 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     print("Simulation Started")
     terminal = False
-    rewards = []
+    rewards_1 = []
+    rewards_2 = []
     times = []
     infos = []
     step_n = 0
+    terminal1 = False
+    terminal2 = False
     while not terminal:
         step_n += 1
-        if step_n == 10:
+        if step_n == 1000:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -136,27 +140,30 @@ def run_experiment(experiment: ExperimentData, arguments):
         infos.append(info)
         times.append(final_time)
 
-        s1, r1, terminal1, truncated1, env_info1 = real_env_1.step(s1, u1)
+        if not terminal1:
+            s1, r1, terminal1, truncated1, env_info1 = real_env_1.step(s1, u1)
+            rewards_1.append(r1)
         s2.obstacles[-1] = s1.copy()
-        s2, r2, terminal2, truncated2, env_info2 = real_env_2.step(s2, u2)
+        if not terminal2:
+            s2, r2, terminal2, truncated2, env_info2 = real_env_2.step(s2, u2)
+            rewards_2.append(r2)
         s1.obstacles[-1] = s2.copy()
 
         sim_env_1.gym_env.state = real_env_1.gym_env.state.copy()
         sim_env_2.gym_env.state = real_env_2.gym_env.state.copy()
 
-        rewards.append(r1)
         trajectory_1 = np.vstack((trajectory_1, s1.x))  # store state history
         trajectory_2 = np.vstack((trajectory_2, s2.x))  # store state history
         obs1.append(s1.obstacles)
-        terminal = terminal1 or terminal2
+        terminal = terminal1 and terminal2
 
     exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
     print_and_notify(
-        f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
+        f"Simulation Ended with Reward1: {round(sum(rewards_1), 2)}\n"
+        f"Simulation Ended with Reward2: {round(sum(rewards_2), 2)}\n"
         f"Discrete: {experiment.discrete}\n"
         f"Std Rollout Angle: {experiment.std_angle}\n"
         f"Number of Steps: {step_n}\n"
-        f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
         f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
         f"Total Time: {sum(times)}\n"
         f"Num Simulations: {experiment.n_sim}",
@@ -164,16 +171,23 @@ def run_experiment(experiment: ExperimentData, arguments):
         exp_name
     )
 
+    dist_goal_1 = dist_to_goal(s1.x[:2], s1.goal)
+    dist_goal_2 = dist_to_goal(s2.x[:2], s2.goal)
+    reach_goal_1 = dist_goal_1 <= real_env_1.config.robot_radius
+    reach_goal_2 = dist_goal_2 <= real_env_2.config.robot_radius
+    reach_goal = reach_goal_1 and reach_goal_2
+
     data = {
-        "cumRwrd": round(sum(rewards), 2),
+        "cumRwrd1": round(sum(rewards_1), 2),
+        "cumRwrd2": round(sum(rewards_2), 2),
         "nSteps": step_n,
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),
-        # "reachGoal": int(reach_goal)
+        "reachGoal": int(reach_goal)
     }
     data = data | arguments.__dict__
     df = pd.Series(data)
-    df.to_csv(f'{exp_name}_{exp_num}.csv')
+    df.to_csv(f'multiagent_{exp_name}_{exp_num}.csv')
 
     if ANIMATION:
         print("Creating Gif...")

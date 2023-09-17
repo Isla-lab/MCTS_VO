@@ -96,13 +96,13 @@ def create_env_four_obs_difficult_continuous(
 ):
     obstacles_positions = np.array(
         [
-            [3.4, 1.1],
-            [1.0, 4.0],
+            [3.4, 0.8],
+            [0.8, 4.3],
             [4.0, 7.0],
             [9.5, 7.0],
         ]
     )
-    radiuses = [1.8, 1, 2, 2]
+    radiuses = [1.5, 1.2, 2, 2]
     dt_real = dt_sim
     real_c = Config(dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel)
     sim_c = Config(

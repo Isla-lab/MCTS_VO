@@ -76,7 +76,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     start_pos = (4, 2) if arguments.start == "middle" else (1, 1)
     if arguments.env == "HARD":
         real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
-                                                                     goal=(2, 10),
+                                                                     goal=(10, 10),
                                                                      discrete=experiment.discrete,
                                                                      rwrd_in_sim=experiment.obstacle_reward,
                                                                      out_boundaries_rwrd=arguments.rwrd,

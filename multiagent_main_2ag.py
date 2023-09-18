@@ -144,10 +144,14 @@ def run_experiment(experiment: ExperimentData, arguments):
             s1, r1, terminal1, truncated1, env_info1 = real_env_1.step(s1, u1)
             rewards_1.append(r1)
         s2.obstacles[-1] = s1.copy()
+        s2.obstacles[-1][2] = 0.0
+        s2.obstacles[-1][3] = config.max_speed
         if not terminal2:
             s2, r2, terminal2, truncated2, env_info2 = real_env_2.step(s2, u2)
             rewards_2.append(r2)
         s1.obstacles[-1] = s2.copy()
+        s2.obstacles[-1][2] = 0.0
+        s2.obstacles[-1][3] = config.max_speed
 
         sim_env_1.gym_env.state = real_env_1.gym_env.state.copy()
         sim_env_2.gym_env.state = real_env_2.gym_env.state.copy()

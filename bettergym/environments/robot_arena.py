@@ -47,6 +47,7 @@ class RobotArenaState:
         self.goal: np.ndarray = goal
         self.obstacles: list = obstacles
         self.radius: float = radius
+        # self.dynamic_obs: bool = False
 
     def __hash__(self):
         return hash(
@@ -103,16 +104,10 @@ class RobotArena:
 
         self.reward = self.reward_grad
 
-        if multiagent:
-            if collision_rwrd:
-                self.step = self.multiagent_step_check_coll
-            else:
-                self.step = self.multiagent_step_no_check_coll
+        if collision_rwrd:
+            self.step = self.step_check_coll
         else:
-            if collision_rwrd:
-                self.step = self.step_check_coll
-            else:
-                self.step = self.step_no_check_coll
+            self.step = self.step_no_check_coll
 
     def reset(
             self, *, seed: int | None = None, options: dict[str, Any] | None = None
@@ -183,23 +178,23 @@ class RobotArena:
 
         return new_x
 
-    def multiagent_step_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
-        s1, r1, terminal1, truncated1, env_info1 = self.step_check_coll(action)
-        dynamic_obs = self.state.obstacles[-1]
-        action_dynamic_obs = dynamic_obs.x[-2:][::-1]
-        self.state = dynamic_obs
-        s2, _, _, _, _ = self.step_check_coll(action_dynamic_obs)
-        s1.obstacles[-1] = s2
-        return s1, r1, terminal1, truncated1, env_info1
-
-    def multiagent_step_no_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
-        s1, r1, terminal1, truncated1, env_info1 = self.step_no_check_coll(action)
-        dynamic_obs = self.state.obstacles[-1]
-        action_dynamic_obs = dynamic_obs.x[-2:][::-1]
-        self.state = dynamic_obs
-        s2, _, _, _, _ = self.step_no_check_coll(action_dynamic_obs)
-        s1.obstacles[-1] = s2
-        return s1, r1, terminal1, truncated1, env_info1
+    # def multiagent_step_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
+    #     s1, r1, terminal1, truncated1, env_info1 = self.step_check_coll(action)
+    #     dynamic_obs = self.state.obstacles[-1]
+    #     action_dynamic_obs = dynamic_obs.x[-2:][::-1]
+    #     self.state = dynamic_obs
+    #     s2, _, _, _, _ = self.step_check_coll(action_dynamic_obs)
+    #     s1.obstacles[-1] = s2
+    #     return s1, r1, terminal1, truncated1, env_info1
+    #
+    # def multiagent_step_no_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
+    #     s1, r1, terminal1, truncated1, env_info1 = self.step_no_check_coll(action)
+    #     dynamic_obs = self.state.obstacles[-1]
+    #     action_dynamic_obs = dynamic_obs.x[-2:][::-1]
+    #     self.state = dynamic_obs
+    #     s2, _, _, _, _ = self.step_no_check_coll(action_dynamic_obs)
+    #     s1.obstacles[-1] = s2
+    #     return s1, r1, terminal1, truncated1, env_info1
 
     def step_check_coll(
             self, action: np.ndarray
@@ -392,10 +387,10 @@ class BetterRobotArena(BetterGym):
         VMAX = 0.3
 
         # Calculate velocities
-        v = get_relative_velocity(VMAX, obs_x, x)
+        # v = get_relative_velocity(VMAX, obs_x, x)
 
         # Calculate radii
-        r0 = np.linalg.norm(v, axis=1) * dt
+        r0 = VMAX + obs_x[:, 3] * dt
         r1 = ROBOT_RADIUS + obs_rad
         r1 *= 1.05
 

@@ -30,10 +30,10 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     VMAX = 0.3
 
     # Calculate velocities
-    v = get_relative_velocity(VMAX, obs_x, x)
+    # v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r0 = np.linalg.norm(v, axis=1) * dt
+    r0 = VMAX + obs_x[:, 3] * dt
     r1 = ROBOT_RADIUS + obs_rad
     r1 *= 1.05
 
@@ -75,10 +75,10 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     VMAX = 0.3
 
     # Calculate velocities
-    v = get_relative_velocity(VMAX, obs_x, x)
+    # v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r0 = np.linalg.norm(v, axis=1) * dt
+    r0 = VMAX + obs_x[:, 3] * dt
     r1 = ROBOT_RADIUS + obs_rad
     r1 *= 1.05
 
@@ -238,8 +238,8 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
 
 def vo_negative_speed(obs, x, r1, config):
     VELOCITY = np.abs(config.min_speed)
-    v = get_relative_velocity(VELOCITY, obs, x)
-    r0 = np.linalg.norm(v, axis=1) * config.dt
+    # v = get_relative_velocity(VELOCITY, obs, x)
+    r0 = VELOCITY + obs[:, 3] * config.dt
     intersection_points = [
         get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))
     ]
@@ -357,10 +357,10 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     VMAX = 0.3
 
     # Calculate velocities
-    v = get_relative_velocity(VMAX, obs_x, x)
+    # v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r0 = np.linalg.norm(v, axis=1) * dt
+    r0 = VMAX + obs_x[:, 3] * dt
     r1 = ROBOT_RADIUS + obs_rad
     r1 *= 1.05
 
@@ -393,10 +393,10 @@ def uniform_random_vo(node, planner):
     VMAX = 0.3
 
     # Calculate velocities
-    v = get_relative_velocity(VMAX, obs_x, x)
+    # v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r0 = np.linalg.norm(v, axis=1) * dt
+    r0 = VMAX + obs_x[:, 3] * dt
     r1 = ROBOT_RADIUS + obs_rad
     r1 *= 1.05
 

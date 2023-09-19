@@ -236,3 +236,84 @@ def create_env_multiagent_five_small_obs_continuous(
     sim_env_2.gym_env.WALL_REWARD = out_boundaries_rwrd
 
     return real_env_1, real_env_2, sim_env_1, sim_env_2
+
+
+def create_env_multiagent_no_obs_continuous(
+        discrete: bool,
+        rwrd_in_sim: bool,
+        out_boundaries_rwrd: int,
+        dt_sim: float,
+        n_angles: int,
+        n_vel: int,
+        vo: bool
+):
+    dt_real = dt_sim
+    real_c = Config(dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel)
+    sim_c = Config(dt=dt_sim, max_angle_change=1.9 * dt_sim, n_angles=n_angles, n_vel=n_vel)
+    real_envs = []
+    sim_envs = []
+    initial_states = np.array(
+        [
+            # dynamic obstacle
+            [1., 1., 0., 0.3],
+            [10., 10., 0., 0.3],
+            [1., 10., 0., 0.3],
+            [10., 1., 0., 0.3]
+        ]
+    )
+    goal_positions = np.array(
+        [
+            # dynamic obstacle
+            [10., 10.],
+            [1., 1.],
+            [10., 1.],
+            [1., 10.],
+        ]
+    )
+    angles = [math.pi / 8,
+              (math.pi / 8 + math.pi) % (2 * math.pi) - math.pi,
+              3,
+              (3 + math.pi) % (2 * math.pi) - math.pi,
+              ]
+
+    for i, obs_pos in enumerate(initial_states):
+        obs = [
+            RobotArenaState(
+                ob,
+                goal=goal_positions[j],
+                obstacles=None,
+                radius=real_c.robot_radius,
+            )
+            for j, ob in enumerate(initial_states) if not np.array_equal(obs_pos, ob)
+        ]
+        initial_pos = np.array(obs_pos, copy=True)
+        initial_pos[2] = angles[i]
+        initial_pos[3] = 0.0
+        initial_state = RobotArenaState(
+            x=initial_pos,
+            goal=goal_positions[i],
+            obstacles=obs,
+            radius=real_c.robot_radius,
+        )
+        real_env = BetterRobotArena(
+            initial_state=initial_state,
+            gradient=True,
+            discrete_env=discrete,
+            config=real_c,
+            collision_rwrd=True,
+            multiagent=True,
+            vo=vo
+        )
+        sim_env = BetterRobotArena(
+            initial_state=initial_state,
+            gradient=True,
+            discrete_env=discrete,
+            config=sim_c,
+            collision_rwrd=rwrd_in_sim,
+            multiagent=True,
+            vo=vo
+        )
+        sim_env.gym_env.WALL_REWARD = out_boundaries_rwrd
+        real_envs.append(real_env)
+        sim_envs.append(sim_env)
+    return real_envs, sim_envs

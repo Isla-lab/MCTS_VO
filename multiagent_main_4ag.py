@@ -21,8 +21,8 @@ from bettergym.agents.utils.utils import towards_goal, voo, epsilon_normal_unifo
 from bettergym.agents.utils.vo import towards_goal_vo, uniform_random_vo, epsilon_normal_uniform_vo, \
     sample_centered_robot_arena, voo_vo, epsilon_uniform_uniform_vo
 from bettergym.environments.robot_arena import dist_to_goal
-from environment_creator import create_env_multiagent_five_small_obs_continuous
-from experiment_utils import print_and_notify, plot_frame_multiagent
+from environment_creator import create_env_multiagent_no_obs_continuous
+from experiment_utils import print_and_notify, plot_frame_no_obs
 from mcts_utils import uniform_random
 
 DEBUG_DATA = True
@@ -56,122 +56,92 @@ class ExperimentData:
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
-    real_env_1, real_env_2, \
-        sim_env_1, sim_env_2 = create_env_multiagent_five_small_obs_continuous(initial_pos=(1, 1),
-                                                                               goal=(10, 10),
-                                                                               discrete=experiment.discrete,
-                                                                               rwrd_in_sim=experiment.obstacle_reward,
-                                                                               out_boundaries_rwrd=arguments.rwrd,
-                                                                               dt_sim=arguments.dt,
-                                                                               n_vel=arguments.v,
-                                                                               n_angles=arguments.a,
-                                                                               vo=experiment.vo)
-    s0_1, _ = real_env_1.reset()
-    s0_2, _ = real_env_2.reset()
-    trajectory_1 = np.array(s0_1.x)
-    trajectory_2 = np.array(s0_2.x)
+    real_envs, sim_envs = create_env_multiagent_no_obs_continuous(
+        discrete=experiment.discrete,
+        rwrd_in_sim=experiment.obstacle_reward,
+        out_boundaries_rwrd=arguments.rwrd,
+        dt_sim=arguments.dt,
+        n_vel=arguments.v,
+        n_angles=arguments.a,
+        vo=experiment.vo)
+    initial_states = [env.reset()[0] for env in real_envs]
+    states = deepcopy(initial_states)
+    trajectories = [np.array(s.x) for s in initial_states]
     # config is equal
-    config = real_env_1.config
-    goal_1 = s0_1.goal
-    goal_2 = s0_2.goal
-    s1 = s0_1
-    s2 = s0_2
-
-    obs1 = [s0_1.obstacles]
+    config = real_envs[0].config
+    goals = [s.goal for s in initial_states]
+    obs = [s.obstacles for s in initial_states]
     if not experiment.discrete:
-        planner1 = MctsApw(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env_1,
-            computational_budget=arguments.max_depth,
-            k=arguments.k,
-            alpha=arguments.alpha,
-            discount=0.99,
-            action_expansion_function=experiment.action_expansion_policy,
-            rollout_policy=experiment.rollout_policy,
-        )
-        planner2 = MctsApw(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env_2,
-            computational_budget=arguments.max_depth,
-            k=arguments.k,
-            alpha=arguments.alpha,
-            discount=0.99,
-            action_expansion_function=experiment.action_expansion_policy,
-            rollout_policy=experiment.rollout_policy,
-        )
+        planners = [
+            MctsApw(
+                num_sim=experiment.n_sim,
+                c=experiment.c,
+                environment=sim_env,
+                computational_budget=arguments.max_depth,
+                k=arguments.k,
+                alpha=arguments.alpha,
+                discount=0.99,
+                action_expansion_function=experiment.action_expansion_policy,
+                rollout_policy=experiment.rollout_policy,
+            ) for sim_env in sim_envs
+        ]
     else:
-        planner1 = Mcts(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env_1,
-            computational_budget=arguments.max_depth,
-            discount=0.99,
-            rollout_policy=experiment.rollout_policy,
-        )
-        planner2 = Mcts(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env_2,
-            computational_budget=arguments.max_depth,
-            discount=0.99,
-            rollout_policy=experiment.rollout_policy,
-        )
+        planners = [
+            Mcts(
+                num_sim=experiment.n_sim,
+                c=experiment.c,
+                environment=sim_env,
+                computational_budget=arguments.max_depth,
+                discount=0.99,
+                rollout_policy=experiment.rollout_policy,
+            ) for sim_env in sim_envs
+        ]
 
     print("Simulation Started")
     terminal = False
-    rewards_1 = []
-    rewards_2 = []
+    rewards = [[]] * len(sim_envs)
     times = []
-    infos = []
     step_n = 0
-    terminal1 = False
-    terminal2 = False
+    terminals = [False] * len(sim_envs)
     while not terminal:
         step_n += 1
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
-        initial_time = time.time()
-        u1, info = planner1.plan(s1)
-        u2, _ = planner2.plan(s2)
 
-        final_time = time.time() - initial_time
-        infos.append(info)
-        times.append(final_time)
+        tmp_time = 0
+        for i in range(len(states)):
+            print(f"Agent {i}")
+            initial_time = time.time()
+            chosen_action, _ = planners[i].plan(states[i])
+            final_time = time.time() - initial_time
+            tmp_time += final_time
+            if not terminals[i]:
+                states[i], r, terminals[i], truncated, env_info = real_envs[i].step(states[i], chosen_action)
+                rewards[i].append(r)
+            trajectories[i] = np.vstack((trajectories[i], states[i].x))  # store state history
+            sim_envs[i].gym_env.state = real_envs[i].gym_env.state.copy()
+            s_copy = deepcopy(states[i])
+            s_copy.x[2] = 0.0
+            s_copy.x[3] = config.max_speed
+            s_copy.obstacles = None
+            counter = 0
+            for j in range(len(states)):
+                if i != j:
+                    for ob in states[j].obstacles:
+                        if np.array_equal(ob.goal, s_copy.goal):
+                            ob = s_copy
+                            break
 
-        if not terminal1:
-            s1, r1, terminal1, truncated1, env_info1 = real_env_1.step(s1, u1)
-            rewards_1.append(r1)
-        s1_copy = deepcopy(s1)
-        s1_copy.x[2] = 0.0
-        s1_copy.x[3] = config.max_speed
-        s1_copy.obstacles = None
-        s2.obstacles[-1] = s1_copy
+            obs[i].append(states[i].obstacles)
+            terminal = all(terminals)
 
-        if not terminal2:
-            s2, r2, terminal2, truncated2, env_info2 = real_env_2.step(s2, u2)
-            rewards_2.append(r2)
-
-        s2_copy = deepcopy(s2)
-        s2_copy.x[2] = 0.0
-        s2_copy.x[3] = config.max_speed
-        s2_copy.obstacles = None
-        s1.obstacles[-1] = s2_copy
-
-        sim_env_1.gym_env.state = real_env_1.gym_env.state.copy()
-        sim_env_2.gym_env.state = real_env_2.gym_env.state.copy()
-
-        trajectory_1 = np.vstack((trajectory_1, s1.x))  # store state history
-        trajectory_2 = np.vstack((trajectory_2, s2.x))  # store state history
-        obs1.append(s1.obstacles)
-        terminal = terminal1 and terminal2
+        times.append(tmp_time)
 
     exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
+    str_to_print = ''.join(
+        [f"Simulation Ended with Reward{nr}: {round(sum(rewards[nr]), 2)}\n" for nr in range(len(rewards))])
     print_and_notify(
-        f"Simulation Ended with Reward1: {round(sum(rewards_1), 2)}\n"
-        f"Simulation Ended with Reward2: {round(sum(rewards_2), 2)}\n"
         f"Discrete: {experiment.discrete}\n"
         f"Std Rollout Angle: {experiment.std_angle}\n"
         f"Number of Steps: {step_n}\n"
@@ -182,15 +152,11 @@ def run_experiment(experiment: ExperimentData, arguments):
         exp_name
     )
 
-    dist_goal_1 = dist_to_goal(s1.x[:2], s1.goal)
-    dist_goal_2 = dist_to_goal(s2.x[:2], s2.goal)
-    reach_goal_1 = dist_goal_1 <= real_env_1.config.robot_radius
-    reach_goal_2 = dist_goal_2 <= real_env_2.config.robot_radius
-    reach_goal = reach_goal_1 and reach_goal_2
-
+    dist_goal = [dist_to_goal(s.x[:2], s.goal) for s in states]
+    reach_goal = all([d <= real_envs[0].config.robot_radius for d in dist_goal])
+    cum_rwrd_dict = {f"cumRwrd{i}": round(sum(rewards[i]), 2) for i in range(len(rewards))}
     data = {
-        "cumRwrd1": round(sum(rewards_1), 2),
-        "cumRwrd2": round(sum(rewards_2), 2),
+        **cum_rwrd_dict,
         "nSteps": step_n,
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),
@@ -205,11 +171,11 @@ def run_experiment(experiment: ExperimentData, arguments):
         fig, ax = plt.subplots()
         ani = FuncAnimation(
             fig,
-            plot_frame_multiagent,
-            fargs=(goal_1, goal_2, config, obs1, trajectory_1, trajectory_2, ax),
-            frames=len(trajectory_1)
+            plot_frame_no_obs,
+            fargs=(goals, config, trajectories, ax),
+            frames=len(trajectories[0])
         )
-        ani.save(f"debug/trajectoryMultiagent_{exp_name}_{exp_num}.gif", fps=150)
+        ani.save(f"debug/trajectoryMultiagent4ag_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
 
     gc.collect()

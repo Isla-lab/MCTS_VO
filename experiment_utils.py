@@ -16,7 +16,7 @@ def plot_robot(x, y, yaw, config, ax, color="b"):
     circle = plt.Circle((x, y), config.robot_radius, color=color)
     ax.add_artist(circle)
     out_x, out_y = (
-        np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
+            np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
     )
     ax.plot([x, out_x], [y, out_y], "-k")
 
@@ -176,7 +176,7 @@ def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig)
 
 
 def create_animation_tree_trajectory(
-    goal, config, obs, exp_num, exp_name, values, trajectories
+        goal, config, obs, exp_num, exp_name, values, trajectories
 ):
     fig, ax = plt.subplots()
     ani = FuncAnimation(
@@ -235,6 +235,27 @@ def plot_frame_multiagent(i, goal1, goal2, config, obs, traj1, traj2, ax):
     # TRAJECTORY
     sub_traj2 = traj2[:i]
     ax.plot(sub_traj2[:, 0], sub_traj2[:, 1], "--b")
+
+    ax.set_xlim([config.left_limit, config.right_limit])
+    ax.set_ylim([config.bottom_limit, config.upper_limit])
+    ax.grid(True)
+
+
+def plot_frame_no_obs(i, goals, config, trajectories, ax):
+    x = [traj[i, :] for traj in trajectories]
+    colors = ['m', 'b', 'g', 'y']
+    # ob = config.ob
+    ax.clear()
+    for idx in range(len(x)):
+        # ROBOT POSITION
+        ax.plot(x[idx][0], x[idx][1], "xr")
+        # GOAL POSITION
+        ax.plot(goals[i][0], goals[i][1], "xb")
+        # CIRCLE AROUND ROBOT
+        plot_robot(x[idx][0], x[idx][1], x[idx][2], config, ax, color=colors[i])
+        # TRAJECTORY1
+        sub_traj1 = trajectories[i][:i]
+        ax.plot(sub_traj1[:, 0], sub_traj1[:, 1], f"--{colors[i]}")
 
     ax.set_xlim([config.left_limit, config.right_limit])
     ax.set_ylim([config.bottom_limit, config.upper_limit])

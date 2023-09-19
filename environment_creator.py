@@ -170,8 +170,10 @@ def create_env_multiagent_five_small_obs_continuous(
     dynamic_obs = obs[-1]
     # dynamic_obs.dynamic_obs = True
     dynamic_obs.radius = real_c.robot_radius
-    dynamic_obs.x[2] = (math.pi/8 + math.pi) % (2 * math.pi) - math.pi # opposite of pi/8
-    dynamic_obs.goal = np.array([initial_pos[0], initial_pos[1]])
+    dynamic_obs.x[2] = 0
+    dynamic_obs.x[3] = 0.3
+    dynamic_obs.obstacles = None
+    # dynamic_obs.goal = np.array([initial_pos[0], initial_pos[1]])
 
     initial_state_1 = RobotArenaState(
         x=np.array([initial_pos[0], initial_pos[1], math.pi / 8.0, 0.0]),
@@ -180,10 +182,14 @@ def create_env_multiagent_five_small_obs_continuous(
         radius=real_c.robot_radius,
     )
     obs_r2 = deepcopy(obs)
-    obs_r2[-1] = initial_state_1
-    dynamic_obs.obstacles = obs_r2
+    obs_r2[-1] = deepcopy(initial_state_1)
+    obs_r2[-1].x[2] = 0
+    obs_r2[-1].x[3] = 0.3
+    obs_r2[-1].obstacles = None
+    # dynamic_obs.obstacles = obs_r2
+    angle_2 = (math.pi / 8 + math.pi) % (2 * math.pi) - math.pi  # opposite of pi/8
     initial_state_2 = RobotArenaState(
-        x=np.array([goal[0], goal[1], -2.748893571891069, 0.0]),
+        x=np.array([goal[0], goal[1], angle_2, 0.0]),
         goal=np.array([initial_pos[0], initial_pos[1]]),
         obstacles=obs_r2,
         radius=real_c.robot_radius,

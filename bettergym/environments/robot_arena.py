@@ -228,7 +228,7 @@ class RobotArena:
         :param action: action performed by the agent
         :return:
         """
-        self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
+        # self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.motion(self.state.x, action)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
         goal = self.dist_goal_t1 <= self.config.robot_radius

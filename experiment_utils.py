@@ -255,7 +255,7 @@ def plot_frame_no_obs(i, goals, config, trajectories, ax):
         plot_robot(x[idx][0], x[idx][1], x[idx][2], config, ax, color=colors[idx])
         # TRAJECTORY1
         sub_traj = trajectories[idx][:i]
-        ax.plot(sub_traj[:, 0], sub_traj[:, 1], f"--{colors[i]}")
+        ax.plot(sub_traj[:, 0], sub_traj[:, 1], f"--{colors[idx]}")
 
     ax.set_xlim([config.left_limit, config.right_limit])
     ax.set_ylim([config.bottom_limit, config.upper_limit])

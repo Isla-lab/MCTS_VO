@@ -22,11 +22,12 @@ from bettergym.agents.utils.vo import towards_goal_vo, uniform_random_vo, epsilo
     sample_centered_robot_arena, voo_vo, epsilon_uniform_uniform_vo
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import create_env_multiagent_no_obs_continuous
-from experiment_utils import print_and_notify, plot_frame_no_obs
+from experiment_utils import print_and_notify, plot_frame_no_obs, create_animation_tree_trajectory, plot_frame_tree_traj
 from mcts_utils import uniform_random
 
-DEBUG_DATA = True
+# DEBUG_DATA = True
 ANIMATION = True
+DEBUG_ANIMATION = True
 
 
 @njit
@@ -70,7 +71,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     # config is equal
     config = real_envs[0].config
     goals = [s.goal for s in initial_states]
-    obs = [s.obstacles for s in initial_states]
+    obs = [[s.obstacles] for s in initial_states]
     if not experiment.discrete:
         planners = [
             MctsApw(
@@ -99,10 +100,11 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     print("Simulation Started")
     terminal = False
-    rewards = [[]] * len(sim_envs)
+    rewards = [[] for _ in range(len(sim_envs))]
+    infos = [[] for _ in range(len(sim_envs))]
     times = []
     step_n = 0
-    terminals = [False] * len(sim_envs)
+    terminals = [False for _ in range(len(sim_envs))]
     while not terminal:
         step_n += 1
         if step_n == 1000:
@@ -113,8 +115,9 @@ def run_experiment(experiment: ExperimentData, arguments):
         for i in range(len(states)):
             print(f"Agent {i}")
             initial_time = time.time()
-            chosen_action, _ = planners[i].plan(states[i])
+            chosen_action, info = planners[i].plan(states[i])
             final_time = time.time() - initial_time
+            infos[i].append(info)
             tmp_time += final_time
             if not terminals[i]:
                 states[i], r, terminals[i], truncated, env_info = real_envs[i].step(states[i], chosen_action)
@@ -125,7 +128,6 @@ def run_experiment(experiment: ExperimentData, arguments):
             s_copy.x[2] = 0.0
             s_copy.x[3] = config.max_speed
             s_copy.obstacles = None
-            counter = 0
             for j in range(len(states)):
                 if i != j:
                     for ob in states[j].obstacles:
@@ -135,12 +137,10 @@ def run_experiment(experiment: ExperimentData, arguments):
 
             obs[i].append(states[i].obstacles)
             terminal = all(terminals)
-
+        print(terminals)
         times.append(tmp_time)
 
     exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
-    str_to_print = ''.join(
-        [f"Simulation Ended with Reward{nr}: {round(sum(rewards[nr]), 2)}\n" for nr in range(len(rewards))])
     print_and_notify(
         f"Discrete: {experiment.discrete}\n"
         f"Std Rollout Angle: {experiment.std_angle}\n"
@@ -177,6 +177,25 @@ def run_experiment(experiment: ExperimentData, arguments):
         )
         ani.save(f"debug/trajectoryMultiagent4ag_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
+
+    if DEBUG_ANIMATION:
+        print("Creating Tree Trajectories Animation...")
+        for pindex in range(len(planners)):
+            rollout_values = [i["rollout_values"] for i in infos[pindex]]
+            rollout_trajectories = [i["trajectories"] for i in infos[pindex]]
+            fig, ax = plt.subplots()
+            ani = FuncAnimation(
+                fig,
+                plot_frame_tree_traj,
+                fargs=(goals[pindex], config, obs[pindex], rollout_trajectories, rollout_values, fig),
+                frames=len(rollout_trajectories),
+                # blit=True,
+                save_count=None,
+                cache_frame_data=False,
+            )
+            ani.save(f"./debug/tree_trajectoryMultiagent4ag_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
+            plt.close(fig)
+    gc.collect()
 
     gc.collect()
     print("Done")

@@ -22,11 +22,12 @@ from bettergym.agents.utils.vo import towards_goal_vo, uniform_random_vo, epsilo
     sample_centered_robot_arena, voo_vo, epsilon_uniform_uniform_vo
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import create_env_multiagent_five_small_obs_continuous
-from experiment_utils import print_and_notify, plot_frame_multiagent
+from experiment_utils import print_and_notify, plot_frame_multiagent, plot_frame_tree_traj
 from mcts_utils import uniform_random
 
-DEBUG_DATA = True
+DEBUG_DATA = False
 ANIMATION = True
+DEBUG_ANIMATION = True
 
 
 @njit
@@ -74,10 +75,12 @@ def run_experiment(experiment: ExperimentData, arguments):
     config = real_env_1.config
     goal_1 = s0_1.goal
     goal_2 = s0_2.goal
+    goals = [goal_1, goal_2]
     s1 = s0_1
     s2 = s0_2
 
     obs1 = [s0_1.obstacles]
+    obs2 = [s0_2.obstacles]
     if not experiment.discrete:
         planner1 = MctsApw(
             num_sim=experiment.n_sim,
@@ -124,7 +127,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     rewards_1 = []
     rewards_2 = []
     times = []
-    infos = []
+    infos = [[], []]
     step_n = 0
     terminal1 = False
     terminal2 = False
@@ -134,11 +137,12 @@ def run_experiment(experiment: ExperimentData, arguments):
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
-        u1, info = planner1.plan(s1)
-        u2, _ = planner2.plan(s2)
+        u1, info1 = planner1.plan(s1)
+        u2, info2 = planner2.plan(s2)
 
         final_time = time.time() - initial_time
-        infos.append(info)
+        infos[0].append(info1)
+        infos[1].append(info2)
         times.append(final_time)
 
         if not terminal1:
@@ -166,6 +170,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         trajectory_1 = np.vstack((trajectory_1, s1.x))  # store state history
         trajectory_2 = np.vstack((trajectory_2, s2.x))  # store state history
         obs1.append(s1.obstacles)
+        obs2.append(s2.obstacles)
         terminal = terminal1 and terminal2
 
     exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
@@ -211,6 +216,25 @@ def run_experiment(experiment: ExperimentData, arguments):
         )
         ani.save(f"debug/trajectoryMultiagent_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
+
+    if DEBUG_ANIMATION:
+        obs = [obs1, obs2]
+        print("Creating Tree Trajectories Animation...")
+        for pindex in range(2):
+            rollout_values = [i["rollout_values"] for i in infos[pindex]]
+            rollout_trajectories = [i["trajectories"] for i in infos[pindex]]
+            fig, ax = plt.subplots()
+            ani = FuncAnimation(
+                fig,
+                plot_frame_tree_traj,
+                fargs=(goals[pindex], config, obs[pindex], rollout_trajectories, rollout_values, fig),
+                frames=len(rollout_trajectories),
+                # blit=True,
+                save_count=None,
+                cache_frame_data=False,
+            )
+            ani.save(f"./debug/tree_trajectoryMultiagent4ag_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
+            plt.close(fig)
 
     gc.collect()
     print("Done")

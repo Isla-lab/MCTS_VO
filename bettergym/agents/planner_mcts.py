@@ -131,7 +131,10 @@ class Mcts(Planner):
         )
 
         # randomly choose between actions which have the maximum ucb value
-        action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
+        try:
+            action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
+        except ValueError:
+            print("AAAAA")
         # get action corresponding to the index
         action_node = node.actions[action_idx]
         action = action_node.action

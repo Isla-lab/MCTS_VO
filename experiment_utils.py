@@ -250,12 +250,12 @@ def plot_frame_no_obs(i, goals, config, trajectories, ax):
         # ROBOT POSITION
         ax.plot(x[idx][0], x[idx][1], "xr")
         # GOAL POSITION
-        ax.plot(goals[i][0], goals[i][1], "xb")
+        ax.plot(goals[idx][0], goals[idx][1], "xb")
         # CIRCLE AROUND ROBOT
-        plot_robot(x[idx][0], x[idx][1], x[idx][2], config, ax, color=colors[i])
+        plot_robot(x[idx][0], x[idx][1], x[idx][2], config, ax, color=colors[idx])
         # TRAJECTORY1
-        sub_traj1 = trajectories[i][:i]
-        ax.plot(sub_traj1[:, 0], sub_traj1[:, 1], f"--{colors[i]}")
+        sub_traj = trajectories[idx][:i]
+        ax.plot(sub_traj[:, 0], sub_traj[:, 1], f"--{colors[i]}")
 
     ax.set_xlim([config.left_limit, config.right_limit])
     ax.set_ylim([config.bottom_limit, config.upper_limit])

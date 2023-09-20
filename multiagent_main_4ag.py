@@ -128,12 +128,13 @@ def run_experiment(experiment: ExperimentData, arguments):
             s_copy.x[2] = 0.0
             s_copy.x[3] = config.max_speed
             s_copy.obstacles = None
+            # update other states obstacles
             for j in range(len(states)):
-                if i != j:
-                    for ob in states[j].obstacles:
-                        if np.array_equal(ob.goal, s_copy.goal):
-                            ob = s_copy
-                            break
+                for ob_idx, ob in enumerate(states[j].obstacles):
+                    if np.array_equal(ob.goal, s_copy.goal):
+                        # ob = s_copy
+                        states[j].obstacles[ob_idx] = s_copy
+                        break
 
             obs[i].append(states[i].obstacles)
             terminal = all(terminals)

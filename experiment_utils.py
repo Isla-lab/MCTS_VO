@@ -137,7 +137,6 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
     for ob in obs[i]:
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
-
     cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker="x")
     plt.colorbar(cmap)
 

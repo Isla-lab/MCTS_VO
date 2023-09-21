@@ -79,8 +79,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     s1 = s0_1
     s2 = s0_2
 
-    obs1 = [s0_1.obstacles]
-    obs2 = [s0_2.obstacles]
+    obs1 = [deepcopy(s0_1.obstacles)]
+    obs2 = [deepcopy(s0_2.obstacles)]
     if not experiment.discrete:
         planner1 = MctsApw(
             num_sim=experiment.n_sim,
@@ -153,7 +153,6 @@ def run_experiment(experiment: ExperimentData, arguments):
         s1_copy.x[3] = config.max_speed
         s1_copy.obstacles = None
         s2.obstacles[-1] = s1_copy
-
         if not terminal2:
             s2, r2, terminal2, truncated2, env_info2 = real_env_2.step(s2, u2)
             rewards_2.append(r2)
@@ -163,14 +162,13 @@ def run_experiment(experiment: ExperimentData, arguments):
         s2_copy.x[3] = config.max_speed
         s2_copy.obstacles = None
         s1.obstacles[-1] = s2_copy
-
         sim_env_1.gym_env.state = real_env_1.gym_env.state.copy()
         sim_env_2.gym_env.state = real_env_2.gym_env.state.copy()
 
         trajectory_1 = np.vstack((trajectory_1, s1.x))  # store state history
         trajectory_2 = np.vstack((trajectory_2, s2.x))  # store state history
-        obs1.append(s1.obstacles)
-        obs2.append(s2.obstacles)
+        obs1.append(deepcopy(s1.obstacles))
+        obs2.append(deepcopy(s2.obstacles))
         terminal = terminal1 and terminal2
 
     exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
@@ -214,7 +212,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             fargs=(goal_1, goal_2, config, obs1, trajectory_1, trajectory_2, ax),
             frames=len(trajectory_1)
         )
-        ani.save(f"debug/trajectoryMultiagent_{exp_name}_{exp_num}.gif", fps=150)
+        ani.save(f"debug/trajectoryMultiagent2ag_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
 
     if DEBUG_ANIMATION:
@@ -233,7 +231,7 @@ def run_experiment(experiment: ExperimentData, arguments):
                 save_count=None,
                 cache_frame_data=False,
             )
-            ani.save(f"./debug/tree_trajectoryMultiagent4ag_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
+            ani.save(f"./debug/tree_trajectoryMultiagent2ag_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
             plt.close(fig)
 
     gc.collect()

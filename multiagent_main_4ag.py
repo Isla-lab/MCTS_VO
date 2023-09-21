@@ -132,13 +132,11 @@ def run_experiment(experiment: ExperimentData, arguments):
             for j in range(len(states)):
                 for ob_idx, ob in enumerate(states[j].obstacles):
                     if np.array_equal(ob.goal, s_copy.goal):
-                        # ob = s_copy
                         states[j].obstacles[ob_idx] = s_copy
                         break
 
-            obs[i].append(states[i].obstacles)
+            obs[i].append(deepcopy(states[i].obstacles))
             terminal = all(terminals)
-        print(terminals)
         times.append(tmp_time)
 
     exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])

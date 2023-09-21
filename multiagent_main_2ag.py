@@ -201,7 +201,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     }
     data = data | arguments.__dict__
     df = pd.Series(data)
-    df.to_csv(f'multiagent_{exp_name}_{exp_num}.csv')
+    df.to_csv(f'multiagent2ag_{exp_name}_{exp_num}.csv')
 
     if ANIMATION:
         print("Creating Gif...")

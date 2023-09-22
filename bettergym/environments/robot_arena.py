@@ -409,16 +409,16 @@ class BetterRobotArena(BetterGym):
                 intersection_points, x, obs_x, r1, config
             )
 
-            feasible = False
+            safe = False
             actions_copy = np.array(actions, copy=True)
             for idx, a in enumerate(actions_copy):
                 if velocity_space[0] <= a[0] <= velocity_space[1]:
                     for a_space in angle_spaces:
-                        if a_space[0] <= a[1] <= a_space[1]:
-                            feasible = True
+                        if a_space[0] < a[1] < a_space[1]:
+                            safe = True
                             break
-                        feasible = False
-                if not feasible:
+                        safe = False
+                if not safe:
                     to_delete.append(idx)
 
         actions = np.delete(actions, to_delete, axis=0)

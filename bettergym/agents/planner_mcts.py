@@ -137,7 +137,7 @@ class Mcts(Planner):
         except ValueError:
             notify = Notify()
             notify.send('Errore')
-            with open(f'ERROR_{self.computational_budget}.txt') as f:
+            with open(f'ERROR_{self.computational_budget}.txt', 'w') as f:
                 f.write(f'nsim: {self.computational_budget}')
                 f.write(f'{node.actions}')
             exit(1)

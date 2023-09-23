@@ -1,6 +1,7 @@
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
+from notify_run import Notify
 
 from bettergym.agents.planner import Planner
 from bettergym.better_gym import BetterGym
@@ -134,7 +135,12 @@ class Mcts(Planner):
         try:
             action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
         except ValueError:
-            print("AAAAA")
+            notify = Notify()
+            notify.send('Errore')
+            with open(f'ERROR_{self.computational_budget}.txt') as f:
+                f.write(f'nsim: {self.computational_budget}')
+                f.write(f'{node.actions}')
+            exit(1)
         # get action corresponding to the index
         action_node = node.actions[action_idx]
         action = action_node.action

@@ -26,8 +26,6 @@ results = []
 
 # Loop through the processes list
 for process in processes:
-
-    process = process[2:]
     # Submit a task to the pool and append the AsyncResult object to the list
     results.append(pool.apply_async(run_process, (process,)))
 

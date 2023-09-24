@@ -43,13 +43,13 @@ class RolloutStateNode:
 
 class Mcts(Planner):
     def __init__(
-        self,
-        num_sim: int,
-        c: float | int,
-        environment: BetterGym,
-        computational_budget: int,
-        rollout_policy: Callable,
-        discount: float | int = 1,
+            self,
+            num_sim: int,
+            c: float | int,
+            environment: BetterGym,
+            computational_budget: int,
+            rollout_policy: Callable,
+            discount: float | int = 1,
     ):
         super().__init__(environment)
         self.num_sim: int = num_sim
@@ -132,15 +132,8 @@ class Mcts(Planner):
         )
 
         # randomly choose between actions which have the maximum ucb value
-        try:
-            action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
-        except ValueError:
-            notify = Notify()
-            notify.send('Errore')
-            with open(f'ERROR_{self.computational_budget}.txt', 'w') as f:
-                f.write(f'nsim: {self.computational_budget}')
-                f.write(f'{node.actions}')
-            exit(1)
+        action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
+
         # get action corresponding to the index
         action_node = node.actions[action_idx]
         action = action_node.action
@@ -158,9 +151,9 @@ class Mcts(Planner):
 
         prev_node = node
         if (
-            new_state_id is None
-            and depth + 1 < self.computational_budget
-            and not terminal
+                new_state_id is None
+                and depth + 1 < self.computational_budget
+                and not terminal
         ):
             # Leaf Node
             state_id = self.get_id()

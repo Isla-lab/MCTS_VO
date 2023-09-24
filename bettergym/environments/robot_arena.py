@@ -411,18 +411,20 @@ class BetterRobotArena(BetterGym):
 
             safe = False
             actions_copy = np.array(actions, copy=True)
-            for idx, a in enumerate(actions_copy):
+            for idx, a in enumerate(actions):
                 if velocity_space[0] <= a[0] <= velocity_space[1]:
-                    for a_space in angle_spaces:
-                        if a_space[0] < a[1] < a_space[1]:
-                            safe = True
-                            break
-                        safe = False
+                    if a[0] == 0.0:
+                        safe = True
+                    else:
+                        for a_space in angle_spaces:
+                            if a_space[0] < a[1] < a_space[1]:
+                                safe = True
+                                break
                 if not safe:
                     to_delete.append(idx)
 
-        actions = np.delete(actions, to_delete, axis=0)
-        return actions
+        actions_copy = np.delete(actions_copy, to_delete, axis=0)
+        return actions_copy
 
     def set_state(self, state: RobotArenaState) -> None:
         self.gym_env.state = state.copy()

@@ -66,6 +66,12 @@ def run_experiment(experiment: ExperimentData, arguments):
         n_angles=arguments.a,
         vo=experiment.vo)
     initial_states = [env.reset()[0] for env in real_envs]
+    if "VO" not in arguments.algorithm:
+        for idx, s0 in enumerate(initial_states):
+            for o in s0.obstacles:
+                o.radius *= 1.05
+            sim_envs[idx].gym_env.state = s0
+
     states = deepcopy(initial_states)
     trajectories = [np.array(s.x) for s in initial_states]
     # config is equal
@@ -150,12 +156,14 @@ def run_experiment(experiment: ExperimentData, arguments):
         exp_num,
         exp_name
     )
-
+    discount = 0.99
     dist_goal = [dist_to_goal(s.x[:2], s.goal) for s in states]
     reach_goal = all([d <= real_envs[0].config.robot_radius for d in dist_goal])
     cum_rwrd_dict = {f"cumRwrd{i}": round(sum(rewards[i]), 2) for i in range(len(rewards))}
+    disc_cum_rwrd_dict = {f"cumRwrd{i}": round(sum(np.array(rewards[i]) * np.array([discount ** e for e in range(len(rewards[i]))])), 2) for i in range(len(rewards))}
     data = {
         **cum_rwrd_dict,
+        **disc_cum_rwrd_dict,
         "nSteps": step_n,
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),

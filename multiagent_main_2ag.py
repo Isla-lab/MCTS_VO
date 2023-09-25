@@ -79,6 +79,16 @@ def run_experiment(experiment: ExperimentData, arguments):
     s1 = s0_1
     s2 = s0_2
 
+    if "VO" not in arguments.algorithm:
+        for o in s0_1.obstacles:
+            o.radius *= 1.05
+        sim_env_1.gym_env.state = s0_1
+
+        for o in s0_2.obstacles:
+            o.radius *= 1.05
+            o.radius *= 1.05
+        sim_env_2.gym_env.state = s0_2
+
     obs1 = [deepcopy(s0_1.obstacles)]
     obs2 = [deepcopy(s0_2.obstacles)]
     if not experiment.discrete:
@@ -190,10 +200,12 @@ def run_experiment(experiment: ExperimentData, arguments):
     reach_goal_1 = dist_goal_1 <= real_env_1.config.robot_radius
     reach_goal_2 = dist_goal_2 <= real_env_2.config.robot_radius
     reach_goal = reach_goal_1 and reach_goal_2
-
+    discount = 0.99
     data = {
         "cumRwrd1": round(sum(rewards_1), 2),
         "cumRwrd2": round(sum(rewards_2), 2),
+        "discCumRwrd1": round(sum(np.array(rewards_1) * np.array([discount ** e for e in range(len(rewards_1))])), 2),
+        "discCumRwrd2": round(sum(np.array(rewards_2) * np.array([discount ** e for e in range(len(rewards_2))])), 2),
         "nSteps": step_n,
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),

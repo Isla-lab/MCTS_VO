@@ -104,7 +104,7 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     s = s0
 
-    if experiment.action_expansion_policy is not voo_vo:
+    if "VO" not in arguments.algorithm:
         for o in s0.obstacles:
             o.radius *= 1.05
         sim_env.gym_env.state = s0
@@ -181,9 +181,10 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     dist_goal = dist_to_goal(s.x[:2], s.goal)
     reach_goal = dist_goal <= real_env.config.robot_radius
-
+    discount = 0.99
     data = {
         "cumRwrd": round(sum(rewards), 2),
+        "discCumRwrd": round(sum(np.array(rewards) * np.array([discount ** e for e in range(len(rewards))])), 2),
         "nSteps": step_n,
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),

@@ -21,8 +21,9 @@ from bettergym.agents.utils.utils import towards_goal, voo, epsilon_normal_unifo
 from bettergym.agents.utils.vo import towards_goal_vo, uniform_random_vo, epsilon_normal_uniform_vo, \
     sample_centered_robot_arena, voo_vo, epsilon_uniform_uniform_vo
 from bettergym.environments.robot_arena import dist_to_goal
-from environment_creator import create_env_4ag
-from experiment_utils import print_and_notify, plot_frame_no_obs, create_animation_tree_trajectory, plot_frame_tree_traj
+from environment_creator import create_env_4ag, create_env_4ag_obs
+from experiment_utils import print_and_notify, plot_frame_no_obs, create_animation_tree_trajectory, \
+    plot_frame_tree_traj, plot_frame_obs
 from mcts_utils import uniform_random
 
 # DEBUG_DATA = True
@@ -57,9 +58,10 @@ class ExperimentData:
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
-    real_envs, sim_envs = create_env_4ag(discrete=experiment.discrete, rwrd_in_sim=experiment.obstacle_reward,
-                                         out_boundaries_rwrd=arguments.rwrd, dt_sim=arguments.dt, n_angles=arguments.a,
-                                         n_vel=arguments.v, vo=experiment.vo)
+    real_envs, sim_envs = create_env_4ag_obs(discrete=experiment.discrete, rwrd_in_sim=experiment.obstacle_reward,
+                                             out_boundaries_rwrd=arguments.rwrd, dt_sim=arguments.dt,
+                                             n_angles=arguments.a,
+                                             n_vel=arguments.v, vo=experiment.vo)
     initial_states = [env.reset()[0] for env in real_envs]
     if "VO" not in arguments.algorithm:
         for idx, s0 in enumerate(initial_states):
@@ -155,7 +157,9 @@ def run_experiment(experiment: ExperimentData, arguments):
     dist_goal = [dist_to_goal(s.x[:2], s.goal) for s in states]
     reach_goal = all([d <= real_envs[0].config.robot_radius for d in dist_goal])
     cum_rwrd_dict = {f"cumRwrd{i}": round(sum(rewards[i]), 2) for i in range(len(rewards))}
-    disc_cum_rwrd_dict = {f"cumRwrd{i}": round(sum(np.array(rewards[i]) * np.array([discount ** e for e in range(len(rewards[i]))])), 2) for i in range(len(rewards))}
+    disc_cum_rwrd_dict = {
+        f"cumRwrd{i}": round(sum(np.array(rewards[i]) * np.array([discount ** e for e in range(len(rewards[i]))])), 2)
+        for i in range(len(rewards))}
     data = {
         **cum_rwrd_dict,
         **disc_cum_rwrd_dict,
@@ -166,18 +170,18 @@ def run_experiment(experiment: ExperimentData, arguments):
     }
     data = data | arguments.__dict__
     df = pd.Series(data)
-    df.to_csv(f'multiagent4ag_{exp_name}_{exp_num}.csv')
+    df.to_csv(f'multiagent4agObs_{exp_name}_{exp_num}.csv')
 
     if ANIMATION:
         print("Creating Gif...")
         fig, ax = plt.subplots()
         ani = FuncAnimation(
             fig,
-            plot_frame_no_obs,
-            fargs=(goals, config, trajectories, ax),
+            plot_frame_obs,
+            fargs=(goals, config, trajectories, ax, obs[0]),
             frames=len(trajectories[0])
         )
-        ani.save(f"debug/trajectoryMultiagent4ag_{exp_name}_{exp_num}.gif", fps=150)
+        ani.save(f"debug/trajectoryMultiagent4agObs_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
 
     if DEBUG_ANIMATION:
@@ -195,7 +199,7 @@ def run_experiment(experiment: ExperimentData, arguments):
                 save_count=None,
                 cache_frame_data=False,
             )
-            ani.save(f"./debug/tree_trajectoryMultiagent4ag_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
+            ani.save(f"./debug/tree_trajectoryMultiagent4agObs_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
             plt.close(fig)
     gc.collect()
 
@@ -331,7 +335,7 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
+    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ALBERO":
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,
@@ -342,7 +346,7 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ALBERO":
+    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
         # VANILLA
         return ExperimentData(
             vo=True,

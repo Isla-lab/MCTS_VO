@@ -420,6 +420,7 @@ class BetterRobotArena(BetterGym):
                             if a_space[0] < a[1] < a_space[1]:
                                 safe = True
                                 break
+                            safe = False
                 if not safe:
                     to_delete.append(idx)
 

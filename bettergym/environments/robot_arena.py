@@ -409,9 +409,9 @@ class BetterRobotArena(BetterGym):
                 intersection_points, x, obs_x, r1, config
             )
 
-            safe = False
             actions_copy = np.array(actions, copy=True)
             for idx, a in enumerate(actions):
+                safe = False
                 if velocity_space[0] <= a[0] <= velocity_space[1]:
                     if a[0] == 0.0:
                         safe = True
@@ -420,7 +420,6 @@ class BetterRobotArena(BetterGym):
                             if a_space[0] < a[1] < a_space[1]:
                                 safe = True
                                 break
-                            safe = False
                 if not safe:
                     to_delete.append(idx)
 

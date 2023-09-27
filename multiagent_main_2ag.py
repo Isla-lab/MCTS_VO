@@ -166,6 +166,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         if not terminal2:
             s2, r2, terminal2, truncated2, env_info2 = real_env_2.step(s2, u2)
             rewards_2.append(r2)
+        # print(terminal2)
         s2_copy = deepcopy(s2)
         s2_copy.x[2] = 0.0
         s2_copy.x[3] = config.max_speed

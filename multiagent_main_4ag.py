@@ -112,14 +112,13 @@ def run_experiment(experiment: ExperimentData, arguments):
             break
         print(f"Step Number {step_n}")
 
-        tmp_time = 0
         for i in range(len(states)):
             print(f"Agent {i}")
             initial_time = time.time()
             chosen_action, info = planners[i].plan(states[i])
             final_time = time.time() - initial_time
             infos[i].append(info)
-            tmp_time += final_time
+            times.append(final_time)
             if not terminals[i]:
                 states[i], r, terminals[i], truncated, env_info = real_envs[i].step(states[i], chosen_action)
                 rewards[i].append(r)
@@ -138,7 +137,7 @@ def run_experiment(experiment: ExperimentData, arguments):
 
             obs[i].append(deepcopy(states[i].obstacles))
             terminal = all(terminals)
-        times.append(tmp_time)
+
 
     exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
     print_and_notify(

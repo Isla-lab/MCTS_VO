@@ -155,7 +155,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     dist_goal = [dist_to_goal(s.x[:2], s.goal) for s in states]
     reach_goal = all([d <= real_envs[0].config.robot_radius for d in dist_goal])
     cum_rwrd_dict = {f"cumRwrd{i}": round(sum(rewards[i]), 2) for i in range(len(rewards))}
-    disc_cum_rwrd_dict = {f"cumRwrd{i}": round(sum(np.array(rewards[i]) * np.array([discount ** e for e in range(len(rewards[i]))])), 2) for i in range(len(rewards))}
+    disc_cum_rwrd_dict = {f"discCumRwrd{i}": round(sum(np.array(rewards[i]) * np.array([discount ** e for e in range(len(rewards[i]))])), 2) for i in range(len(rewards))}
     data = {
         **cum_rwrd_dict,
         **disc_cum_rwrd_dict,

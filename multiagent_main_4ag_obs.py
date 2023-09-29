@@ -140,6 +140,8 @@ def run_experiment(experiment: ExperimentData, arguments):
 
             obs[i].append(deepcopy(states[i].obstacles))
             terminal = all(terminals)
+
+        print(terminals)
         times.append(tmp_time)
 
     exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
@@ -158,7 +160,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     reach_goal = all([d <= real_envs[0].config.robot_radius for d in dist_goal])
     cum_rwrd_dict = {f"cumRwrd{i}": round(sum(rewards[i]), 2) for i in range(len(rewards))}
     disc_cum_rwrd_dict = {
-        f"cumRwrd{i}": round(sum(np.array(rewards[i]) * np.array([discount ** e for e in range(len(rewards[i]))])), 2)
+        f"discCumRwrd{i}": round(sum(np.array(rewards[i]) * np.array([discount ** e for e in range(len(rewards[i]))])), 2)
         for i in range(len(rewards))}
     data = {
         **cum_rwrd_dict,

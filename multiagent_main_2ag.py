@@ -378,7 +378,7 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ALBERO" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
+    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,
@@ -389,14 +389,14 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA_VO2":
+    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ALBERO":
         # VANILLA
         return ExperimentData(
             vo=True,
             action_expansion_policy=None,
             rollout_policy=rollout_policy,
             discrete=True,
-            obstacle_reward=False,
+            obstacle_reward=True,
             std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c,

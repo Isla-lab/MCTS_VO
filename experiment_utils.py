@@ -72,8 +72,8 @@ def plot_action_evolution(actions: np.ndarray, exp_num: int):
 def print_and_notify(message: str, exp_num: int, exp_name: str):
     print(message)
     # notify.send(message)
-    with open(f"debug/{exp_name}_{exp_num}.txt", "w") as f:
-        f.write(message)
+    # with open(f"debug/{exp_name}_{exp_num}.txt", "w") as f:
+    #     f.write(message)
 
 
 def plot_real_trajectory_information(trj: np.ndarray, exp_num: int):

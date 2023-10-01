@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="Black">
+    <option name="enabledOnReformat" value="true" />
+    <option name="sdkUUID" value="b73e18ee-52ba-4c47-8e42-861e7917d295" />
+  </component>
   <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.11 (RobotArena)" project-jdk-type="Python SDK" />
 </project>

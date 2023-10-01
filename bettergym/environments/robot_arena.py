@@ -25,7 +25,7 @@ class Config:
     # Max and Min U[1]
     max_angle_change: float = None  # [rad/s]
 
-    dt: float = 0.2  # [s] Time tick for motion prediction
+    dt: float = 1.0  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
     obs_size: float = 0.6
 
@@ -37,6 +37,17 @@ class Config:
 
     n_vel: int = None
     n_angles: int = None
+    max_yaw_rate = 1.9  # [rad/s]
+    max_accel = 6  # [m/ss]
+    max_delta_yaw_rate = 40 * math.pi / 180.0  # [rad/ss]
+    v_resolution = 0.1  # [m/s]
+    yaw_rate_resolution = max_yaw_rate / 11.0  # [rad/s]
+    # predict_time = 15.0 * dt  # [s]
+    predict_time = 100.0 * dt  # [s]
+    to_goal_cost_gain = 1.
+    speed_cost_gain = 0.0
+    obstacle_cost_gain = 100.
+    robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
 
 
 class RobotArenaState:

@@ -1,7 +1,7 @@
 import subprocess
 import time
 
-with open('multiagent_lorenzobonanni_config.txt') as f:
+with open('multiagent_lorenzobonanni_config_1.txt') as f:
     processes = f.readlines(
 
 )

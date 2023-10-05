@@ -1,6 +1,7 @@
 import argparse
 import gc
 import os
+import pickle
 import random
 import time
 from copy import deepcopy
@@ -26,8 +27,8 @@ from experiment_utils import print_and_notify, plot_frame_no_obs, create_animati
 from mcts_utils import uniform_random
 
 # DEBUG_DATA = True
-ANIMATION = True
-DEBUG_ANIMATION = True
+ANIMATION = False
+DEBUG_ANIMATION = False
 
 
 @njit
@@ -166,6 +167,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     data = data | arguments.__dict__
     df = pd.Series(data)
     df.to_csv(f'multiagent4ag_{exp_name}_{exp_num}.csv')
+    with open(f"debug/trajectory4ag_real_{exp_name}_{exp_num}.pkl", "wb") as f:
+        pickle.dump(trajectories, f)
 
     if ANIMATION:
         print("Creating Gif...")

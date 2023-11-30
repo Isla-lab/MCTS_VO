@@ -75,7 +75,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     trajectory = np.array(s0.x)
     config = real_env.config
 
-    goal = s0.goal
+    goal_loc = s0.goal
 
     s = s0
     sim_env.gym_env.state = s0
@@ -85,85 +85,88 @@ def run_experiment(experiment: ExperimentData, arguments):
     terminal = False
     rewards = []
     times = []
-    with open(f"debug/TRAJECTORIES/1AG/treajectoryMPC.pkl", "rb") as f:
-        trj = pickle.load(f)
+    # with open(f"debug/TRAJECTORIES/1AG/treajectoryMPC.pkl", "rb") as f:
+    #     trj = pickle.load(f)
+    file = np.load("results_obst5_agents1_iters10.npz")
+    trajectrories = file["traj"].squeeze(2)
+    # trj = trj[:2].T
+    for i, trj in enumerate(trajectrories):
+        for step_n in range(trj.shape[0]):
+            print(f"Step Number {step_n}")
+            x = trj[step_n]
+            s.x = x
 
-    trj = trj[:2].T
-    for step_n in range(trj.shape[0]):
-        print(f"Step Number {step_n}")
-        x = trj[step_n]
-        s.x = x
+            dist_goal_t1 = dist_to_goal(s0.goal, s.x)
+            real_env.dist_goal_t1 = real_env.gym_env.dist_goal_t1 = dist_goal_t1
+            collision = real_env.check_collision(s)
+            goal = dist_goal_t1 <= real_env.config.robot_radius
+            out_boundaries = real_env.check_out_boundaries(s)
+            r = real_env.reward_grad(None, None, collision, goal, out_boundaries)
 
-        dist_goal_t1 = dist_to_goal(s0.goal, s.x)
-        real_env.dist_goal_t1 = real_env.gym_env.dist_goal_t1 = dist_goal_t1
-        collision = real_env.check_collision(s)
-        goal = dist_goal_t1 <= real_env.config.robot_radius
-        out_boundaries = real_env.check_out_boundaries(s)
-        r = real_env.reward_grad(None, None, collision, goal, out_boundaries)
+            rewards.append(r)
+            gc.collect()
 
-        rewards.append(r)
-        gc.collect()
-
-    discount = 0.99
-    print(
-        round(
-            sum(
-                np.array(rewards)
-                * np.array([discount**e for e in range(len(rewards))])
-            ),
-            2,
+        discount = 0.99
+        print(
+            round(
+                sum(
+                    np.array(rewards)
+                    * np.array([discount**e for e in range(len(rewards))])
+                ),
+                2,
+            )
         )
-    )
-    # with open(f"debug/trajectory_real_nmpc.pkl", "wb") as f:
-    #     pickle.dump(trajectory, f)
+        # with open(f"debug/trajectory_real_nmpc.pkl", "wb") as f:
+        #     pickle.dump(trajectory, f)
 
-    # exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
-    # print_and_notify(
-    #     f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
-    #     f"Discrete: {experiment.discrete}\n"
-    #     f"Std Rollout Angle: {experiment.std_angle}\n"
-    #     f"Number of Steps: {step_n}\n"
-    #     f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
-    #     # f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
-    #     f"Total Time: {sum(times)}\n" f"Num Simulations: {experiment.n_sim}",
-    #     exp_num,
-    #     exp_name,
-    # )
+        # exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
+        # print_and_notify(
+        #     f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
+        #     f"Discrete: {experiment.discrete}\n"
+        #     f"Std Rollout Angle: {experiment.std_angle}\n"
+        #     f"Number of Steps: {step_n}\n"
+        #     f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
+        #     # f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
+        #     f"Total Time: {sum(times)}\n" f"Num Simulations: {experiment.n_sim}",
+        #     exp_num,
+        #     exp_name,
+        # )
 
-    # dist_goal = dist_to_goal(s.x[:2], s.goal)
-    # reach_goal = dist_goal <= real_env.config.robot_radius
-    # discount = 0.99
-    # data = {
-    #     "cumRwrd": round(sum(rewards), 2),
-    #     "discCumRwrd": round(
-    #         sum(
-    #             np.array(rewards)
-    #             * np.array([discount**e for e in range(len(rewards))])
-    #         ),
-    #         2,
-    #     ),
-    #     "nSteps": step_n,
-    #     "MeanStepTime": np.round(0.8657047554504039, 2),
-    #     "StdStepTime": np.round(0.6575892268710086, 2),
-    #     "reachGoal": int(reach_goal),
-    # }
-    # data = data | arguments.__dict__
-    # df = pd.Series(data)
-    # df.to_csv(f"nmpc.csv")
-    #
-    # if ANIMATION:
-    #     print("Creating Gif...")
-    #     fig, ax = plt.subplots()
-    #     ani = FuncAnimation(
-    #         fig,
-    #         plot_frame,
-    #         fargs=(goal, config, obs, trajectory, ax),
-    #         frames=len(trajectory),
-    #         save_count=None,
-    #         cache_frame_data=False,
-    #     )
-    #     ani.save(f"debug/trajectory_nmpc.gif", fps=150)
-    #     plt.close(fig)
+        # dist_goal = dist_to_goal(s.x[:2], s.goal)
+        # reach_goal = dist_goal <= real_env.config.robot_radius
+        # discount = 0.99
+        # data = {
+        #     "cumRwrd": round(sum(rewards), 2),
+        #     "discCumRwrd": round(
+        #         sum(
+        #             np.array(rewards)
+        #             * np.array([discount**e for e in range(len(rewards))])
+        #         ),
+        #         2,
+        #     ),
+        #     "nSteps": step_n,
+        #     "MeanStepTime": np.round(0.8657047554504039, 2),
+        #     "StdStepTime": np.round(0.6575892268710086, 2),
+        #     "reachGoal": int(reach_goal),
+        # }
+        # data = data | arguments.__dict__
+        # df = pd.Series(data)
+        # df.to_csv(f"nmpc.csv")
+        #
+        # if ANIMATION:
+        print(f"AVERAGE TIME PER STEP: {np.average(file['dt'])}")
+        print("Creating Gif...")
+        fig, ax = plt.subplots()
+        ani = FuncAnimation(
+            fig,
+            plot_frame,
+            fargs=(goal_loc, config, obs, trj, ax),
+            frames=len(trj),
+            save_count=None,
+            cache_frame_data=False,
+        )
+        ani.save(f"debug/trajectory_nmpc_{i}.gif", fps=150)
+        plt.close(fig)
     #
     # gc.collect()
     # print("Done")

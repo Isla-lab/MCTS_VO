@@ -15,10 +15,10 @@ from matplotlib.animation import FuncAnimation
 def plot_robot(x, y, yaw, config, ax, color="b"):
     circle = plt.Circle((x, y), config.robot_radius, color=color)
     ax.add_artist(circle)
-    out_x, out_y = (
-            np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
-    )
-    ax.plot([x, out_x], [y, out_y], "-k")
+    # out_x, out_y = (
+    #         np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
+    # )
+    # ax.plot([x, out_x], [y, out_y], "-k")
 
 
 def plot_frame(i, goal, config, obs, traj, ax):
@@ -30,11 +30,11 @@ def plot_frame(i, goal, config, obs, traj, ax):
     # GOAL POSITION
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
-    for ob in obs[i]:
+    for ob in obs[0]:
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
     # BOX AROUND ROBOT
-    plot_robot(x[0], x[1], x[2], config, ax)
+    plot_robot(x[0], x[1], None, config, ax)
     # TRAJECTORY
     sub_traj = traj[:i]
     ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")
@@ -45,6 +45,7 @@ def plot_frame(i, goal, config, obs, traj, ax):
     ax.set_ylim([config.bottom_limit, config.upper_limit])
     # ax.axis("equal")
     ax.grid(True)
+    # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
 
 def plot_action_evolution(actions: np.ndarray, exp_num: int):
@@ -175,7 +176,7 @@ def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig)
 
 
 def create_animation_tree_trajectory(
-        goal, config, obs, exp_num, exp_name, values, trajectories
+    goal, config, obs, exp_num, exp_name, values, trajectories
 ):
     fig, ax = plt.subplots()
     ani = FuncAnimation(
@@ -242,7 +243,7 @@ def plot_frame_multiagent(i, goal1, goal2, config, obs, traj1, traj2, ax):
 
 def plot_frame_no_obs(i, goals, config, trajectories, ax):
     x = [traj[i, :] for traj in trajectories]
-    colors = ['m', 'b', 'g', 'y']
+    colors = ["m", "b", "g", "y"]
     # ob = config.ob
     ax.clear()
     for idx in range(len(x)):
@@ -263,7 +264,7 @@ def plot_frame_no_obs(i, goals, config, trajectories, ax):
 
 def plot_frame_obs(i, goals, config, trajectories, ax, obs):
     x = [traj[i, :] for traj in trajectories]
-    colors = ['m', 'b', 'g', 'y']
+    colors = ["m", "b", "g", "y", 'c', 'r', 'bisque', 'olive']
     # ob = config.ob
     ax.clear()
     for idx in range(len(x)):
@@ -275,7 +276,7 @@ def plot_frame_obs(i, goals, config, trajectories, ax, obs):
         plot_robot(x[idx][0], x[idx][1], x[idx][2], config, ax, color=colors[idx])
         # TRAJECTORY1
         sub_traj = trajectories[idx][:i]
-        ax.plot(sub_traj[:, 0], sub_traj[:, 1], f"--{colors[idx]}")
+        ax.plot(sub_traj[:, 0], sub_traj[:, 1], f"--", color=colors[idx])
 
     # STATIC OBSTACLES
     for ob in obs[i][len(x)-1:]:

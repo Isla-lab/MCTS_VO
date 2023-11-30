@@ -1,9 +1,9 @@
 import argparse
 import gc
 import os
-import pickle
 import random
 import time
+from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
 from typing import Callable
@@ -17,33 +17,30 @@ from numpy import mean, std
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
-from bettergym.agents.utils.utils import (
-    voo,
-    towards_goal,
-    epsilon_normal_uniform, epsilon_uniform_uniform,
-)
-from bettergym.agents.utils.vo import (
-    sample_centered_robot_arena,
-    voo_vo,
-    towards_goal_vo,
-    uniform_random_vo,
-    epsilon_normal_uniform_vo,
-    epsilon_uniform_uniform_vo,
-)
+from bettergym.agents.utils.utils import towards_goal, voo, epsilon_normal_uniform, epsilon_uniform_uniform
+from bettergym.agents.utils.vo import towards_goal_vo, uniform_random_vo, epsilon_normal_uniform_vo, \
+    sample_centered_robot_arena, voo_vo, epsilon_uniform_uniform_vo
 from bettergym.environments.robot_arena import dist_to_goal
-from environment_creator import (
-    create_env_five_small_obs_continuous, create_env_four_obs_difficult_continuous,
-)
-from experiment_utils import (
-    print_and_notify,
-    plot_frame,
-    create_animation_tree_trajectory,
-)
+from environment_creator import create_env_4ag, create_env_4ag_obs, create_env_8ag_obs
+from experiment_utils import print_and_notify, plot_frame_no_obs, create_animation_tree_trajectory, \
+    plot_frame_tree_traj, plot_frame_obs
 from mcts_utils import uniform_random
 
-DEBUG_DATA = False
-DEBUG_ANIMATION = False
+# DEBUG_DATA = True
 ANIMATION = True
+DEBUG_ANIMATION = True
+
+
+@njit
+def seed_numba(seed_value: int):
+    np.random.seed(seed_value)
+
+
+def seed_everything(seed_value: int):
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    os.environ['PYTHONHASHSEED'] = str(seed_value)
+    seed_numba(seed_value)
 
 
 @dataclass(frozen=True)
@@ -58,191 +55,156 @@ class ExperimentData:
     vo: bool = False
 
 
-@njit
-def seed_numba(seed_value: int):
-    np.random.seed(seed_value)
-
-
-def seed_everything(seed_value: int):
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-    os.environ["PYTHONHASHSEED"] = str(seed_value)
-    seed_numba(seed_value)
-
-
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
-    start_pos = (4, 2) if arguments.start == "middle" else (1, 1)
-    if arguments.env == "HARD":
-        real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
-                                                                     goal=(10, 10),
-                                                                     discrete=experiment.discrete,
-                                                                     rwrd_in_sim=experiment.obstacle_reward,
-                                                                     out_boundaries_rwrd=arguments.rwrd,
-                                                                     dt_sim=arguments.dt,
-                                                                     n_vel=arguments.v,
-                                                                     n_angles=arguments.a,
-                                                                     vo=experiment.vo)
-    else:
-        real_env, sim_env = create_env_five_small_obs_continuous(
-            initial_pos=start_pos,
-            goal=(10, 10),
-            discrete=experiment.discrete,
-            rwrd_in_sim=experiment.obstacle_reward,
-            out_boundaries_rwrd=arguments.rwrd,
-            dt_sim=arguments.dt,
-            n_vel=arguments.v,
-            n_angles=arguments.a,
-            vo=experiment.vo
-        )
-    s0, _ = real_env.reset()
-    trajectory = np.array(s0.x)
-    config = real_env.config
+    real_envs, sim_envs = create_env_8ag_obs(discrete=experiment.discrete, rwrd_in_sim=experiment.obstacle_reward,
+                                             out_boundaries_rwrd=arguments.rwrd, dt_sim=arguments.dt,
+                                             n_angles=arguments.a,
+                                             n_vel=arguments.v, vo=experiment.vo)
+    initial_states = [env.reset()[0] for env in real_envs]
+    # if "VO" not in arguments.algorithm:
+    #     for idx, s0 in enumerate(initial_states):
+    #         for o in s0.obstacles:
+    #             o.radius *= 1.05
+    #         sim_envs[idx].gym_env.state = s0
 
-    goal = s0.goal
-
-    s = s0
-
-    if "VO" not in arguments.algorithm:
-        for o in s0.obstacles:
-            o.radius *= 1.05
-        sim_env.gym_env.state = s0
-
-    obs = [s0.obstacles]
+    states = deepcopy(initial_states)
+    trajectories = [np.array(s.x) for s in initial_states]
+    # config is equal
+    config = real_envs[0].config
+    goals = [s.goal for s in initial_states]
+    obs = [[s.obstacles] for s in initial_states]
     if not experiment.discrete:
-        planner = MctsApw(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env,
-            computational_budget=arguments.max_depth,
-            k=arguments.k,
-            alpha=arguments.alpha,
-            discount=0.99,
-            action_expansion_function=experiment.action_expansion_policy,
-            rollout_policy=experiment.rollout_policy,
-        )
+        planners = [
+            MctsApw(
+                num_sim=experiment.n_sim,
+                c=experiment.c,
+                environment=sim_env,
+                computational_budget=arguments.max_depth,
+                k=arguments.k,
+                alpha=arguments.alpha,
+                discount=0.99,
+                action_expansion_function=experiment.action_expansion_policy,
+                rollout_policy=experiment.rollout_policy,
+            ) for sim_env in sim_envs
+        ]
     else:
-        planner = Mcts(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env,
-            computational_budget=arguments.max_depth,
-            discount=0.99,
-            rollout_policy=experiment.rollout_policy,
-        )
+        planners = [
+            Mcts(
+                num_sim=experiment.n_sim,
+                c=experiment.c,
+                environment=sim_env,
+                computational_budget=arguments.max_depth,
+                discount=0.99,
+                rollout_policy=experiment.rollout_policy,
+            ) for sim_env in sim_envs
+        ]
+
     print("Simulation Started")
     terminal = False
-    rewards = []
+    rewards = [[] for _ in range(len(sim_envs))]
+    infos = [[] for _ in range(len(sim_envs))]
     times = []
-    infos = []
-    actions = []
     step_n = 0
+    terminals = [False for _ in range(len(sim_envs))]
     while not terminal:
         step_n += 1
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
-        initial_time = time.time()
-        u, info = planner.plan(s)
-        # del info['q_values']
-        # del info['actions']
-        # del info['visits']
-        # gc.collect()
 
-        actions.append(u)
+        tmp_time = 0
+        for i in range(len(states)):
+            print(f"Agent {i}")
+            initial_time = time.time()
+            chosen_action, info = planners[i].plan(states[i])
+            final_time = time.time() - initial_time
+            infos[i].append(info)
+            tmp_time += final_time
+            if not terminals[i]:
+                states[i], r, terminals[i], truncated, env_info = real_envs[i].step(states[i], chosen_action)
+                rewards[i].append(r)
+            trajectories[i] = np.vstack((trajectories[i], states[i].x))  # store state history
+            sim_envs[i].gym_env.state = real_envs[i].gym_env.state.copy()
+            s_copy = deepcopy(states[i])
+            s_copy.x[2] = 0.0
+            s_copy.x[3] = config.max_speed
+            s_copy.obstacles = None
+            # update other states obstacles
+            for j in range(len(states)):
+                for ob_idx, ob in enumerate(states[j].obstacles):
+                    if np.array_equal(ob.goal, s_copy.goal):
+                        states[j].obstacles[ob_idx] = s_copy
+                        break
 
-        # Clip action
-        u_copy = np.array(u, copy=True)
-        final_time = time.time() - initial_time
-        infos.append(info)
+            obs[i].append(deepcopy(states[i].obstacles))
+            terminal = all(terminals)
 
-        times.append(final_time)
-        s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
-        sim_env.gym_env.state = real_env.gym_env.state.copy()
-        rewards.append(r)
-        trajectory = np.vstack((trajectory, s.x))  # store state history
-        obs.append(s.obstacles)
-        gc.collect()
+        print(terminals)
+        times.append(tmp_time)
 
-    exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
+    exp_name = '_'.join([k + ':' + str(v) for k, v in arguments.__dict__.items()])
     print_and_notify(
-        f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
         f"Discrete: {experiment.discrete}\n"
         f"Std Rollout Angle: {experiment.std_angle}\n"
         f"Number of Steps: {step_n}\n"
-        f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
         f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
         f"Total Time: {sum(times)}\n"
         f"Num Simulations: {experiment.n_sim}",
         exp_num,
-        exp_name,
+        exp_name
     )
-
-    dist_goal = dist_to_goal(s.x[:2], s.goal)
-    reach_goal = dist_goal <= real_env.config.robot_radius
     discount = 0.99
+    dist_goal = [dist_to_goal(s.x[:2], s.goal) for s in states]
+    reach_goal = all([d <= real_envs[0].config.robot_radius for d in dist_goal])
+    cum_rwrd_dict = {f"cumRwrd{i}": round(sum(rewards[i]), 2) for i in range(len(rewards))}
+    disc_cum_rwrd_dict = {
+        f"discCumRwrd{i}": round(sum(np.array(rewards[i]) * np.array([discount ** e for e in range(len(rewards[i]))])), 2)
+        for i in range(len(rewards))}
     data = {
-        "cumRwrd": round(sum(rewards), 2),
-        "discCumRwrd": round(sum(np.array(rewards) * np.array([discount ** e for e in range(len(rewards))])), 2),
+        **cum_rwrd_dict,
+        **disc_cum_rwrd_dict,
         "nSteps": step_n,
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),
-        "reachGoal": int(reach_goal),
-        "meanSmoothVelocity": np.diff(trajectory[:, 3]).mean(),
-        "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
-        "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
-        "stdSmoothAngle": np.diff(trajectory[:, 2]).std(),
+        "reachGoal": int(reach_goal)
     }
     data = data | arguments.__dict__
     df = pd.Series(data)
-    df.to_csv(f"{exp_name}_{exp_num}.csv")
+    df.to_csv(f'multiagent4agObs_{exp_name}_{exp_num}.csv')
 
     if ANIMATION:
         print("Creating Gif...")
         fig, ax = plt.subplots()
         ani = FuncAnimation(
             fig,
-            plot_frame,
-            fargs=(goal, config, obs, trajectory, ax),
-            frames=len(trajectory),
-            save_count=None,
-            cache_frame_data=False,
+            plot_frame_obs,
+            fargs=(goals, config, trajectories, ax, obs[0]),
+            frames=len(trajectories[0])
         )
-        ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=150)
+        ani.save(f"debug/trajectoryMultiagent4agObs_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
-
-    trajectories = [i["trajectories"] for i in infos]
-    rollout_values = [i["rollout_values"] for i in infos]
-
-    with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
-        pickle.dump(trajectory, f)
-
-
-    if DEBUG_DATA:
-        print("Saving Debug Data...")
-        q_vals = [i["q_values"] for i in infos]
-        visits = [i["visits"] for i in infos]
-        a = [[an.action for an in i["actions"]] for i in infos]
-        with open(f"debug/trajectories_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(trajectories, f)
-        with open(f"debug/rollout_values_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(rollout_values, f)
-        with open(f"debug/visits_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(visits, f)
-        with open(f"debug/q_values_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(q_vals, f)
-        with open(f"debug/actions_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(a, f)
-        with open(f"debug/chosen_a_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(actions, f)
 
     if DEBUG_ANIMATION:
         print("Creating Tree Trajectories Animation...")
-        create_animation_tree_trajectory(
-            goal, config, obs, exp_num, exp_name, rollout_values, trajectories
-        )
-        # create_animation_tree_trajectory_w_steps(goal, config, obs, exp_num)
+        for pindex in range(len(planners)):
+            rollout_values = [i["rollout_values"] for i in infos[pindex]]
+            rollout_trajectories = [i["trajectories"] for i in infos[pindex]]
+            fig, ax = plt.subplots()
+            ani = FuncAnimation(
+                fig,
+                plot_frame_tree_traj,
+                fargs=(goals[pindex], config, obs[pindex], rollout_trajectories, rollout_values, fig),
+                frames=len(rollout_trajectories),
+                # blit=True,
+                save_count=None,
+                cache_frame_data=False,
+            )
+            ani.save(f"./debug/tree_trajectoryMultiagent4agObs_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
+            plt.close(fig)
+    gc.collect()
+
     gc.collect()
     print("Done")
 
@@ -295,12 +257,6 @@ def argument_parser():
         default="EASY",
         type=str,
         help="Environment",
-    )
-    parser.add_argument(
-        "--start",
-        default="corner",
-        type=str,
-        help="Where to start",
     )
     return parser
 
@@ -381,7 +337,7 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
+    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ALBERO" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,
@@ -392,14 +348,14 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ALBERO":
+    elif arguments.algorithm == "VANILLA_VO2":
         # VANILLA
         return ExperimentData(
             vo=True,
             action_expansion_policy=None,
             rollout_policy=rollout_policy,
             discrete=True,
-            obstacle_reward=True,
+            obstacle_reward=False,
             std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c,
@@ -430,5 +386,5 @@ def main():
         run_experiment(experiment=exp, arguments=args)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

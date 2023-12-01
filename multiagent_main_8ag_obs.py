@@ -172,7 +172,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     }
     data = data | arguments.__dict__
     df = pd.Series(data)
-    df.to_csv(f'multiagent4agObs_{exp_name}_{exp_num}.csv')
+    df.to_csv(f'multiagent8agObs_{exp_name}_{exp_num}.csv')
 
     if ANIMATION:
         print("Creating Gif...")
@@ -183,7 +183,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             fargs=(goals, config, trajectories, ax, obs[0]),
             frames=len(trajectories[0])
         )
-        ani.save(f"debug/trajectoryMultiagent4agObs_{exp_name}_{exp_num}.gif", fps=150)
+        ani.save(f"debug/trajectoryMultiagent8agObs_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
 
     if DEBUG_ANIMATION:
@@ -201,7 +201,7 @@ def run_experiment(experiment: ExperimentData, arguments):
                 save_count=None,
                 cache_frame_data=False,
             )
-            ani.save(f"./debug/tree_trajectoryMultiagent4agObs_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
+            ani.save(f"./debug/tree_trajectoryMultiagent8agObs_agent{pindex}_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
             plt.close(fig)
     gc.collect()
 

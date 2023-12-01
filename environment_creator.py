@@ -53,7 +53,7 @@ def create_env_five_small_obs_continuous(
         vo: bool,
 ):
     obstacles_positions = np.array(
-        [[3, 3], [3, 7.0], [5.0, 5.0], [7, 3], [7, 7.0]]
+        [[3, 2.9], [3, 7.2], [7.1, 2.9], [7.1, 7.2]]
     )
     # obstacles_positions = np.array(
     #     [[4.0, 4.0], [4.0, 6.0], [5.0, 5.0], [6.0, 4.0], [6.0, 6.0]]
@@ -62,11 +62,11 @@ def create_env_five_small_obs_continuous(
     dt_real = dt_sim
     real_c = Config(
         dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel
-        , obs_size=1.3
+        , obs_size=1.5
     )
     sim_c = Config(
         dt=dt_sim, max_angle_change=1.9 * dt_sim, n_angles=n_angles, n_vel=n_vel
-        , obs_size=1.3
+        , obs_size=1.5
     )
     obs = [
         RobotArenaState(
@@ -105,14 +105,14 @@ def create_env_four_obs_difficult_continuous(
     obstacles_positions = np.array(
         [
             [3.4, 0.8],
-            [0.8, 4.3],
-            [4.0, 8.0],
-            [9.5, 7.0],
+            [0.7, 4.3],
+            [3.5, 8.0],
+            [8.8, 7.0],
             [6.5, 4.0],
             [4.0, 4.0]
         ]
     )
-    radiuses = [1.5, 1.3, 2.1, 2.1, 0.6, 0.3]
+    radiuses = [1.5, 1.5, 2.1, 2.1, 0.6, 0.3]
     dt_real = dt_sim
     real_c = Config(
         dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel
@@ -460,10 +460,10 @@ def create_env_8ag_obs(
 ):
     dt_real = dt_sim
     real_c = Config(
-        dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel, obs_size=1.3
+        dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel, obs_size=1.5
     )
     sim_c = Config(
-        dt=dt_sim, max_angle_change=1.9 * dt_sim, n_angles=n_angles, n_vel=n_vel, obs_size=1.3
+        dt=dt_sim, max_angle_change=1.9 * dt_sim, n_angles=n_angles, n_vel=n_vel, obs_size=1.5
     )
     real_envs = []
     sim_envs = []
@@ -513,7 +513,7 @@ def create_env_8ag_obs(
     #     ]
     # )
     fixed_obs_positions = np.array(
-        [[3, 3], [3, 7.0], [5.0, 5.0], [7, 3], [7, 7.0]]
+        [[3, 2.9], [3, 7.2], [7.1, 2.9], [7.1, 7.2]]
     )
     fixed_obs = [
         RobotArenaState(

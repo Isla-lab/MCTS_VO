@@ -104,10 +104,10 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     s = s0
 
-    if "VO" not in arguments.algorithm:
-        for o in s0.obstacles:
-            o.radius *= 1.05
-        sim_env.gym_env.state = s0
+    # if "VO" not in arguments.algorithm:
+    #     for o in s0.obstacles:
+    #         o.radius *= 1.05
+    #     sim_env.gym_env.state = s0
 
     obs = [s0.obstacles]
     if not experiment.discrete:

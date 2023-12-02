@@ -35,7 +35,7 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     # Calculate radii
     r0 = VMAX + obs_x[:, 3] * dt
     r1 = ROBOT_RADIUS + obs_rad
-    r1 *= 1.05
+    r1 *= 1.00
 
     # Calculate intersection points
     intersection_points = [
@@ -80,7 +80,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # Calculate radii
     r0 = VMAX + obs_x[:, 3] * dt
     r1 = ROBOT_RADIUS + obs_rad
-    r1 *= 1.05
+    r1 *= 1.00
 
     # Calculate intersection points
     intersection_points = [
@@ -362,7 +362,7 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     # Calculate radii
     r0 = VMAX + obs_x[:, 3] * dt
     r1 = ROBOT_RADIUS + obs_rad
-    r1 *= 1.05
+    r1 *= 1.00
 
     # Calculate intersection points
     intersection_points = [
@@ -398,7 +398,7 @@ def uniform_random_vo(node, planner):
     # Calculate radii
     r0 = VMAX + obs_x[:, 3] * dt
     r1 = ROBOT_RADIUS + obs_rad
-    r1 *= 1.05
+    r1 *= 1.00
 
     # Calculate intersection points
     intersection_points = [

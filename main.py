@@ -33,6 +33,7 @@ from bettergym.agents.utils.vo import (
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
     create_env_five_small_obs_continuous, create_env_four_obs_difficult_continuous,
+    create_env_four_obs_difficult_continuous2,
 )
 from experiment_utils import (
     print_and_notify,
@@ -41,7 +42,7 @@ from experiment_utils import (
 )
 from mcts_utils import uniform_random
 
-DEBUG_DATA = False
+DEBUG_DATA = True
 DEBUG_ANIMATION = True
 ANIMATION = True
 
@@ -76,6 +77,16 @@ def run_experiment(experiment: ExperimentData, arguments):
     start_pos = (4, 2) if arguments.start == "middle" else (1, 1)
     if arguments.env == "HARD":
         real_env, sim_env = create_env_four_obs_difficult_continuous(initial_pos=(1, 1),
+                                                                     goal=(10, 10),
+                                                                     discrete=experiment.discrete,
+                                                                     rwrd_in_sim=experiment.obstacle_reward,
+                                                                     out_boundaries_rwrd=arguments.rwrd,
+                                                                     dt_sim=arguments.dt,
+                                                                     n_vel=arguments.v,
+                                                                     n_angles=arguments.a,
+                                                                     vo=experiment.vo)
+    elif arguments.env == "HARD2":
+        real_env, sim_env = create_env_four_obs_difficult_continuous2(initial_pos=(1, 1),
                                                                      goal=(10, 10),
                                                                      discrete=experiment.discrete,
                                                                      rwrd_in_sim=experiment.obstacle_reward,

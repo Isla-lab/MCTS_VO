@@ -403,7 +403,6 @@ class BetterRobotArena(BetterGym):
         # Calculate radii
         r0 = VMAX + obs_x[:, 3] * dt
         r1 = ROBOT_RADIUS + obs_rad
-        r1 *= 1.05
 
         # Calculate intersection points
         intersection_points = [

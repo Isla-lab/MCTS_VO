@@ -263,7 +263,7 @@ def plot_frame_no_obs(i, goals, config, trajectories, ax):
 
 
 def plot_frame_obs(i, goals, config, trajectories, ax, obs):
-    x = [traj[i, :] for traj in trajectories]
+    x = trajectories[i, :, :]
     colors = ["m", "b", "g", "y", 'c', 'r', 'bisque', 'olive']
     # ob = config.ob
     ax.clear()
@@ -273,13 +273,14 @@ def plot_frame_obs(i, goals, config, trajectories, ax, obs):
         # GOAL POSITION
         ax.plot(goals[idx][0], goals[idx][1], "xb")
         # CIRCLE AROUND ROBOT
-        plot_robot(x[idx][0], x[idx][1], x[idx][2], config, ax, color=colors[idx])
+        plot_robot(x[idx][0], x[idx][1], None, config, ax, color=colors[idx])
         # TRAJECTORY1
-        sub_traj = trajectories[idx][:i]
+        # sub_traj = trajectories[idx][:i]
+        sub_traj = trajectories[:i, idx, :]
         ax.plot(sub_traj[:, 0], sub_traj[:, 1], f"--", color=colors[idx])
 
     # STATIC OBSTACLES
-    for ob in obs[i][len(x)-1:]:
+    for ob in obs:
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
 

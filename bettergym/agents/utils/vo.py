@@ -48,13 +48,13 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
             goal=node.state.goal,
             max_angle_change=config.max_angle_change,
             std_angle_rollout=std_angle_rollout,
-            min_speed=config.min_speed,
+            min_speed=0.0,
             max_speed=config.max_speed,
         )
     else:
         # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(
-            intersection_points, x, obs_x, r1, config
+            intersection_points, x, obs_x, r1, config, disable_retro=True
         )
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1
@@ -92,13 +92,13 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
             goal=node.state.goal,
             max_angle_change=config.max_angle_change,
             amplitude=std_angle_rollout,
-            min_speed=config.min_speed,
+            min_speed=0.0,
             max_speed=config.max_speed,
         )
     else:
         # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(
-            intersection_points, x, obs_x, r1, config
+            intersection_points, x, obs_x, r1, config, disable_retro=True
         )
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1
@@ -147,7 +147,7 @@ def sample(center, a_space, v_space, number):
         return sample_multiple_spaces(center, a_space, number, v_space)
 
 
-def get_spaces(intersection_points, x, obs, r1, config):
+def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False):
     angle_space = compute_safe_angle_space(
         intersection_points=intersection_points,
         max_angle_change=config.max_angle_change,
@@ -158,6 +158,9 @@ def get_spaces(intersection_points, x, obs, r1, config):
     # No angle at positive velocity is safe
     if angle_space is None:
         retro_available, angle_space = vo_negative_speed(obs, x, r1, config)
+        if disable_retro:
+            retro_available = False
+
         if retro_available:
             # If VO with negative speed is possible, use it
             velocity_space = [config.min_speed, 0.0]

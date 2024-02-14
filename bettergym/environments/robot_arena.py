@@ -8,6 +8,7 @@ from numba import njit
 
 from bettergym.agents.utils.vo import get_relative_velocity, get_spaces
 from bettergym.better_gym import BetterGym
+from bettergym.environments.env_utils import dist_to_goal, check_coll_jit
 from mcts_utils import get_intersections
 
 
@@ -52,7 +53,7 @@ class Config:
 
 class RobotArenaState:
     def __init__(self, x: np.ndarray, goal: np.ndarray, obstacles: list, radius: float):
-        # x, y, angle ,vel_lin, vel_ang
+        # x, y, angle ,vel_lin
         self.x: np.ndarray = x
         # x(m), y(m)
         self.goal: np.ndarray = goal
@@ -77,20 +78,6 @@ class RobotArenaState:
         return RobotArenaState(
             np.array(self.x, copy=True), self.goal, self.obstacles, self.radius
         )
-
-
-@njit
-def check_coll_jit(x, obs, robot_radius, obs_size):
-    for i, ob in enumerate(obs):
-        dist_to_ob = np.linalg.norm(ob - x[:2])
-        if dist_to_ob <= robot_radius + obs_size[i]:
-            return True
-    return False
-
-
-@njit
-def dist_to_goal(goal: np.ndarray, x: np.ndarray):
-    return np.linalg.norm(x - goal)
 
 
 class RobotArena:

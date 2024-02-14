@@ -115,11 +115,6 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     s = s0
 
-    # if "VO" not in arguments.algorithm:
-    #     for o in s0.obstacles:
-    #         o.radius *= 1.05
-    #     sim_env.gym_env.state = s0
-
     obs = [s0.obstacles]
     if not experiment.discrete:
         planner = MctsApw(
@@ -151,7 +146,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 200:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -323,7 +318,7 @@ def get_experiment_data(arguments):
     if arguments.rollout == "normal_towards_goal":
         if arguments.algorithm == "VO2":
             rollout_policy = partial(
-                towards_goal_vo, std_angle_rollout=std_angle_rollout
+                towards_goal_vo, std_angle_rollout=std_angle_rollout,
             )
         else:
             rollout_policy = partial(towards_goal, std_angle_rollout=std_angle_rollout)

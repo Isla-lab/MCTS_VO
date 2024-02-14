@@ -47,6 +47,31 @@ def plot_frame(i, goal, config, obs, traj, ax):
     ax.grid(True)
     # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
+def plot_frame2(i, goal, config, obs, traj, ax):
+    x = traj[i, :]
+    # ob = config.ob
+    ax.clear()
+    # ROBOT POSITION
+    ax.plot(x[0], x[1], "xr")
+    # GOAL POSITION
+    ax.plot(goal[0], goal[1], "xb")
+    # OBSTACLES
+    for ob in obs[i]:
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        ax.add_artist(circle)
+    # BOX AROUND ROBOT
+    plot_robot(x[0], x[1], None, config, ax)
+    # TRAJECTORY
+    sub_traj = traj[:i]
+    ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")
+
+    # ax.plot([70, 70], [100, 250], 'k-', lw=2)
+
+    ax.set_xlim([config.left_limit-2, config.right_limit+2])
+    ax.set_ylim([config.bottom_limit-2, config.upper_limit+2])
+    # ax.axis("equal")
+    # ax.grid(True)
+    # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
 def plot_action_evolution(actions: np.ndarray, exp_num: int):
     def plot(data):

@@ -324,9 +324,18 @@ class Env:
 
     def step_real(self, state: State, action: np.ndarray):
         state_copy = deepcopy(state)
+        to_remove = []
         for human_idx in range(len(state_copy.obstacles)):
             for _ in range(10):
                 state_copy.obstacles[human_idx] = self.move_human(state.obstacles[human_idx], 0.1)
+                if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0], state_copy.obstacles[human_idx].x[1],
+                                                          state_copy.obstacles[human_idx].goal[0], state_copy.obstacles[human_idx].goal[1],
+                                                          2):
+                    to_remove.append(human_idx)
+                    break
+        # remove obstacles if near goal
+        if len(to_remove) != 0:
+            state_copy.obstacles = [elem for idx, elem in enumerate(state_copy.obstacles) if idx not in to_remove]
         self.state = state_copy
         return self.step_check_coll(action)
 

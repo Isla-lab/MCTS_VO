@@ -17,7 +17,7 @@ from experiment_utils import plot_frame, plot_frame2
 
 
 @dataclass(frozen=True)
-class Config:
+class EnvConfig:
     """
     simulation parameter class
     """
@@ -87,9 +87,9 @@ class State:
 
 class Env:
     def __init__(self,
-                 config: Config = Config(),
+                 config: EnvConfig = EnvConfig(),
                  collision_rwrd: bool = True):
-        self.config = Config()
+        self.config = EnvConfig()
         self.state = None
         bl_corner = np.array([config.bottom_limit, config.left_limit])
         ur_corner = np.array([config.upper_limit, config.right_limit])
@@ -345,7 +345,7 @@ class Env:
 
 def main():
     dt_real = 1.0
-    real_c = Config(
+    real_c = EnvConfig(
         dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=7, n_vel=10
     )
     env = Env(config=real_c)

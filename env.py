@@ -53,7 +53,7 @@ class EnvConfig:
     speed_cost_gain = 0.0
     obstacle_cost_gain = 100.
     robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
-    num_humans = 100
+    num_humans: int = 100
 
 
 class State:
@@ -196,10 +196,10 @@ class Env:
         )
 
     def generate_humans(self, robot_state):
-        g1 = [0.0, 0.0]
-        g2 = [0.0, self.config.right_limit]
+        g1 = [self.config.bottom_limit, self.config.left_limit]
+        g2 = [self.config.bottom_limit, self.config.right_limit]
         g3 = [self.config.upper_limit, self.config.right_limit]
-        g4 = [self.config.upper_limit, 0.0]
+        g4 = [self.config.upper_limit, self.config.left_limit]
         all_goals_list = [g1, g2, g3, g4]
         humans = []
 

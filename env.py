@@ -30,6 +30,8 @@ class EnvConfig:
     # Max and Min U[1]
     max_angle_change: float = None  # [rad/s]
 
+    max_speed_person: float = 1.0  # [m/s]
+    
     dt: float = 1.0  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
     obs_size: float = 0.2
@@ -205,15 +207,14 @@ class Env:
 
         def generate_human_state():
             return State(x=np.array([math.floor(self.config.right_limit * random.random()),
-                                     math.floor(self.config.upper_limit * random.random()), 0, 1]),
+                                     math.floor(self.config.upper_limit * random.random()), 0, self.config.max_speed_person]),
                          goal=np.array(all_goals_list[random.randint(0, len(all_goals_list) - 1)]),
                          obstacles=None,
                          radius=self.config.obs_size)
 
         for _ in range(self.config.num_humans):
             human = generate_human_state()
-            while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1],
-                                                         5.0):
+            while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1], 5.0):
                 human = generate_human_state()
             humans.append(human)
 

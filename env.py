@@ -84,8 +84,7 @@ class State:
     def copy(self):
         return State(
             np.array(self.x, copy=True), self.goal, self.obstacles, self.radius
-        )
-
+        )    
 
 class Env:
     def __init__(self,
@@ -322,12 +321,12 @@ class Env:
             None,
         )
 
-    def step_real(self, state: State, action: np.ndarray):
-        state_copy = deepcopy(state)
+    def step_real(self, action: np.ndarray):
+        state_copy = deepcopy(self.state)
         to_remove = []
-        for human_idx in range(len(state_copy.obstacles)):
+        for human_idx in range(len(self.state.obstacles)):
             for _ in range(10):
-                state_copy.obstacles[human_idx] = self.move_human(state.obstacles[human_idx], 0.1)
+                state_copy.obstacles[human_idx] = self.move_human(self.state.obstacles[human_idx], 0.1)
                 if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0], state_copy.obstacles[human_idx].x[1],
                                                           state_copy.obstacles[human_idx].goal[0], state_copy.obstacles[human_idx].goal[1],
                                                           2):
@@ -339,7 +338,7 @@ class Env:
         self.state = state_copy
         return self.step_check_coll(action)
 
-    def step_sim(self, state: State, action: np.ndarray):
+    def step_sim(self, action: np.ndarray):
         return self.step_check_coll(action)
 
     def reset(self):
@@ -365,9 +364,11 @@ def main():
     goal = s0.goal
     obs = [s0.obstacles]
     s = s0
+    env.state = s0
     for step_n in range(1000):
         print(f"Step Number {step_n}")
-        s, r, terminal, truncated, env_info = env.step_real(state=s, action=[0.0, 0.0])
+        s, r, terminal, truncated, env_info = env.step_real(action=[0.0, 0.0])
+        env.state = s
         trajectory = np.vstack((trajectory, s.x))  # store state history
         obs.append(s.obstacles)
 

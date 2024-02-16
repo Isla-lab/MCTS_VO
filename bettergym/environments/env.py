@@ -2,7 +2,6 @@
 import math
 import random
 from re import T
-import sys
 from copy import deepcopy
 from dataclasses import dataclass
 from math import atan2, cos, sin
@@ -347,13 +346,13 @@ class Env:
 
     def reset(self):
         state = State(
-            x=np.array([self.config.left_limit, 25.0, math.pi / 8.0, 0.0]),
-            goal=np.array([self.config.right_limit, 75.0]),
+            x=np.array([self.config.left_limit+2, 25.0, math.pi / 8.0, 0.0]),
+            goal=np.array([self.config.right_limit-2, 75.0]),
             obstacles=None,
             radius=self.config.robot_radius,
         )
         state.obstacles = self.generate_humans(state)
-        return state
+        return state, None
 
 
 class BetterEnv(BetterGym):
@@ -490,35 +489,35 @@ class BetterEnv(BetterGym):
         self.gym_env.state = deepcopy(state)
 
 
-def main():
-    dt_real = 1.0
-    real_c = EnvConfig(
-        dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=7, n_vel=10
-    )
-    env = BetterEnv(discrete_env=True, vo=True, config=real_c, collision_rwrd=True, sim_env=False)
-    s0 = env.reset()
-    trajectory = np.array(s0.x)
-    goal = s0.goal
-    obs = [s0.obstacles]
-    s = s0
-    for step_n in range(1000):
-        print(f"Step Number {step_n}")
-        s, r, terminal, truncated, env_info = env.step(state=s, action=[0.0, 0.0])
-        trajectory = np.vstack((trajectory, s.x))  # store state history
-        obs.append(s.obstacles)
+# def main():
+#     dt_real = 1.0
+#     real_c = EnvConfig(
+#         dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=7, n_vel=10
+#     )
+#     env = BetterEnv(discrete_env=True, vo=True, config=real_c, collision_rwrd=True, sim_env=False)
+#     s0 = env.reset()
+#     trajectory = np.array(s0.x)
+#     goal = s0.goal
+#     obs = [s0.obstacles]
+#     s = s0
+#     for step_n in range(1000):
+#         print(f"Step Number {step_n}")
+#         s, r, terminal, truncated, env_info = env.step(state=s, action=[0.0, 0.0])
+#         trajectory = np.vstack((trajectory, s.x))  # store state history
+#         obs.append(s.obstacles)
 
-    print("Creating Animation")
-    fig, ax = plt.subplots()
-    ani = FuncAnimation(
-        fig,
-        plot_frame2,
-        fargs=(goal, real_c, obs, trajectory, ax),
-        frames=tqdm(range(len(trajectory)), file=sys.stdout),
-        save_count=None,
-        cache_frame_data=False,
-    )
-    ani.save(f"debug/test_animation.gif", fps=150)
-    plt.close(fig)
+#     print("Creating Animation")
+#     fig, ax = plt.subplots()
+#     ani = FuncAnimation(
+#         fig,
+#         plot_frame2,
+#         fargs=(goal, real_c, obs, trajectory, ax),
+#         frames=tqdm(range(len(trajectory)), file=sys.stdout),
+#         save_count=None,
+#         cache_frame_data=False,
+#     )
+#     ani.save(f"debug/test_animation.gif", fps=150)
+#     plt.close(fig)
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()

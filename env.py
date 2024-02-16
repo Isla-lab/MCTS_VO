@@ -1,6 +1,7 @@
 # from cmath import atan
 import math
 import random
+from re import T
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
@@ -11,9 +12,12 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from tqdm import tqdm
+from bettergym.agents.utils.vo import get_spaces
+from bettergym.better_gym import BetterGym
 
 from bettergym.environments.env_utils import check_coll_jit, dist_to_goal
 from experiment_utils import plot_frame, plot_frame2
+from mcts_utils import get_intersections
 
 
 @dataclass(frozen=True)
@@ -352,23 +356,154 @@ class Env:
         return state
 
 
+class BetterEnv(BetterGym):
+    def __init__(
+            self,
+            discrete_env: bool,
+            vo: bool,
+            config: EnvConfig,
+            collision_rwrd: bool,
+            sim_env: bool
+    ):
+        super().__init__(
+            Env(
+                config=config,
+                collision_rwrd=collision_rwrd,
+            )
+        )
+        
+        if discrete_env:
+            if not vo:
+                self.get_actions = self.get_actions_discrete
+            else:
+                self.get_actions = self.get_actions_discrete_vo2
+
+        if sim_env:
+            self.gym_env.step = self.gym_env.step_sim
+            self.set_state = self.set_state_sim
+        else:
+            self.gym_env.step = self.gym_env.step_real
+            self.set_state = self.set_state_real
+        
+
+    def get_actions_discrete(self, state: State):
+        config = self.gym_env.config
+        available_angles = np.linspace(
+            start=state.x[2] - config.max_angle_change,
+            stop=state.x[2] + config.max_angle_change,
+            num=config.n_angles,
+        )
+        if (curr_angle := state.x[2]) not in available_angles:
+            available_angles = np.append(available_angles, curr_angle)
+        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
+        available_velocities = np.linspace(
+            start=config.min_speed, stop=config.max_speed, num=config.n_vel
+        )
+        if 0.0 not in available_velocities:
+            available_velocities = np.append(available_velocities, 0.0)
+
+        actions = np.transpose(
+            [
+                np.tile(available_velocities, len(available_angles)),
+                np.repeat(available_angles, len(available_velocities)),
+            ]
+        )
+        return actions
+
+    def get_actions_discrete_vo2(self, state: State):
+        config = self.gym_env.config
+        available_angles = np.linspace(
+            start=state.x[2] - config.max_angle_change,
+            stop=state.x[2] + config.max_angle_change,
+            num=config.n_angles,
+        )
+        if (curr_angle := state.x[2]) not in available_angles:
+            available_angles = np.append(available_angles, curr_angle)
+        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
+        available_velocities = np.linspace(
+            start=config.min_speed, stop=config.max_speed, num=config.n_vel
+        )
+        if 0.0 not in available_velocities:
+            available_velocities = np.append(available_velocities, 0.0)
+
+        actions = np.transpose(
+            [
+                np.tile(available_velocities, len(available_angles)),
+                np.repeat(available_angles, len(available_velocities)),
+            ]
+        )
+
+        # Extract obstacle information
+        obstacles = state.obstacles
+        obs_x = np.array([ob.x for ob in obstacles])
+        obs_rad = np.array([ob.radius for ob in obstacles])
+
+        # Extract robot information
+        x = state.x
+        dt = self.config.dt
+        ROBOT_RADIUS = self.config.robot_radius
+        VMAX = 0.3
+
+        # Calculate velocities
+        # v = get_relative_velocity(VMAX, obs_x, x)
+
+        # Calculate radii
+        r0 = VMAX + obs_x[:, 3] * dt
+        r1 = ROBOT_RADIUS + obs_rad
+
+        # Calculate intersection points
+        intersection_points = [
+            get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
+        ]
+        config = self.gym_env.config
+        to_delete = []
+        # If there are no intersection points
+        if not any(intersection_points):
+            return actions
+        else:
+            # convert intersection points into ranges of available velocities/angles
+            angle_spaces, velocity_space = get_spaces(
+                intersection_points, x, obs_x, r1, config
+            )
+
+            actions_copy = np.array(actions, copy=True)
+            for idx, a in enumerate(actions):
+                safe = False
+                if velocity_space[0] <= a[0] <= velocity_space[1]:
+                    if a[0] == 0.0:
+                        safe = True
+                    else:
+                        for a_space in angle_spaces:
+                            if a_space[0] < a[1] < a_space[1]:
+                                safe = True
+                                break
+                if not safe:
+                    to_delete.append(idx)
+
+        actions_copy = np.delete(actions_copy, to_delete, axis=0)
+        return actions_copy
+    
+    def set_state_sim(self, state: State) -> None:
+        self.gym_env.state = state.copy()
+    
+    def set_state_real(self, state: State) -> None:
+        self.gym_env.state = deepcopy(state)
+
+
 def main():
     dt_real = 1.0
     real_c = EnvConfig(
         dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=7, n_vel=10
     )
-    env = Env(config=real_c)
+    env = BetterEnv(discrete_env=True, vo=True, config=real_c, collision_rwrd=True, sim_env=False)
     s0 = env.reset()
-    env.state = s0
     trajectory = np.array(s0.x)
     goal = s0.goal
     obs = [s0.obstacles]
     s = s0
-    env.state = s0
     for step_n in range(1000):
         print(f"Step Number {step_n}")
-        s, r, terminal, truncated, env_info = env.step_real(action=[0.0, 0.0])
-        env.state = s
+        s, r, terminal, truncated, env_info = env.step(state=s, action=[0.0, 0.0])
         trajectory = np.vstack((trajectory, s.x))  # store state history
         obs.append(s.obstacles)
 
@@ -384,7 +519,6 @@ def main():
     )
     ani.save(f"debug/test_animation.gif", fps=150)
     plt.close(fig)
-
 
 if __name__ == '__main__':
     main()

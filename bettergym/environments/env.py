@@ -13,7 +13,7 @@ from tqdm import tqdm
 from bettergym.agents.utils.vo import get_spaces
 from bettergym.better_gym import BetterGym
 
-from bettergym.environments.env_utils import check_coll_jit, dist_to_goal
+from bettergym.environments.env_utils import check_coll_jit, dist_to_goal, check_coll_vectorized
 from experiment_utils import plot_frame, plot_frame2
 from mcts_utils import get_intersections
 
@@ -194,9 +194,10 @@ class Env:
         for ob in state.obstacles:
             obs_pos.append(ob.x[:2])
             obs_rad.append(ob.radius)
-        return check_coll_jit(
-            state.x, np.array(obs_pos), state.radius, np.array(obs_rad)
-        )
+        # return check_coll_jit(
+        #     state.x, np.array(obs_pos), state.radius, np.array(obs_rad)
+        # )
+        return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius, obs_size=np.array(obs_rad))
 
     def generate_humans(self, robot_state):
         g1 = [self.config.bottom_limit, self.config.left_limit]

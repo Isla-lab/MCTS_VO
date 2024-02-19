@@ -1,5 +1,9 @@
+import timeit
+from functools import partial
+
 import numpy as np
 from numba import njit
+from numpy import array
 
 
 @njit
@@ -9,6 +13,11 @@ def check_coll_jit(x, obs, robot_radius, obs_size):
         if dist_to_ob <= robot_radius + obs_size[i]:
             return True
     return False
+
+
+def check_coll_vectorized(x, obs, robot_radius, obs_size):
+    dist_to_ob = np.linalg.norm(obs - x[:2], axis=1)
+    return np.any(dist_to_ob <= robot_radius + obs_size)
 
 
 @njit

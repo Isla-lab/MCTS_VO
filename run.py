@@ -1,22 +1,18 @@
-import subprocess
-import time
+import multiprocessing
 
-with open('multiagent_lorenzobonanni_config_1.txt') as f:
-    processes = f.readlines(
-
-)
+with open('lorenzobonanni_config.txt') as f:
+    processes = f.readlines()
 
 # Define the maximum number of concurrent processes
-max_processes = 6
+max_processes = 10
 
-
-import multiprocessing
 
 # Define a function that runs a process using subprocess
 def run_process(process):
     import subprocess
     print(process)
     subprocess.run(process, shell=True)
+
 
 # Create a pool of 4 worker processes
 pool = multiprocessing.Pool(max_processes)

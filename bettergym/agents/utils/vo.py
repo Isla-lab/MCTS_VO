@@ -209,18 +209,27 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
 
     # convert points into angles and define the forbidden angles space
     forbidden_ranges = []
-    for idx in range(intersection_points.shape[2]):
-        point = intersection_points[:, :, idx]
-        if np.inf in point:
-            forbidden_ranges.extend(robot_angles)
-        elif not np.isnan(point).any():
-            p1, p2 = point
-            angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
-            angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
-            if angle1 > angle2:
-                forbidden_ranges.extend([[angle1, math.pi], [-math.pi, angle2]])
-            else:
-                forbidden_ranges.append([angle1, angle2])
+    none_points = np.isnan(intersection_points)
+    inf_points = np.isinf(intersection_points)
+    if np.any(inf_points):
+        forbidden_ranges.extend(robot_angles)
+
+    new_points = intersection_points[np.logical_not(np.logical_or(none_points, inf_points))]
+    if new_points.shape[0] != 0:
+        if len(new_points.shape) == 1:
+            new_points = np.expand_dims(new_points, axis=0)
+        p1 = new_points[:, :2]
+        p2 = new_points[:, 2:]
+        angle1 = np.arctan2(p1[:, 1] - x[1], p1[:, 0] - x[0])
+        angle2 = np.arctan2(p2[:, 1] - x[1], p2[:, 0] - x[0])
+        angle1_greater_mask = angle1 > angle2
+        forbidden_ranges.extend(np.column_stack((angle1[~angle1_greater_mask], angle2[~angle1_greater_mask])))
+        forbidden_ranges.extend(
+            np.vstack((
+                np.column_stack((angle1[angle1_greater_mask], np.full_like(angle1[angle1_greater_mask], math.pi))),
+                np.column_stack((np.full_like(angle2[angle1_greater_mask], -math.pi), angle2[angle1_greater_mask]))
+            ))
+        )
 
     new_ranges = []
     for fr in forbidden_ranges:

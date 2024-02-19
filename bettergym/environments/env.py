@@ -1,4 +1,3 @@
-# from cmath import atan
 import math
 import random
 from re import T
@@ -34,7 +33,7 @@ class EnvConfig:
     max_angle_change: float = None  # [rad/s]
 
     max_speed_person: float = 1.0  # [m/s]
-    
+
     dt: float = 1.0  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
     obs_size: float = 0.2
@@ -58,7 +57,7 @@ class EnvConfig:
     speed_cost_gain = 0.0
     obstacle_cost_gain = 100.
     robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
-    num_humans: int = 100
+    num_humans: int = 200
 
 
 class State:
@@ -69,7 +68,6 @@ class State:
         self.goal: np.ndarray = goal
         self.obstacles: list = obstacles
         self.radius: float = radius
-        # self.dynamic_obs: bool = False
 
     def __hash__(self):
         return hash(
@@ -87,7 +85,8 @@ class State:
     def copy(self):
         return State(
             np.array(self.x, copy=True), self.goal, self.obstacles, self.radius
-        )    
+        )
+
 
 class Env:
     def __init__(self,
@@ -209,14 +208,16 @@ class Env:
 
         def generate_human_state():
             return State(x=np.array([math.floor(self.config.right_limit * random.random()),
-                                     math.floor(self.config.upper_limit * random.random()), 0, self.config.max_speed_person]),
+                                     math.floor(self.config.upper_limit * random.random()), 0,
+                                     self.config.max_speed_person]),
                          goal=np.array(all_goals_list[random.randint(0, len(all_goals_list) - 1)]),
                          obstacles=None,
                          radius=self.config.obs_size)
 
         for _ in range(self.config.num_humans):
             human = generate_human_state()
-            while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1], 5.0):
+            while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1],
+                                                         5.0):
                 human = generate_human_state()
             humans.append(human)
 
@@ -330,8 +331,10 @@ class Env:
         for human_idx in range(len(self.state.obstacles)):
             for _ in range(10):
                 state_copy.obstacles[human_idx] = self.move_human(self.state.obstacles[human_idx], 0.1)
-                if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0], state_copy.obstacles[human_idx].x[1],
-                                                          state_copy.obstacles[human_idx].goal[0], state_copy.obstacles[human_idx].goal[1],
+                if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0],
+                                                          state_copy.obstacles[human_idx].x[1],
+                                                          state_copy.obstacles[human_idx].goal[0],
+                                                          state_copy.obstacles[human_idx].goal[1],
                                                           2):
                     to_remove.append(human_idx)
                     break
@@ -346,8 +349,8 @@ class Env:
 
     def reset(self):
         state = State(
-            x=np.array([self.config.left_limit+2, 25.0, math.pi / 8.0, 0.0]),
-            goal=np.array([self.config.right_limit-2, 75.0]),
+            x=np.array([self.config.left_limit + 2, 25.0, math.pi / 8.0, 0.0]),
+            goal=np.array([self.config.right_limit - 2, 75.0]),
             obstacles=None,
             radius=self.config.robot_radius,
         )
@@ -370,7 +373,7 @@ class BetterEnv(BetterGym):
                 collision_rwrd=collision_rwrd,
             )
         )
-        
+
         if discrete_env:
             if not vo:
                 self.get_actions = self.get_actions_discrete
@@ -383,7 +386,6 @@ class BetterEnv(BetterGym):
         else:
             self.gym_env.step = self.gym_env.step_real
             self.set_state = self.set_state_real
-        
 
     def get_actions_discrete(self, state: State):
         config = self.gym_env.config
@@ -481,13 +483,12 @@ class BetterEnv(BetterGym):
 
         actions_copy = np.delete(actions_copy, to_delete, axis=0)
         return actions_copy
-    
+
     def set_state_sim(self, state: State) -> None:
         self.gym_env.state = state.copy()
-    
+
     def set_state_real(self, state: State) -> None:
         self.gym_env.state = deepcopy(state)
-
 
 # def main():
 #     dt_real = 1.0

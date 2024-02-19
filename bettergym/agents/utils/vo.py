@@ -14,7 +14,7 @@ from bettergym.agents.utils.utils import (
     compute_towards_goal_jit,
     get_robot_angles, compute_uniform_towards_goal_jit,
 )
-from mcts_utils import get_intersections, uniform_random
+from mcts_utils import uniform_random, get_intersections_vectorized
 
 
 def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
@@ -37,12 +37,13 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     r1 = ROBOT_RADIUS + obs_rad
 
     # Calculate intersection points
-    intersection_points = [
-        get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
-    ]
+    # intersection_points = [
+    #     get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
+    # ]
+    intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
     config = planner.environment.gym_env.config
     # If there are no intersection points
-    if not any(intersection_points):
+    if np.isnan(intersection_points).all():
         return compute_towards_goal_jit(
             x=x,
             goal=node.state.goal,
@@ -81,12 +82,10 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     r1 = ROBOT_RADIUS + obs_rad
 
     # Calculate intersection points
-    intersection_points = [
-        get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
-    ]
+    intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
     config = planner.environment.gym_env.config
     # If there are no intersection points
-    if not any(intersection_points):
+    if np.isnan(intersection_points).all():
         return compute_uniform_towards_goal_jit(
             x=x,
             goal=node.state.goal,
@@ -210,10 +209,11 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
 
     # convert points into angles and define the forbidden angles space
     forbidden_ranges = []
-    for point in intersection_points:
-        if point is np.inf:
+    for idx in range(intersection_points.shape[2]):
+        point = intersection_points[:, :, idx]
+        if np.inf in point:
             forbidden_ranges.extend(robot_angles)
-        elif point is not None:
+        elif not np.isnan(point).any():
             p1, p2 = point
             angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
             angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
@@ -241,12 +241,10 @@ def vo_negative_speed(obs, x, r1, config):
     VELOCITY = np.abs(config.min_speed)
     # v = get_relative_velocity(VELOCITY, obs, x)
     r0 = VELOCITY + obs[:, 3] * config.dt
-    intersection_points = [
-        get_intersections(x[:2], obs[i][:2], r0[i], r1[i]) for i in range(len(obs))
-    ]
+    intersection_points = get_intersections_vectorized(x, obs, r0, r1)
 
     # check if there are any intersections
-    if not any(intersection_points):
+    if np.isnan(intersection_points).all():
         # return a list of angles to explore
         angle_space = [x[2] - config.max_angle_change, x[2] + config.max_angle_change]
         # check if the angles are in the range -pi, pi
@@ -291,7 +289,7 @@ def voronoi_vo(
     prob = random.random()
 
     # If there are no intersection points
-    if not any(intersection_points):
+    if np.isnan(intersection_points).all():
         if prob <= 1 - eps and len(actions) != 0:
             return voronoi(
                 actions,
@@ -365,9 +363,7 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     r1 = ROBOT_RADIUS + obs_rad
 
     # Calculate intersection points
-    intersection_points = [
-        get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
-    ]
+    intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
 
     # Choose the best action using Voronoi VO
     actions = np.array([n.action for n in node.actions])
@@ -400,12 +396,10 @@ def uniform_random_vo(node, planner):
     r1 = ROBOT_RADIUS + obs_rad
 
     # Calculate intersection points
-    intersection_points = [
-        get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
-    ]
+    intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
     config = planner.environment.gym_env.config
     # If there are no intersection points
-    if not any(intersection_points):
+    if np.isnan(intersection_points).all():
         return uniform_random(node, planner)
     else:
         # convert intersection points into ranges of available velocities/angles

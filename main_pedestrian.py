@@ -3,6 +3,7 @@ import gc
 import os
 import pickle
 import random
+import sys
 import time
 from dataclasses import dataclass
 from functools import partial
@@ -14,7 +15,7 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from numba import njit
 from numpy import mean, std
-import tqdm
+from tqdm import tqdm
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
@@ -33,17 +34,14 @@ from bettergym.agents.utils.vo import (
 )
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
-    create_env_five_small_obs_continuous, create_env_four_obs_difficult_continuous,
-    create_env_four_obs_difficult_continuous2, create_pedestrian_env,
+    create_pedestrian_env,
 )
 from experiment_utils import (
     plot_frame2,
     print_and_notify,
-    plot_frame,
     create_animation_tree_trajectory,
 )
 from mcts_utils import uniform_random
-import sys
 
 DEBUG_DATA = True
 DEBUG_ANIMATION = True
@@ -77,7 +75,7 @@ def seed_everything(seed_value: int):
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
-   
+
     real_env, sim_env = create_pedestrian_env(
         discrete=experiment.discrete,
         rwrd_in_sim=experiment.obstacle_reward,
@@ -86,7 +84,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         n_angles=arguments.a,
         vo=experiment.vo
     )
-   
+
     s0, _ = real_env.reset()
     trajectory = np.array(s0.x)
     config = real_env.config
@@ -126,7 +124,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 5:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
@@ -203,7 +201,6 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
         pickle.dump(trajectory, f)
-
 
     if DEBUG_DATA:
         print("Saving Debug Data...")

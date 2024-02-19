@@ -26,7 +26,7 @@ def plot_frame(i, goal, config, obs, traj, ax):
     # ob = config.ob
     ax.clear()
     # ROBOT POSITION
-    ax.plot(x[0], x[1], "xr")
+    # ax.plot(x[0], x[1], "xr")
     # GOAL POSITION
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
@@ -52,7 +52,7 @@ def plot_frame2(i, goal, config, obs, traj, ax):
     # ob = config.ob
     ax.clear()
     # ROBOT POSITION
-    ax.plot(x[0], x[1], "xr")
+    # ax.plot(x[0], x[1], "xr")
     # GOAL POSITION
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES

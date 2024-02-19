@@ -15,7 +15,7 @@ from bettergym.better_gym import BetterGym
 
 from bettergym.environments.env_utils import check_coll_jit, dist_to_goal, check_coll_vectorized
 from experiment_utils import plot_frame, plot_frame2
-from mcts_utils import get_intersections
+from mcts_utils import get_intersections_vectorized
 
 
 @dataclass(frozen=True)
@@ -454,13 +454,11 @@ class BetterEnv(BetterGym):
         r1 = ROBOT_RADIUS + obs_rad
 
         # Calculate intersection points
-        intersection_points = [
-            get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
-        ]
+        intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
         config = self.gym_env.config
         to_delete = []
         # If there are no intersection points
-        if not any(intersection_points):
+        if np.isnan(intersection_points).all():
             return actions
         else:
             # convert intersection points into ranges of available velocities/angles

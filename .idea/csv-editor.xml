@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CsvFileAttributes">
+    <option name="attributeMap">
+      <map>
+        <entry key="/algorithm:VANILLA_VO2_nsim:1000_rwrd:-100_dt:1.0_std:0.5_stdRollout:1.0_amplitude:1_c:10.0_rollout:epsilon_uniform_uniform_alpha:0.1_k:50.0_a:11_v:5_num:1_eps_rollout:0.2_max_depth:100_env:EASY_start:corner_0.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

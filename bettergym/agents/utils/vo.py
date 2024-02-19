@@ -204,6 +204,38 @@ def range_difference(rr, fr):
     return angle_space if angle_space is not [()] else None
 
 
+def compute_safe_angle_space_old(intersection_points, max_angle_change, x):
+    robot_angles = get_robot_angles(x, max_angle_change)
+
+    # convert points into angles and define the forbidden angles space
+    forbidden_ranges = []
+    for idx in range(intersection_points.shape[2]):
+        point = intersection_points[:, :, idx]
+        if np.inf in point:
+            forbidden_ranges.extend(robot_angles)
+        elif not np.isnan(point).any():
+            p1, p2 = point
+            angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
+            angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
+            if angle1 > angle2:
+                forbidden_ranges.extend([[angle1, math.pi], [-math.pi, angle2]])
+            else:
+                forbidden_ranges.append([angle1, angle2])
+
+    new_ranges = []
+    for fr in forbidden_ranges:
+        for rr in robot_angles:
+            output = range_difference(rr, fr)
+            if output is not None:
+                new_ranges.extend(output)
+        robot_angles = deepcopy(new_ranges)
+        new_ranges = []
+
+    if len(robot_angles) == 0:
+        return None
+    else:
+        return robot_angles
+
 def compute_safe_angle_space(intersection_points, max_angle_change, x):
     robot_angles = get_robot_angles(x, max_angle_change)
 

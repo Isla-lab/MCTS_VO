@@ -43,7 +43,7 @@ from experiment_utils import (
 )
 from mcts_utils import uniform_random
 
-DEBUG_DATA = True
+DEBUG_DATA = False
 DEBUG_ANIMATION = True
 ANIMATION = True
 
@@ -124,7 +124,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 5:
+        if step_n == 1000:
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()

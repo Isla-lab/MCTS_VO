@@ -30,6 +30,7 @@ def compute_int_vectorized(r0, r1, d, x0, x1, y0, y1):
     :param y1: y position of the second circle center
     :return: array of coordinates of the two intersection points
     """
+    # https://stackoverflow.com/a/55817881
     a = (r0 ** 2 - r1 ** 2 + d ** 2) / (2 * d)
     h = np.sqrt(r0 ** 2 - a ** 2)
     x2 = x0 + a * (x1 - x0) / d
@@ -44,7 +45,7 @@ def compute_int_vectorized(r0, r1, d, x0, x1, y0, y1):
 
 def get_intersections_vectorized(x, obs_x, r0, r1):
     x_exp = np.expand_dims(x, 1)
-    d = np.hypot(x_exp[0, :] - obs_x[:, 0], x_exp[1, :] - obs_x[:, 1])
+    d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1]-x_exp[1, :])
 
     # Non-intersecting
     no_intersection = d > r0 + r1

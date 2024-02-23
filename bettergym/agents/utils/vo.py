@@ -78,8 +78,8 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r0 = VMAX + obs_x[:, 3] * dt
-    r1 = ROBOT_RADIUS + obs_rad
+    r1 = VMAX + obs_x[:, 3] * dt
+    r0 = ROBOT_RADIUS + obs_rad
 
     # Calculate intersection points
     intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
@@ -252,8 +252,10 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
             new_points = np.expand_dims(new_points, axis=0)
         p1 = new_points[:, :2]
         p2 = new_points[:, 2:]
-        angle1 = np.arctan2(p1[:, 1] - x[1], p1[:, 0] - x[0])
-        angle2 = np.arctan2(p2[:, 1] - x[1], p2[:, 0] - x[0])
+        vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
+        vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
+        angle1 = np.arctan2(vec_p1[1], vec_p1[0])
+        angle2 = np.arctan2(vec_p2[1], vec_p2[0])
         angle1_greater_mask = angle1 > angle2
         forbidden_ranges.extend(np.column_stack((angle1[~angle1_greater_mask], angle2[~angle1_greater_mask])))
         forbidden_ranges.extend(

@@ -78,8 +78,8 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r1 = VMAX + obs_x[:, 3] * dt
-    r0 = ROBOT_RADIUS + obs_rad
+    r0 = VMAX + obs_x[:, 3] * dt
+    r1 = ROBOT_RADIUS + obs_rad
 
     # Calculate intersection points
     intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)

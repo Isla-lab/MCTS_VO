@@ -45,7 +45,7 @@ def compute_int_vectorized(r0, r1, d, x0, x1, y0, y1):
 
 def get_intersections_vectorized(x, obs_x, r0, r1):
     x_exp = np.expand_dims(x, 1)
-    d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1]-x_exp[1, :])
+    d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1] - x_exp[1, :])
 
     # Non-intersecting
     no_intersection = d > r0 + r1
@@ -60,8 +60,8 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
 
     # Compute intersection points
     intersection_points = compute_int_vectorized(
-        r0[intersecting],
         r1[intersecting],
+        r0[intersecting],
         d[intersecting],
         x_exp[0, :],
         obs_x[intersecting, 0],

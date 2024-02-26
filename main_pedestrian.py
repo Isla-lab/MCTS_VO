@@ -44,8 +44,8 @@ from experiment_utils import (
 from mcts_utils import uniform_random
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = True
-ANIMATION = True
+DEBUG_ANIMATION = False
+ANIMATION = False
 
 
 @dataclass(frozen=True)
@@ -128,6 +128,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
+        # 339 in poi debug
         u, info = planner.plan(s)
         # del info['q_values']
         # del info['actions']

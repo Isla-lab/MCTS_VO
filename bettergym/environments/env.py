@@ -456,7 +456,7 @@ class BetterEnv(BetterGym):
         # Calculate intersection points
         intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
         config = self.gym_env.config
-        to_delete = []
+        # to_delete = []
         # If there are no intersection points
         if np.isnan(intersection_points).all():
             return actions
@@ -466,21 +466,31 @@ class BetterEnv(BetterGym):
                 intersection_points, x, obs_x, r1, config
             )
 
-            actions_copy = np.array(actions, copy=True)
-            for idx, a in enumerate(actions):
-                safe = False
-                if velocity_space[0] <= a[0] <= velocity_space[1]:
-                    if a[0] == 0.0:
-                        safe = True
-                    else:
-                        for a_space in angle_spaces:
-                            if a_space[0] < a[1] < a_space[1]:
-                                safe = True
-                                break
-                if not safe:
-                    to_delete.append(idx)
-
-        actions_copy = np.delete(actions_copy, to_delete, axis=0)
+            # actions_copy = np.array(actions, copy=True)
+            angle_spaces = np.array(angle_spaces)
+            velocity_condition = (velocity_space[0] <= actions[:, 0]) & (actions[:, 0] <= velocity_space[1])
+            angle_condition = np.any((angle_spaces[:, 0] < actions[:, 1][:, np.newaxis]) &
+                                     (actions[:, 1][:, np.newaxis] < angle_spaces[:, 1]), axis=1)
+            actions_copy = np.array(actions[velocity_condition & angle_condition], copy=True)
+        #     for idx, a in enumerate(actions):
+        #         safe = False
+        #         if velocity_space[0] <= a[0] <= velocity_space[1]:
+        #             # # TODO in a context with dynamic obstacles 0 velocity is not safe
+        #             # if a[0] == 0.0:
+        #             #     safe = True
+        #             # else:
+        #             #     for a_space in angle_spaces:
+        #             #         if a_space[0] < a[1] < a_space[1]:
+        #             #             safe = True
+        #             #             break
+        #             for a_space in angle_spaces:
+        #                 if a_space[0] < a[1] < a_space[1]:
+        #                     safe = True
+        #                     break
+        #         if not safe:
+        #             to_delete.append(idx)
+        #
+        # actions_copy = np.delete(actions_copy, to_delete, axis=0)
         return actions_copy
 
     def set_state_sim(self, state: State) -> None:

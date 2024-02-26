@@ -152,7 +152,7 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False):
         max_angle_change=config.max_angle_change,
         x=x,
     )
-    velocity_space = [0.0, config.max_speed]
+    velocity_space = [0.0001, config.max_speed]
 
     # No angle at positive velocity is safe
     if angle_space is None:
@@ -162,8 +162,9 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False):
 
         if retro_available:
             # If VO with negative speed is possible, use it
-            velocity_space = [config.min_speed, 0.0]
+            velocity_space = [config.min_speed, -0.0001]
         else:
+            # TODO: check if this is correct
             velocity_space = [0.0, 0.0]
             angle_space = get_robot_angles(x, config.max_angle_change)
 
@@ -287,43 +288,46 @@ def vo_negative_speed(obs, x, r1, config):
     intersection_points = get_intersections_vectorized(x, obs, r0, r1)
 
     # check if there are any intersections
-    if np.isnan(intersection_points).all():
-        # return a list of angles to explore
-        angle_space = [x[2] - config.max_angle_change, x[2] + config.max_angle_change]
-        # check if the angles are in the range -pi, pi
-        angle_space[0] = (angle_space[0] + math.pi) % (2 * math.pi) - math.pi
-        angle_space[1] = (angle_space[1] + math.pi) % (2 * math.pi) - math.pi
-        if angle_space[0] > angle_space[1]:
-            angle_space = [[angle_space[0], math.pi], [-math.pi, angle_space[1]]]
-        else:
-            angle_space = [angle_space]
-        return True, angle_space
-    else:
-        # create a copy of the current state
-        x_copy = x.copy()
-        x_copy[2] += math.pi
-        x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
-        angle_space = compute_safe_angle_space(
-            intersection_points=intersection_points,
-            max_angle_change=config.max_angle_change,
-            x=x_copy,
-        )
+    # TODO this does not make sense, since we are checking for positive 0.1 keeping the direction
+    # if np.isnan(intersection_points).all():
+    #     # # return a list of angles to explore
+    #     # angle_space = [x[2] - config.max_angle_change, x[2] + config.max_angle_change]
+    #     # # check if the angles are in the range -pi, pi
+    #     # angle_space[0] = (angle_space[0] + math.pi) % (2 * math.pi) - math.pi
+    #     # angle_space[1] = (angle_space[1] + math.pi) % (2 * math.pi) - math.pi
+    #     # if angle_space[0] > angle_space[1]:
+    #     #     angle_space = [[angle_space[0], math.pi], [-math.pi, angle_space[1]]]
+    #     # else:
+    #     #     angle_space = [angle_space]
+    #     angle_space = get_robot_angles(x, config.max_angle_change)
+    #     return True, angle_space
+    # else:
+    # create a copy of the current state
+    x_copy = x.copy()
+    x_copy[2] += math.pi
+    x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
+    angle_space = compute_safe_angle_space(
+        intersection_points=intersection_points,
+        max_angle_change=config.max_angle_change,
+        x=x_copy,
+    )
 
-        if angle_space is not None:
-            # since angle_space was computed using the flipped angle
-            # we need to flip it so that we'll have a range compatible with current robot direction
-            angle_space = np.array(angle_space) + np.pi
-            # Make sure angle is within range of -π to π
-            angle_space = (angle_space + np.pi) % (2 * np.pi) - np.pi
-            new_angle_space = []
-            for a in angle_space:
-                if a[0] > a[1]:
-                    new_angle_space.extend([[a[0], math.pi], [-math.pi, a[1]]])
-                else:
-                    new_angle_space.append(a)
-            return True, new_angle_space
-        else:
-            return False, angle_space
+    if angle_space is not None:
+        # since angle_space was computed using the flipped angle
+        # we need to flip it so that we'll have a range compatible with current robot direction
+        angle_space = np.array(angle_space) + np.pi
+        # Make sure angle is within range of -π to π
+        angle_space = (angle_space + np.pi) % (2 * np.pi) - np.pi
+        new_angle_space = []
+        for a in angle_space:
+            if a[0] > a[1]:
+                new_angle_space.extend([[a[0], math.pi], [-math.pi, a[1]]])
+            else:
+                new_angle_space.append(a)
+        return True, new_angle_space
+    else:
+        # TODO attention I'm returning False and None
+        return False, angle_space
 
 
 def voronoi_vo(

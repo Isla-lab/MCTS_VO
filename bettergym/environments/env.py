@@ -1,20 +1,15 @@
 import math
 import random
-from re import T
 from copy import deepcopy
 from dataclasses import dataclass
 from math import atan2, cos, sin
 from typing import Any
 
 import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.animation import FuncAnimation
-from tqdm import tqdm
+
 from bettergym.agents.utils.vo import get_spaces
 from bettergym.better_gym import BetterGym
-
-from bettergym.environments.env_utils import check_coll_jit, dist_to_goal, check_coll_vectorized
-from experiment_utils import plot_frame, plot_frame2
+from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
 from mcts_utils import get_intersections_vectorized
 
 
@@ -106,8 +101,8 @@ class Env:
 
         self.reward = self.reward_grad
 
-        if collision_rwrd:
-            self.step = self.step_check_coll
+        # if collision_rwrd:
+        #     self.step = self.step_check_coll
         # else:
         #     self.step = self.step_no_check_coll
 
@@ -197,7 +192,8 @@ class Env:
         # return check_coll_jit(
         #     state.x, np.array(obs_pos), state.radius, np.array(obs_rad)
         # )
-        return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius, obs_size=np.array(obs_rad))
+        return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius,
+                                     obs_size=np.array(obs_rad))
 
     def generate_humans(self, robot_state):
         g1 = [self.config.bottom_limit, self.config.left_limit]
@@ -326,6 +322,30 @@ class Env:
             None,
         )
 
+    def step_no_check_coll(
+            self, action: np.ndarray
+    ) -> tuple[State, float, bool, Any, Any]:
+        """
+        Functions that computes all the things derived from a step
+        :param action: action performed by the agent
+        :return:
+        """
+        self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
+        self.state.x = self.robot_motion(self.state.x, action)
+        self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
+        collision = False
+        goal = self.dist_goal_t1 <= self.config.robot_radius
+        out_boundaries = self.check_out_boundaries(self.state)
+        reward = self.reward(collision, goal, out_boundaries)
+        # observation, reward, terminal, truncated, info
+        return (
+            self.state.copy(),
+            reward,
+            collision or goal or out_boundaries,
+            None,
+            None,
+        )
+
     def step_real(self, action: np.ndarray):
         state_copy = deepcopy(self.state)
         to_remove = []
@@ -345,8 +365,12 @@ class Env:
         self.state = state_copy
         return self.step_check_coll(action)
 
-    def step_sim(self, action: np.ndarray):
+    def step_sim_check_coll(self, action: np.ndarray):
         return self.step_check_coll(action)
+
+    def step_sim_no_check_coll(self, action: np.ndarray):
+        return self.step_no_check_coll(action)
+
 
     def reset(self):
         state = State(
@@ -382,7 +406,10 @@ class BetterEnv(BetterGym):
                 self.get_actions = self.get_actions_discrete_vo2
 
         if sim_env:
-            self.gym_env.step = self.gym_env.step_sim
+            if collision_rwrd:
+                self.gym_env.step = self.gym_env.step_sim_check_coll
+            else:
+                self.gym_env.step = self.gym_env.step_sim_no_check_coll
             self.set_state = self.set_state_sim
         else:
             self.gym_env.step = self.gym_env.step_real
@@ -471,26 +498,7 @@ class BetterEnv(BetterGym):
             velocity_condition = (velocity_space[0] <= actions[:, 0]) & (actions[:, 0] <= velocity_space[1])
             angle_condition = np.any((angle_spaces[:, 0] < actions[:, 1][:, np.newaxis]) &
                                      (actions[:, 1][:, np.newaxis] < angle_spaces[:, 1]), axis=1)
-            actions_copy = np.array(actions[velocity_condition & angle_condition], copy=True)
-        #     for idx, a in enumerate(actions):
-        #         safe = False
-        #         if velocity_space[0] <= a[0] <= velocity_space[1]:
-        #             # # TODO in a context with dynamic obstacles 0 velocity is not safe
-        #             # if a[0] == 0.0:
-        #             #     safe = True
-        #             # else:
-        #             #     for a_space in angle_spaces:
-        #             #         if a_space[0] < a[1] < a_space[1]:
-        #             #             safe = True
-        #             #             break
-        #             for a_space in angle_spaces:
-        #                 if a_space[0] < a[1] < a_space[1]:
-        #                     safe = True
-        #                     break
-        #         if not safe:
-        #             to_delete.append(idx)
-        #
-        # actions_copy = np.delete(actions_copy, to_delete, axis=0)
+            actions_copy = np.array(actions[velocity_condition & (angle_condition | (actions[:, 0] == 0.0))], copy=True)
         return actions_copy
 
     def set_state_sim(self, state: State) -> None:
@@ -498,36 +506,3 @@ class BetterEnv(BetterGym):
 
     def set_state_real(self, state: State) -> None:
         self.gym_env.state = deepcopy(state)
-
-# def main():
-#     dt_real = 1.0
-#     real_c = EnvConfig(
-#         dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=7, n_vel=10
-#     )
-#     env = BetterEnv(discrete_env=True, vo=True, config=real_c, collision_rwrd=True, sim_env=False)
-#     s0 = env.reset()
-#     trajectory = np.array(s0.x)
-#     goal = s0.goal
-#     obs = [s0.obstacles]
-#     s = s0
-#     for step_n in range(1000):
-#         print(f"Step Number {step_n}")
-#         s, r, terminal, truncated, env_info = env.step(state=s, action=[0.0, 0.0])
-#         trajectory = np.vstack((trajectory, s.x))  # store state history
-#         obs.append(s.obstacles)
-
-#     print("Creating Animation")
-#     fig, ax = plt.subplots()
-#     ani = FuncAnimation(
-#         fig,
-#         plot_frame2,
-#         fargs=(goal, real_c, obs, trajectory, ax),
-#         frames=tqdm(range(len(trajectory)), file=sys.stdout),
-#         save_count=None,
-#         cache_frame_data=False,
-#     )
-#     ani.save(f"debug/test_animation.gif", fps=150)
-#     plt.close(fig)
-
-# if __name__ == '__main__':
-#     main()

@@ -55,7 +55,7 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     else:
         # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(
-            intersection_points, x, obs_x, r1, config, disable_retro=True
+            intersection_points, x, obs_x, r1, config
         )
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1
@@ -97,7 +97,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     else:
         # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(
-            intersection_points, x, obs_x, r1, config, disable_retro=True
+            intersection_points, x, obs_x, r1, config
         )
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1
@@ -152,7 +152,7 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False):
         max_angle_change=config.max_angle_change,
         x=x,
     )
-    velocity_space = [0.0001, config.max_speed]
+    velocity_space = [0., config.max_speed]
 
     # No angle at positive velocity is safe
     if angle_space is None:
@@ -162,7 +162,7 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False):
 
         if retro_available:
             # If VO with negative speed is possible, use it
-            velocity_space = [config.min_speed, -0.0001]
+            velocity_space = [config.min_speed, 0.]
         else:
             # TODO: check if this is correct
             velocity_space = [0.0, 0.0]
@@ -172,70 +172,11 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False):
 
 
 def range_difference(rr, fr):
-    # # CASE 2 the forbidden range is all the robot angles
-    # if fr[0] <= rr[0] and fr[1] >= rr[1]:
-    #     # all angles collide
-    #     angle_space = None
-    # # CASE 4 the forbidden range starts in the robot angles and ends after
-    # elif rr[0] < fr[0] < rr[1] <= fr[1]:
-    #     angle_space = [
-    #         [rr[0], fr[0]]
-    #     ]
-    # # CASE 1 the forbidden range is inside the robot angles
-    # elif rr[0] < fr[0] < rr[1] and rr[0] < fr[1] < rr[1]:
-    #     angle_space = [
-    #         [rr[0], fr[0]],
-    #         [fr[1], rr[1]]
-    #     ]
-    # # CASE 3 the forbidden range starts before the robot angles and ends inside
-    # elif fr[0] <= rr[0] < fr[1] < rr[1]:
-    #     angle_space = [
-    #         [fr[1], rr[1]]
-    #     ]
-    # # CASE 5 no overlap
-    # elif (fr[0] >= rr[1] and fr[1] >= rr[1]) or (fr[0] <= rr[0] and fr[0] <= rr[0]):
-    #     angle_space = [rr]
-    # else:
-    #     raise Exception(f"The provided forbidden angles: {fr} does not match any case with "
-    #                     f"the following angles available to the robot: {rr}")
-
     rr = P.closed(rr[0], rr[1])
     fr = P.closed(fr[0], fr[1])
     angle_space = [list(r[1:3]) for r in P.to_data(rr - fr)]
     return angle_space if angle_space is not [()] else None
 
-
-def compute_safe_angle_space_old(intersection_points, max_angle_change, x):
-    robot_angles = get_robot_angles(x, max_angle_change)
-
-    # convert points into angles and define the forbidden angles space
-    forbidden_ranges = []
-    for idx in range(intersection_points.shape[2]):
-        point = intersection_points[:, :, idx]
-        if np.inf in point:
-            forbidden_ranges.extend(robot_angles)
-        elif not np.isnan(point).any():
-            p1, p2 = point
-            angle1 = math.atan2(p1[1] - x[1], p1[0] - x[0])
-            angle2 = math.atan2(p2[1] - x[1], p2[0] - x[0])
-            if angle1 > angle2:
-                forbidden_ranges.extend([[angle1, math.pi], [-math.pi, angle2]])
-            else:
-                forbidden_ranges.append([angle1, angle2])
-
-    new_ranges = []
-    for fr in forbidden_ranges:
-        for rr in robot_angles:
-            output = range_difference(rr, fr)
-            if output is not None:
-                new_ranges.extend(output)
-        robot_angles = deepcopy(new_ranges)
-        new_ranges = []
-
-    if len(robot_angles) == 0:
-        return None
-    else:
-        return robot_angles
 
 def compute_safe_angle_space(intersection_points, max_angle_change, x):
     robot_angles = get_robot_angles(x, max_angle_change)

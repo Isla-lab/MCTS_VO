@@ -174,6 +174,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),
         "reachGoal": int(reach_goal),
+        "maxNsteps": int(step_n == 1000),
         "meanSmoothVelocity": np.diff(trajectory[:, 3]).mean(),
         "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
         "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),

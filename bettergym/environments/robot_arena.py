@@ -4,9 +4,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from numba import njit
 
-from bettergym.agents.utils.vo import get_relative_velocity, get_spaces
+from bettergym.agents.utils.vo import get_spaces
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_jit
 from mcts_utils import get_intersections_vectorized
@@ -392,7 +391,7 @@ class BetterRobotArena(BetterGym):
         r1 = ROBOT_RADIUS + obs_rad
 
         # Calculate intersection points
-        intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
+        intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
         config = self.gym_env.config
         to_delete = []
         # If there are no intersection points
@@ -401,7 +400,12 @@ class BetterRobotArena(BetterGym):
         else:
             # convert intersection points into ranges of available velocities/angles
             angle_spaces, velocity_space = get_spaces(
-                intersection_points, x, obs_x, r1, config
+                intersection_points=intersection_points,
+                x=x,
+                obs=obs_x,
+                r1=r1,
+                r0=r0,
+                config=config
             )
 
             actions_copy = np.array(actions, copy=True)

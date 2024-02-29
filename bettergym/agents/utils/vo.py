@@ -33,14 +33,14 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     # v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r0 = VMAX + obs_x[:, 3] * dt
-    r1 = ROBOT_RADIUS + obs_rad
+    r1 = obs_x[:, 3] * dt + obs_rad
+    r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
 
     # Calculate intersection points
     # intersection_points = [
     #     get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
     # ]
-    intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
+    intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
     config = planner.environment.gym_env.config
     # If there are no intersection points
     if np.isnan(intersection_points).all():
@@ -55,7 +55,12 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     else:
         # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(
-            intersection_points, x, obs_x, r1, config
+            intersection_points=intersection_points,
+            x=x,
+            obs=obs_x,
+            r1=r1,
+            r0=r0,
+            config=config
         )
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1
@@ -82,7 +87,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     r1 = ROBOT_RADIUS + obs_rad
 
     # Calculate intersection points
-    intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
+    intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
     config = planner.environment.gym_env.config
     # If there are no intersection points
     if np.isnan(intersection_points).all():
@@ -97,7 +102,13 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     else:
         # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(
-            intersection_points, x, obs_x, r1, config
+            intersection_points=intersection_points,
+            x=x,
+            obs=obs_x,
+            r1=r1,
+            r0=r0,
+            config=config,
+            disable_retro=True
         )
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1
@@ -146,13 +157,20 @@ def sample(center, a_space, v_space, number):
         return sample_multiple_spaces(center, a_space, number, v_space)
 
 
-def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False):
+def get_spaces(intersection_points, x, obs, r0, r1, config, disable_retro=False, dist=None):
     angle_space = compute_safe_angle_space(
         intersection_points=intersection_points,
         max_angle_change=config.max_angle_change,
         x=x,
     )
     velocity_space = [0., config.max_speed]
+
+    if dist is not None and np.any(mask := dist < r1):
+        alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
+        P = (obs[mask, :2] - r1[mask]) * np.column_stack((np.cos(alpha), np.sin(alpha)))
+        Q = (x[:2] + r0[mask]) * np.column_stack((np.cos(alpha), np.sin(alpha)))
+        vmin = np.abs(P-Q) / config.dt
+        velocity_space[0] = np.max(vmin)
 
     # No angle at positive velocity is safe
     if angle_space is None:
@@ -225,25 +243,9 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
 def vo_negative_speed(obs, x, r1, config):
     VELOCITY = np.abs(config.min_speed)
     # v = get_relative_velocity(VELOCITY, obs, x)
-    r0 = VELOCITY + obs[:, 3] * config.dt
-    intersection_points = get_intersections_vectorized(x, obs, r0, r1)
+    r0 = np.full_like(r1, VELOCITY * config.dt + config.robot_radius)
+    intersection_points, _ = get_intersections_vectorized(x, obs, r0, r1)
 
-    # check if there are any intersections
-    # TODO this does not make sense, since we are checking for positive 0.1 keeping the direction
-    # if np.isnan(intersection_points).all():
-    #     # # return a list of angles to explore
-    #     # angle_space = [x[2] - config.max_angle_change, x[2] + config.max_angle_change]
-    #     # # check if the angles are in the range -pi, pi
-    #     # angle_space[0] = (angle_space[0] + math.pi) % (2 * math.pi) - math.pi
-    #     # angle_space[1] = (angle_space[1] + math.pi) % (2 * math.pi) - math.pi
-    #     # if angle_space[0] > angle_space[1]:
-    #     #     angle_space = [[angle_space[0], math.pi], [-math.pi, angle_space[1]]]
-    #     # else:
-    #     #     angle_space = [angle_space]
-    #     angle_space = get_robot_angles(x, config.max_angle_change)
-    #     return True, angle_space
-    # else:
-    # create a copy of the current state
     x_copy = x.copy()
     x_copy[2] += math.pi
     x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
@@ -302,6 +304,7 @@ def voronoi_vo(
     # If there are intersection points
     else:
         # convert intersection points into ranges of available velocities/angles
+        # TODO modify
         angle_space, velocity_space = get_spaces(
             intersection_points, x, obs, r1, config
         )
@@ -347,11 +350,11 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     # v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r0 = VMAX + obs_x[:, 3] * dt
-    r1 = ROBOT_RADIUS + obs_rad
+    r1 = obs_x[:, 3] * dt + obs_rad
+    r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
 
     # Calculate intersection points
-    intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
+    intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
 
     # Choose the best action using Voronoi VO
     actions = np.array([n.action for n in node.actions])
@@ -377,14 +380,14 @@ def uniform_random_vo(node, planner):
     VMAX = 0.3
 
     # Calculate velocities
-    # v = get_relative_velocity(VMAX, obs_x, x)
+    v = get_relative_velocity(VMAX, obs_x, x)
 
     # Calculate radii
-    r0 = VMAX + obs_x[:, 3] * dt
-    r1 = ROBOT_RADIUS + obs_rad
+    r1 = obs_x[:, 3] * dt + obs_rad
+    r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
 
     # Calculate intersection points
-    intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
+    intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
     config = planner.environment.gym_env.config
     # If there are no intersection points
     if np.isnan(intersection_points).all():
@@ -392,7 +395,13 @@ def uniform_random_vo(node, planner):
     else:
         # convert intersection points into ranges of available velocities/angles
         angle_space, velocity_space = get_spaces(
-            intersection_points, x, obs_x, r1, config
+            intersection_points=intersection_points,
+            x=x,
+            obs=obs_x,
+            r1=r1,
+            r0=r0,
+            config=config,
+            disable_retro=True
         )
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1

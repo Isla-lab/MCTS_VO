@@ -45,7 +45,7 @@ from mcts_utils import uniform_random
 
 DEBUG_DATA = False
 DEBUG_ANIMATION = False
-ANIMATION = False
+ANIMATION = True
 
 
 @dataclass(frozen=True)
@@ -201,8 +201,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     trajectories = [i["trajectories"] for i in infos]
     rollout_values = [i["rollout_values"] for i in infos]
 
-    with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
-        pickle.dump(trajectory, f)
+    # with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
+    #     pickle.dump(trajectory, f)
 
     if DEBUG_DATA:
         print("Saving Debug Data...")

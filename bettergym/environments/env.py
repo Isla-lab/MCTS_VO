@@ -477,11 +477,11 @@ class BetterEnv(BetterGym):
         # v = get_relative_velocity(VMAX, obs_x, x)
 
         # Calculate radii
-        r0 = VMAX + obs_x[:, 3] * dt
-        r1 = ROBOT_RADIUS + obs_rad
+        r1 = obs_x[:, 3] * dt + obs_rad
+        r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
 
         # Calculate intersection points
-        intersection_points = get_intersections_vectorized(x, obs_x, r0, r1)
+        intersection_points, dist = get_intersections_vectorized(x, obs_x, r0, r1)
         config = self.gym_env.config
         # to_delete = []
         # If there are no intersection points
@@ -489,8 +489,15 @@ class BetterEnv(BetterGym):
             return actions
         else:
             # convert intersection points into ranges of available velocities/angles
+            # TODO: add compenetration case
             angle_spaces, velocity_space = get_spaces(
-                intersection_points, x, obs_x, r1, config
+                intersection_points=intersection_points,
+                x=x,
+                obs=obs_x,
+                r1=r1,
+                r0=r0,
+                config=config,
+                dist=dist
             )
 
             # actions_copy = np.array(actions, copy=True)

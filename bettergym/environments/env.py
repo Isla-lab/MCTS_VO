@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+from bettergym.agents.utils.utils import get_robot_angles
 from bettergym.agents.utils.vo import get_spaces
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
@@ -371,7 +372,6 @@ class Env:
     def step_sim_no_check_coll(self, action: np.ndarray):
         return self.step_no_check_coll(action)
 
-
     def reset(self):
         state = State(
             x=np.array([self.config.left_limit + 2, 25.0, math.pi / 8.0, 0.0]),
@@ -441,14 +441,34 @@ class BetterEnv(BetterGym):
 
     def get_actions_discrete_vo2(self, state: State):
         config = self.gym_env.config
-        available_angles = np.linspace(
-            start=state.x[2] - config.max_angle_change,
-            stop=state.x[2] + config.max_angle_change,
-            num=config.n_angles,
-        )
+        feasibile_range = get_robot_angles(state.x, config.max_angle_change)
+        if len(feasibile_range) == 1:
+            available_angles = np.linspace(
+                start=state.x[2] - config.max_angle_change,
+                stop=state.x[2] + config.max_angle_change,
+                num=config.n_angles,
+            )
+        else:
+            range_sizes = np.linalg.norm(feasibile_range, axis=1)
+            proportion = range_sizes / np.sum(range_sizes)
+            div = proportion * config.n_angles
+            div[0] = np.floor(div[0])
+            div[1] = np.ceil(div[1])
+            div = div.astype(int)
+            available_angles1 = np.linspace(
+                start=feasibile_range[0][0],
+                stop=feasibile_range[0][1],
+                num=div[0]
+            )
+            available_angles2 = np.linspace(
+                start=feasibile_range[1][0],
+                stop=feasibile_range[1][1],
+                num=div[1]
+            )
+            available_angles = np.concatenate([available_angles1, available_angles2])
+
         if (curr_angle := state.x[2]) not in available_angles:
             available_angles = np.append(available_angles, curr_angle)
-        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
         available_velocities = np.linspace(
             start=config.min_speed, stop=config.max_speed, num=config.n_vel
         )
@@ -490,15 +510,26 @@ class BetterEnv(BetterGym):
         else:
             # convert intersection points into ranges of available velocities/angles
             # TODO: add compenetration case
-            angle_spaces, velocity_space = get_spaces(
+            angle_spaces, velocity_space, radial = get_spaces(
                 intersection_points=intersection_points,
                 x=x,
                 obs=obs_x,
                 r1=r1,
-                r0=r0,
                 config=config,
                 dist=dist
             )
+
+            if radial:
+                available_angles = angle_spaces[0][0]
+                print(f"IN RANGE: {any([space[0] <= available_angles[0] <= space[1] for space in feasibile_range])}")
+                actions = np.transpose(
+                    [
+                        np.tile(available_velocities, len(available_angles)),
+                        np.repeat(available_angles, len(available_velocities)),
+                    ]
+                )
+                velocity_condition = (velocity_space[0] <= actions[:, 0]) & (actions[:, 0] <= velocity_space[1])
+                return np.array(actions[velocity_condition], copy=True)
 
             # actions_copy = np.array(actions, copy=True)
             angle_spaces = np.array(angle_spaces)

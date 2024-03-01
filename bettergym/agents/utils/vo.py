@@ -54,14 +54,14 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
         )
     else:
         # convert intersection points into ranges of available velocities/angles
-        angle_space, velocity_space = get_spaces(
+        angle_space, velocity_space, radial = get_spaces(
             intersection_points=intersection_points,
             x=x,
             obs=obs_x,
             r1=r1,
-            r0=r0,
             config=config
         )
+
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1
         )[0]
@@ -101,12 +101,11 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
         )
     else:
         # convert intersection points into ranges of available velocities/angles
-        angle_space, velocity_space = get_spaces(
+        angle_space, velocity_space, radial = get_spaces(
             intersection_points=intersection_points,
             x=x,
             obs=obs_x,
             r1=r1,
-            r0=r0,
             config=config,
             disable_retro=True
         )
@@ -157,20 +156,22 @@ def sample(center, a_space, v_space, number):
         return sample_multiple_spaces(center, a_space, number, v_space)
 
 
-def get_spaces(intersection_points, x, obs, r0, r1, config, disable_retro=False, dist=None):
+def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dist=None):
     angle_space = compute_safe_angle_space(
         intersection_points=intersection_points,
         max_angle_change=config.max_angle_change,
         x=x,
     )
     velocity_space = [0., config.max_speed]
+    radial = False
 
     if dist is not None and np.any(mask := dist < r1):
         alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
-        P = (obs[mask, :2] - r1[mask]) * np.column_stack((np.cos(alpha), np.sin(alpha)))
-        Q = (x[:2] + r0[mask]) * np.column_stack((np.cos(alpha), np.sin(alpha)))
-        vmin = np.abs(P-Q) / config.dt
+        P = obs[mask, :2] - r1[mask] * np.column_stack((np.cos(alpha), np.sin(alpha)))
+        vmin = np.linalg.norm((P - x[:2]), ord=1) / config.dt
         velocity_space[0] = np.max(vmin)
+        angle_space = [[alpha, alpha]]
+        radial = True
 
     # No angle at positive velocity is safe
     if angle_space is None:
@@ -186,7 +187,7 @@ def get_spaces(intersection_points, x, obs, r0, r1, config, disable_retro=False,
             velocity_space = [0.0, 0.0]
             angle_space = get_robot_angles(x, config.max_angle_change)
 
-    return angle_space, velocity_space
+    return angle_space, velocity_space, radial
 
 
 def range_difference(rr, fr):
@@ -304,12 +305,12 @@ def voronoi_vo(
     # If there are intersection points
     else:
         # convert intersection points into ranges of available velocities/angles
-        # TODO modify
-        angle_space, velocity_space = get_spaces(
+        angle_space, velocity_space, radial = get_spaces(
             intersection_points, x, obs, r1, config
         )
 
         # Use Voronoi with probability 1-eps, otherwise sample random actions
+        # TODO modify to take into account the radial case
         if prob <= 1 - eps and len(actions) != 0:
             chosen = voronoi(
                 actions,
@@ -394,12 +395,11 @@ def uniform_random_vo(node, planner):
         return uniform_random(node, planner)
     else:
         # convert intersection points into ranges of available velocities/angles
-        angle_space, velocity_space = get_spaces(
+        angle_space, velocity_space, radial = get_spaces(
             intersection_points=intersection_points,
             x=x,
             obs=obs_x,
             r1=r1,
-            r0=r0,
             config=config,
             disable_retro=True
         )

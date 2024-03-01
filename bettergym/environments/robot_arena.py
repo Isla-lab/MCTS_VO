@@ -399,12 +399,11 @@ class BetterRobotArena(BetterGym):
             return actions
         else:
             # convert intersection points into ranges of available velocities/angles
-            angle_spaces, velocity_space = get_spaces(
+            angle_spaces, velocity_space, radial = get_spaces(
                 intersection_points=intersection_points,
                 x=x,
                 obs=obs_x,
                 r1=r1,
-                r0=r0,
                 config=config
             )
 

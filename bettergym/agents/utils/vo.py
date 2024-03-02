@@ -169,7 +169,7 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
         alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
         P = obs[mask, :2] - r1[mask] * np.column_stack((np.cos(alpha), np.sin(alpha)))
         vmin = np.linalg.norm((P - x[:2]), ord=1) / config.dt
-        velocity_space[0] = np.max(vmin)
+        velocity_space[0] = min(np.max(vmin), velocity_space[1])
         angle_space = [[alpha, alpha]]
         radial = True
 

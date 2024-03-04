@@ -5,6 +5,7 @@ import pickle
 import random
 import sys
 import time
+from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
 from typing import Callable
@@ -138,7 +139,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         actions.append(u)
         u_copy = np.array(u, copy=True)
         final_time = time.time() - initial_time
-        # infos.append(deepcopy(info))
+        infos.append(deepcopy(info))
 
         times.append(final_time)
         s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
@@ -223,7 +224,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             pickle.dump(obs, f)
 
     if DEBUG_ANIMATION:
-        print("Creating Tree Trajectories Animation...")
+        print("\nCreating Tree Trajectories Animation...")
         create_animation_tree_trajectory(
             goal, config, obs, exp_num, exp_name, rollout_values, trajectories
         )

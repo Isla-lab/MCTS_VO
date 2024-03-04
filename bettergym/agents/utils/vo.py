@@ -157,7 +157,7 @@ def sample(center, a_space, v_space, number):
 
 
 def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dist=None):
-    angle_space = compute_safe_angle_space(
+    angle_space, forbidden_ranges = compute_safe_angle_space(
         intersection_points=intersection_points,
         max_angle_change=config.max_angle_change,
         x=x,
@@ -169,7 +169,18 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
         alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
         P = obs[mask, :2] - r1[mask] * np.column_stack((np.cos(alpha), np.sin(alpha)))
         vmin = np.linalg.norm((P - x[:2]), ord=1) / config.dt
-        velocity_space[0] = min(np.max(vmin), velocity_space[1])
+
+        # if the robot is looking toward the obstacle center then negative speed
+        if any([space[0] <= x[2] <= space[1] for space in forbidden_ranges]):
+            velocity_space[0] = -0.1
+            velocity_space[1] = max(-np.max(vmin), velocity_space[0])
+        else:
+            # otherwise the robot is looking away from the obstacle center then positive speed
+            velocity_space[0] = min(np.max(vmin), velocity_space[1])
+            # compute the opposite of alpha
+            val = alpha + np.pi
+            alpha = (val + math.pi) % (2 * math.pi) - math.pi
+
         angle_space = [[alpha, alpha]]
         radial = True
 
@@ -236,10 +247,9 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
         new_ranges = []
 
     if len(robot_angles) == 0:
-        return None
+        return None, None
     else:
-        return robot_angles
-
+        return robot_angles, forbidden_ranges
 
 def vo_negative_speed(obs, x, r1, config):
     VELOCITY = np.abs(config.min_speed)
@@ -248,9 +258,10 @@ def vo_negative_speed(obs, x, r1, config):
     intersection_points, _ = get_intersections_vectorized(x, obs, r0, r1)
 
     x_copy = x.copy()
-    x_copy[2] += math.pi
+    val = x_copy[2] + np.pi
+    x_copy[2] = val
     x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
-    angle_space = compute_safe_angle_space(
+    angle_space, _ = compute_safe_angle_space(
         intersection_points=intersection_points,
         max_angle_change=config.max_angle_change,
         x=x_copy,

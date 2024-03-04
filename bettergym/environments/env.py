@@ -509,7 +509,6 @@ class BetterEnv(BetterGym):
             return actions
         else:
             # convert intersection points into ranges of available velocities/angles
-            # TODO: add compenetration case
             angle_spaces, velocity_space, radial = get_spaces(
                 intersection_points=intersection_points,
                 x=x,

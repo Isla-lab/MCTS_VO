@@ -44,7 +44,7 @@ from experiment_utils import (
 from mcts_utils import uniform_random
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = False
+DEBUG_ANIMATION = True
 ANIMATION = True
 
 
@@ -136,11 +136,9 @@ def run_experiment(experiment: ExperimentData, arguments):
         # gc.collect()
 
         actions.append(u)
-
-        # Clip action
         u_copy = np.array(u, copy=True)
         final_time = time.time() - initial_time
-        infos.append(info)
+        # infos.append(deepcopy(info))
 
         times.append(final_time)
         s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
@@ -201,8 +199,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     trajectories = [i["trajectories"] for i in infos]
     rollout_values = [i["rollout_values"] for i in infos]
 
-    # with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
-    #     pickle.dump(trajectory, f)
+    with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
+        pickle.dump(trajectory, f)
 
     if DEBUG_DATA:
         print("Saving Debug Data...")
@@ -221,6 +219,8 @@ def run_experiment(experiment: ExperimentData, arguments):
             pickle.dump(a, f)
         with open(f"debug/chosen_a_{exp_name}_{exp_num}.pkl", "wb") as f:
             pickle.dump(actions, f)
+        with open(f"debug/obs_{exp_name}_{exp_num}.pkl", "wb") as f:
+            pickle.dump(obs, f)
 
     if DEBUG_ANIMATION:
         print("Creating Tree Trajectories Animation...")

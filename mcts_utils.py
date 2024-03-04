@@ -60,8 +60,8 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
 
     # Compute intersection points
     intersection_points = compute_int_vectorized(
-        r1[intersecting],
         r0[intersecting],
+        r1[intersecting],
         d[intersecting],
         x_exp[0, :],
         obs_x[intersecting, 0],

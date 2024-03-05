@@ -134,10 +134,9 @@ def run_experiment(experiment: ExperimentData, arguments):
         u_copy = np.array(u, copy=True)
         final_time = time.time() - initial_time
         infos.append(deepcopy(info))
-        del info['q_values']
-        del info['actions']
-        del info['visits']
-        gc.collect()
+        # del info['q_values']
+        # del info['actions']
+        # del info['visits']
 
         times.append(final_time)
         s, r, terminal, truncated, env_info = real_env.step(s, u_copy)

@@ -1,12 +1,10 @@
 import argparse
 import gc
 import os
-import pickle
 import random
 import sys
 import time
 from dataclasses import dataclass
-from functools import partial
 from typing import Callable
 
 import numpy as np
@@ -17,22 +15,7 @@ from numba import njit
 from numpy import mean, std
 from tqdm import tqdm
 
-from bettergym.agents.planner_mcts import Mcts
-from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.planner_nmpc import Nmpc
-from bettergym.agents.utils.utils import (
-    voo,
-    towards_goal,
-    epsilon_normal_uniform, epsilon_uniform_uniform,
-)
-from bettergym.agents.utils.vo import (
-    sample_centered_robot_arena,
-    voo_vo,
-    towards_goal_vo,
-    uniform_random_vo,
-    epsilon_normal_uniform_vo,
-    epsilon_uniform_uniform_vo,
-)
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
     create_pedestrian_env,
@@ -40,13 +23,11 @@ from environment_creator import (
 from experiment_utils import (
     plot_frame2,
     print_and_notify,
-    create_animation_tree_trajectory,
 )
-from mcts_utils import uniform_random
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = False
-ANIMATION = False
+DEBUG_ANIMATION = True
+ANIMATION = True
 
 
 @dataclass(frozen=True)
@@ -108,11 +89,11 @@ def run_experiment(experiment: ExperimentData, arguments):
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
-        new_s = s.to_cartesian()
         initial_time = time.time()
+        new_s = s.to_cartesian()
         u, info = planner.plan(new_s)
-        final_time = time.time() - initial_time
         new_u = np.array([np.sqrt(u[0] ** 2 + u[1] ** 2), np.arctan2(u[0], u[1])])
+        final_time = time.time() - initial_time
         # del info['q_values']
         # del info['actions']
         # del info['visits']
@@ -123,7 +104,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         # Clip action
         # u_copy = np.array(u, copy=True)
 
-        infos.append(info)
+        # infos.append(deepcopy(info))
 
         times.append(final_time)
         s, r, terminal, truncated, env_info = real_env.step(s, new_u)
@@ -164,7 +145,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     }
     data = data | arguments.__dict__
     df = pd.Series(data)
-    df.to_csv(f"{exp_name}_{exp_num}.csv")
+    df.to_csv(f"nmpc_{exp_num}.csv")
 
     if ANIMATION:
         print("Creating Gif...")
@@ -177,41 +158,8 @@ def run_experiment(experiment: ExperimentData, arguments):
             save_count=None,
             cache_frame_data=False,
         )
-        ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=150)
+        ani.save(f"debug/trajectory_nmpc_{exp_num}.gif", fps=150)
         plt.close(fig)
-
-    trajectories = [i["trajectories"] for i in infos]
-    rollout_values = [i["rollout_values"] for i in infos]
-
-    with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
-        pickle.dump(trajectory, f)
-
-    if DEBUG_DATA:
-        print("Saving Debug Data...")
-        q_vals = [i["q_values"] for i in infos]
-        visits = [i["visits"] for i in infos]
-        a = [[an.action for an in i["actions"]] for i in infos]
-        with open(f"debug/trajectories_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(trajectories, f)
-        with open(f"debug/rollout_values_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(rollout_values, f)
-        with open(f"debug/visits_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(visits, f)
-        with open(f"debug/q_values_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(q_vals, f)
-        with open(f"debug/actions_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(a, f)
-        with open(f"debug/chosen_a_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(actions, f)
-
-    if DEBUG_ANIMATION:
-        print("Creating Tree Trajectories Animation...")
-        create_animation_tree_trajectory(
-            goal, config, obs, exp_num, exp_name, rollout_values, trajectories
-        )
-        # create_animation_tree_trajectory_w_steps(goal, config, obs, exp_num)
-    gc.collect()
-    print("Done")
 
 
 def argument_parser():
@@ -273,119 +221,15 @@ def argument_parser():
 
 
 def get_experiment_data(arguments):
-    # var_angle = 0.38 * 2
-    std_angle_rollout = arguments.stdRollout
-
-    if arguments.rollout == "normal_towards_goal":
-        if arguments.algorithm == "VO2":
-            rollout_policy = partial(
-                towards_goal_vo, std_angle_rollout=std_angle_rollout,
-            )
-        else:
-            rollout_policy = partial(towards_goal, std_angle_rollout=std_angle_rollout)
-    # elif arguments.rollout == "uniform_towards_goal":
-    #     rollout_policy = partial(uniform_towards_goal, amplitude=math.radians(arguments.amplitude))
-    elif arguments.rollout == "uniform":
-        if arguments.algorithm == "VO2":
-            rollout_policy = uniform_random_vo
-        else:
-            rollout_policy = uniform_random
-    elif arguments.rollout == "epsilon_uniform_uniform":
-        if arguments.algorithm == "VO2" or arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
-            rollout_policy = partial(
-                epsilon_uniform_uniform_vo,
-                std_angle_rollout=std_angle_rollout,
-                eps=arguments.eps_rollout,
-            )
-        else:
-            rollout_policy = partial(
-                epsilon_uniform_uniform,
-                std_angle_rollout=std_angle_rollout,
-                eps=arguments.eps_rollout,
-            )
-    elif arguments.rollout == "epsilon_normal_uniform":
-        if arguments.algorithm == "VO2":
-            rollout_policy = partial(
-                epsilon_normal_uniform_vo,
-                std_angle_rollout=std_angle_rollout,
-                eps=arguments.eps_rollout,
-            )
-        else:
-            rollout_policy = partial(
-                epsilon_normal_uniform,
-                std_angle_rollout=std_angle_rollout,
-                eps=arguments.eps_rollout,
-            )
-    else:
-        raise ValueError("rollout function not valid")
-
-    sample_centered = partial(sample_centered_robot_arena, std_angle=arguments.std)
-    if arguments.algorithm == "VOR":
-        # VORONOI + VO (albero + reward ostacoli)
-        return ExperimentData(
-            action_expansion_policy=partial(
-                voo_vo, eps=0.3, sample_centered=sample_centered
-            ),
-            rollout_policy=rollout_policy,
-            discrete=False,
-            obstacle_reward=True,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    elif arguments.algorithm == "VOO":
-        # VORONOI
-        return ExperimentData(
-            action_expansion_policy=partial(
-                voo,
-                eps=0.3,
-                sample_centered=sample_centered,
-            ),
-            rollout_policy=rollout_policy,
-            discrete=False,
-            obstacle_reward=True,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
-        # VANILLA
-        return ExperimentData(
-            action_expansion_policy=None,
-            rollout_policy=rollout_policy,
-            discrete=True,
-            obstacle_reward=True,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ALBERO":
-        # VANILLA
-        return ExperimentData(
-            vo=True,
-            action_expansion_policy=None,
-            rollout_policy=rollout_policy,
-            discrete=True,
-            obstacle_reward=True,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    else:
-        # VORONOI + VO (albero + rollout)
-        return ExperimentData(
-            action_expansion_policy=partial(
-                voo_vo,
-                eps=0.3,
-                sample_centered=sample_centered,
-            ),
-            rollout_policy=rollout_policy,
-            discrete=False,
-            obstacle_reward=False,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
+    return ExperimentData(
+        action_expansion_policy=None,
+        rollout_policy=None,
+        discrete=True,
+        obstacle_reward=True,
+        std_angle=None,
+        n_sim=None,
+        c=None,
+    )
 
 
 def main():

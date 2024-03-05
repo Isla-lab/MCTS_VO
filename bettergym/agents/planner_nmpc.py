@@ -157,4 +157,4 @@ class Nmpc(Planner):
         vel, _ = self.compute_velocity(
             initial_state.x[:2], copy.deepcopy(fixed_obstacles[mask]), initial_state.goal, copy.deepcopy(fixed_obst_radii[mask])
         )
-        return vel, _
+        return vel, None

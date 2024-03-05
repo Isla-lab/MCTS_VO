@@ -5,7 +5,6 @@ import pickle
 import random
 import sys
 import time
-from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
 from typing import Callable
@@ -20,6 +19,7 @@ from tqdm import tqdm
 
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.planner_mcts_apw import MctsApw
+from bettergym.agents.planner_nmpc import Nmpc
 from bettergym.agents.utils.utils import (
     voo,
     towards_goal,
@@ -45,8 +45,8 @@ from experiment_utils import (
 from mcts_utils import uniform_random
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = True
-ANIMATION = True
+DEBUG_ANIMATION = False
+ANIMATION = False
 
 
 @dataclass(frozen=True)
@@ -95,27 +95,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     s = s0
 
     obs = [s0.obstacles]
-    if not experiment.discrete:
-        planner = MctsApw(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env,
-            computational_budget=arguments.max_depth,
-            k=arguments.k,
-            alpha=arguments.alpha,
-            discount=0.99,
-            action_expansion_function=experiment.action_expansion_policy,
-            rollout_policy=experiment.rollout_policy,
-        )
-    else:
-        planner = Mcts(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env,
-            computational_budget=arguments.max_depth,
-            discount=0.99,
-            rollout_policy=experiment.rollout_policy,
-        )
+    planner = Nmpc(environment=real_env)
     print("Simulation Started")
     terminal = False
     rewards = []
@@ -128,19 +108,25 @@ def run_experiment(experiment: ExperimentData, arguments):
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
+        new_s = s.to_cartesian()
         initial_time = time.time()
-        u, info = planner.plan(s)
-        actions.append(u)
-        u_copy = np.array(u, copy=True)
+        u, info = planner.plan(new_s)
         final_time = time.time() - initial_time
-        infos.append(deepcopy(info))
-        del info['q_values']
-        del info['actions']
-        del info['visits']
-        gc.collect()
+        new_u = np.array([np.sqrt(u[0] ** 2 + u[1] ** 2), np.arctan2(u[0], u[1])])
+        # del info['q_values']
+        # del info['actions']
+        # del info['visits']
+        # gc.collect()
+
+        actions.append(new_u)
+
+        # Clip action
+        # u_copy = np.array(u, copy=True)
+
+        infos.append(info)
 
         times.append(final_time)
-        s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
+        s, r, terminal, truncated, env_info = real_env.step(s, new_u)
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
@@ -171,7 +157,6 @@ def run_experiment(experiment: ExperimentData, arguments):
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),
         "reachGoal": int(reach_goal),
-        "maxNsteps": int(step_n == 1000),
         "meanSmoothVelocity": np.diff(trajectory[:, 3]).mean(),
         "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
         "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
@@ -218,11 +203,9 @@ def run_experiment(experiment: ExperimentData, arguments):
             pickle.dump(a, f)
         with open(f"debug/chosen_a_{exp_name}_{exp_num}.pkl", "wb") as f:
             pickle.dump(actions, f)
-        with open(f"debug/obs_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(obs, f)
 
     if DEBUG_ANIMATION:
-        print("\nCreating Tree Trajectories Animation...")
+        print("Creating Tree Trajectories Animation...")
         create_animation_tree_trajectory(
             goal, config, obs, exp_num, exp_name, rollout_values, trajectories
         )

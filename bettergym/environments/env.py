@@ -83,6 +83,32 @@ class State:
             np.array(self.x, copy=True), self.goal, self.obstacles, self.radius
         )
 
+    def to_cartesian(self):
+        self_copy = deepcopy(self)
+        x, y, theta, v = self.x
+        vx = v * math.cos(theta)
+        vy = v * math.sin(theta)
+        self_copy.x = np.array([x, y, vx, vy])
+
+        if self.obstacles is not None:
+            for i, ob in enumerate(self.obstacles):
+                self_copy.obstacles[i] = ob.to_cartesian()
+
+        return self_copy
+
+    def to_polar(self):
+        self_copy = deepcopy(self)
+        x, y, vx, vy = self.x
+        v = np.sqrt(vx ** 2 + vy ** 2)
+        theta = np.arctan2(vy, vx)
+        self_copy.x = np.array([x, y, theta, v])
+
+        if self.obstacles is not None:
+            for i, ob in enumerate(self.obstacles):
+                self_copy.obstacles[i] = ob.to_polar()
+
+        return self_copy
+
 
 class Env:
     def __init__(self,

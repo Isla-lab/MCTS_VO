@@ -27,18 +27,16 @@ def update_state(x0, u, timestep):
 
 class Nmpc(Planner):
 
-    def __init__(self, environment: BetterGym, sim_time=150, obs_rad=0.2, gamma=0.99, horizon_lenght=40):
+    def __init__(self, environment: BetterGym, obs_rad=0.2, gamma=0.99, horizon_length=80):
         super().__init__(environment)
         config = environment.config
-        self.sim_time = sim_time
         self.timestep = config.dt
-        self.number_timestep = int(sim_time / config.dt)
         self.robot_radius = config.robot_radius
         self.obs_radius = obs_rad
         self.gamma = gamma
         self.vmax = config.max_speed
         self.vmin = config.min_speed
-        self.horizon_lenght = horizon_lenght
+        self.horizon_length = horizon_length
         self.nmpc_timestep = 1.0
         self.goal_cost = -100.
         self.coll_cost = 100.
@@ -48,7 +46,7 @@ class Nmpc(Planner):
         # print(x)
         # print("COMPUTING TRACKING COST")
         cost = 0.
-        for i in range(self.horizon_lenght):
+        for i in range(self.horizon_length):
             # cost += np.linalg.norm(x[2 * i: 2 * (i + 1)] - p_desired) / self.map_size / np.sqrt(2) * (self.gamma ** (i))
             cost += np.linalg.norm(x[2 * i: 2 * (i + 1)] - p_desired) / self.max_eudist * (self.gamma ** (i))
             if np.linalg.norm(x[2 * i: 2 * (i + 1)] - p_desired) < self.robot_radius:
@@ -70,7 +68,7 @@ class Nmpc(Planner):
     def total_collision_cost(self, robot, obstacles, obst_radii):
         # print("COMPUTING COLLISION COST")
         total_cost = 0
-        for i in range(self.horizon_lenght):
+        for i in range(self.horizon_length):
             # oc = []
             for j in range(np.shape(obstacles)[0]):
                 obstacle = obstacles[j]
@@ -109,7 +107,7 @@ class Nmpc(Planner):
         Computes control velocity of the copter
         """
         # u0 = np.array(2 * [0] * HORIZON_LENGTH)
-        u0 = np.zeros(2 * self.horizon_lenght, )
+        u0 = np.zeros(2 * self.horizon_length, )
         ub = [0, 0]
         lb = [0, 0]
         if (p_desired - robot_state)[0] > 0:
@@ -124,7 +122,7 @@ class Nmpc(Planner):
         else:
             lb[1] = -np.sqrt(2) / 2 * self.vmax
             ub[1] = -np.sqrt(2) / 2 * self.vmin
-        for h in range(self.horizon_lenght):
+        for h in range(self.horizon_length):
             u0[2 * h] = np.random.uniform(low=lb[0], high=ub[0])
             u0[2 * h + 1] = np.random.uniform(low=lb[1], high=ub[1])
 
@@ -132,7 +130,7 @@ class Nmpc(Planner):
             return self.total_cost(
                 u, robot_state, obstacle_predictions, p_desired, obst_radii)
 
-        bounds = Bounds(lb * self.horizon_lenght, ub * self.horizon_lenght)
+        bounds = Bounds(lb * self.horizon_length, ub * self.horizon_length)
 
         # res = brute(cost_fn, (slice(self.vmin*np.sqrt(2), self.vmax*np.sqrt(2), self.vmax/HORIZON_LENGTH), slice(self.vmin*np.sqrt(2), self.vmax*np.sqrt(2), self.vmax/HORIZON_LENGTH)))
         # res = differential_evolution(cost_fn, bounds=bounds, maxiter=50)

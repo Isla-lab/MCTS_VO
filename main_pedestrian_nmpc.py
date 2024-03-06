@@ -145,7 +145,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     }
     data = data | arguments.__dict__
     df = pd.Series(data)
-    df.to_csv(f"nmpc_{exp_num}.csv")
+    df.to_csv(f"nmpc_horizonLen:{planner.horizon_length}_{exp_num}.csv")
 
     if ANIMATION:
         print("Creating Gif...")
@@ -158,7 +158,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             save_count=None,
             cache_frame_data=False,
         )
-        ani.save(f"debug/trajectory_nmpc_{exp_num}.gif", fps=150)
+        ani.save(f"debug/trajectory_horizonLen:{planner.horizon_length}_nmpc_{exp_num}.gif", fps=150)
         plt.close(fig)
 
 

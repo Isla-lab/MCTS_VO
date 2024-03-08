@@ -71,6 +71,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     trajectory = np.array(s0.x)
     config = real_env.config
 
+    s0.goal = np.array([20, 40])
+
     goal = s0.goal
 
     s = s0
@@ -89,10 +91,11 @@ def run_experiment(experiment: ExperimentData, arguments):
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
+        print(f"{s.x[:2]}")
         initial_time = time.time()
         new_s = s.to_cartesian()
         u, info = planner.plan(new_s)
-        new_u = np.array([np.sqrt(u[0] ** 2 + u[1] ** 2), np.arctan2(u[0], u[1])])
+        new_u = np.array([np.sqrt(u[0] ** 2 + u[1] ** 2), np.arctan2(u[1], u[0])])
         final_time = time.time() - initial_time
         # del info['q_values']
         # del info['actions']

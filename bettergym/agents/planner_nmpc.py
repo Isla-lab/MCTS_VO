@@ -1,5 +1,5 @@
 import copy
-import time
+import math
 
 import numpy as np
 from scipy.optimize import dual_annealing, Bounds
@@ -9,7 +9,6 @@ from bettergym.better_gym import BetterGym
 from bettergym.environments.env import State
 
 
-# TODO dubito sia corretto
 def update_state(x0, u, timestep):
     """
     Computes the states of the system after applying a sequence of control signals u on
@@ -40,7 +39,11 @@ class Nmpc(Planner):
         self.nmpc_timestep = 1.0
         self.goal_cost = -100.
         self.coll_cost = 100.
-        self.max_eudist = 141.4213562373095
+        bl_corner = np.array([config.bottom_limit, config.left_limit])
+        ur_corner = np.array([config.upper_limit, config.right_limit])
+        self.max_eudist = math.hypot(
+            ur_corner[0] - bl_corner[0], ur_corner[1] - bl_corner[1]
+        )
 
     def tracking_cost_discrete(self, x, p_desired):
         # print(x)
@@ -48,9 +51,9 @@ class Nmpc(Planner):
         cost = 0.
         for i in range(self.horizon_length):
             # cost += np.linalg.norm(x[2 * i: 2 * (i + 1)] - p_desired) / self.map_size / np.sqrt(2) * (self.gamma ** (i))
-            cost += np.linalg.norm(x[2 * i: 2 * (i + 1)] - p_desired) / self.max_eudist * (self.gamma ** (i))
+            cost += (np.linalg.norm(x[2 * i: 2 * (i + 1)] - p_desired) / self.max_eudist) * (self.gamma ** i)
             if np.linalg.norm(x[2 * i: 2 * (i + 1)] - p_desired) < self.robot_radius:
-                cost += self.goal_cost * (self.gamma ** (i))
+                cost += self.goal_cost * (self.gamma ** i)
                 break
         return cost
 
@@ -61,26 +64,17 @@ class Nmpc(Planner):
         d = np.linalg.norm(x0 - x1)
         # cost = Qc / (1 + np.exp(kappa * (d - ROBOT_RADIUS - OBS_RADIUS)))
         cost = 0
-        if d <= self.robot_radius + rad:
+        if d <= self.robot_radius:
             cost = self.coll_cost
         return cost
 
     def total_collision_cost(self, robot, obstacles, obst_radii):
-        # print("COMPUTING COLLISION COST")
         total_cost = 0
         for i in range(self.horizon_length):
-            # oc = []
             for j in range(np.shape(obstacles)[0]):
                 obstacle = obstacles[j]
-                # print(obstacle)
                 rob = robot[2 * i: 2 * i + 2]
                 total_cost += self.collision_cost(rob, obstacle[:2], obst_radii[j])
-                # if total_cost > 0:
-                #     # print(total_cost * (GAMMA**(i)))
-                #     return total_cost * (GAMMA ** (i))
-                # oc.append(collision_cost(rob, obs))
-            # total_cost += np.max(oc)
-        # print(total_cost)
         return total_cost
 
     def total_cost(self, u, robot_state, obstacle_predictions, p_desired, obst_radii):
@@ -131,13 +125,7 @@ class Nmpc(Planner):
                 u, robot_state, obstacle_predictions, p_desired, obst_radii)
 
         bounds = Bounds(lb * self.horizon_length, ub * self.horizon_length)
-
-        # res = brute(cost_fn, (slice(self.vmin*np.sqrt(2), self.vmax*np.sqrt(2), self.vmax/HORIZON_LENGTH), slice(self.vmin*np.sqrt(2), self.vmax*np.sqrt(2), self.vmax/HORIZON_LENGTH)))
-        # res = differential_evolution(cost_fn, bounds=bounds, maxiter=50)
-        # print("OPTIMIZING")
         res = dual_annealing(cost_fn, bounds=bounds, maxiter=50, no_local_search=True)
-        # res = minimize(cost_fn, u0, method='Nelder-Mead', bounds=bounds)
-        # res = minimize(cost_fn, u0, bounds=bounds)
 
         velocity = res.x[:2]
         # print("FOUND OPTIMUM WITH COST " + str(res.fun))
@@ -147,12 +135,11 @@ class Nmpc(Planner):
         # compute velocity using nmpc
         fixed_obstacles = np.array([o.x for o in initial_state.obstacles])
         fixed_obst_radii = np.array([o.radius for o in initial_state.obstacles])
-        # obstacles = copy.deepcopy(fixed_obstacles)
-        # obst_radii = copy.deepcopy(fixed_obst_radii)
-        dist = np.hypot(fixed_obstacles[:, 0] - initial_state.x[0], fixed_obstacles[:, 1] - initial_state.x[1])
-        # obstac
-        mask = dist < 5
+        # dist = np.hypot(fixed_obstacles[:, 0] - initial_state.x[0], fixed_obstacles[:, 1] - initial_state.x[1])
+        # mask = dist < 5
         vel, _ = self.compute_velocity(
-            initial_state.x[:2], copy.deepcopy(fixed_obstacles[mask]), initial_state.goal, copy.deepcopy(fixed_obst_radii[mask])
+            # initial_state.x[:2], copy.deepcopy(fixed_obstacles[mask]), initial_state.goal,
+            initial_state.x[:2], copy.deepcopy(fixed_obstacles), initial_state.goal,
+            copy.deepcopy(fixed_obst_radii)
         )
         return vel, None

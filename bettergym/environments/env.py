@@ -546,7 +546,8 @@ class BetterEnv(BetterGym):
 
             if radial:
                 available_angles = angle_spaces[0][0]
-                print(f"IN RANGE: {any([space[0] <= available_angles[0] <= space[1] for space in feasibile_range])}")
+                in_range = any([space[0] <= available_angles[0] <= space[1] for space in feasibile_range])
+                print(f"IN RANGE: {in_range}")
                 actions = np.transpose(
                     [
                         np.tile(available_velocities, len(available_angles)),

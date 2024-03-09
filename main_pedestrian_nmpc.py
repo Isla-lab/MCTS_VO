@@ -70,9 +70,6 @@ def run_experiment(experiment: ExperimentData, arguments):
     s0, _ = real_env.reset()
     trajectory = np.array(s0.x)
     config = real_env.config
-
-    s0.goal = np.array([20, 40])
-
     goal = s0.goal
 
     s = s0

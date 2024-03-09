@@ -156,6 +156,16 @@ def sample(center, a_space, v_space, number):
         return sample_multiple_spaces(center, a_space, number, v_space)
 
 
+def angle_distance(angle1, angle2):
+    # Compute the absolute difference between the angles
+    diff = abs(angle1 - angle2)
+
+    # Ensure the shortest distance is used by considering wrap-around
+    diff = min(diff, 2 * math.pi - diff)
+
+    return diff
+
+
 def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dist=None):
     angle_space, forbidden_ranges = compute_safe_angle_space(
         intersection_points=intersection_points,
@@ -171,15 +181,24 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
         vmin = np.linalg.norm((P - x[:2]), ord=1) / config.dt
 
         # if the robot is looking toward the obstacle center then negative speed
-        if any([space[0] <= x[2] <= space[1] for space in forbidden_ranges]):
-            velocity_space[0] = -0.1
-            velocity_space[1] = max(-np.max(vmin), velocity_space[0])
-        else:
-            # otherwise the robot is looking away from the obstacle center then positive speed
-            velocity_space[0] = min(np.max(vmin), velocity_space[1])
-            # compute the opposite of alpha
-            val = alpha + np.pi
-            alpha = (val + math.pi) % (2 * math.pi) - math.pi
+
+        # vspaces = [negative_vel, positive_vel]
+        vspaces = [[-0.1, max(-np.max(vmin), config.min_speed)],
+                   [min(np.max(vmin), velocity_space[1]), config.max_speed]]
+        alphas = (np.array([alpha, alpha + np.pi]) + math.pi) % (2 * math.pi) - math.pi
+        angle_dist = [angle_distance(x[2], alphas[0]), angle_distance(x[2], alphas[1])]
+        idx = np.argmin(angle_dist)
+        velocity_space = vspaces[idx]
+        alpha = alphas[idx]
+        # if any([space[0] <= x[2] <= space[1] for space in forbidden_ranges]):
+        #     velocity_space[0] = -0.1
+        #     velocity_space[1] = max(-np.max(vmin), velocity_space[0])
+        # else:
+        #     # otherwise the robot is looking away from the obstacle center then positive speed
+        #     velocity_space[0] = min(np.max(vmin), velocity_space[1])
+        #     # compute the opposite of alpha
+        #     val = alpha + np.pi
+        #     alpha = (val + math.pi) % (2 * math.pi) - math.pi
 
         angle_space = [[alpha, alpha]]
         radial = True
@@ -222,6 +241,9 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
     if new_points.shape[0] != 0:
         if len(new_points.shape) == 1:
             new_points = np.expand_dims(new_points, axis=0)
+        if new_points.shape[1] > 4:
+            # more than an intersection
+            new_points = np.vstack((new_points[:, 0::2], new_points[:, 1::2]))
         p1 = new_points[:, :2]
         p2 = new_points[:, 2:]
         vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
@@ -250,6 +272,7 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
         return None, None
     else:
         return robot_angles, forbidden_ranges
+
 
 def vo_negative_speed(obs, x, r1, config):
     VELOCITY = np.abs(config.min_speed)

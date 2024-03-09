@@ -138,6 +138,6 @@ class Nmpc(Planner):
         dist = np.hypot(fixed_obstacles[:, 0] - initial_state.x[0], fixed_obstacles[:, 1] - initial_state.x[1])
         mask = dist < 5
         vel, _ = self.compute_velocity(
-            initial_state.x[:2], copy.deepcopy(fixed_obstacles[mask]), initial_state.goal, copy.deepcopy(fixed_obst_radii[[mask]])
+            initial_state.x[:2], copy.deepcopy(fixed_obstacles[mask]), initial_state.goal, copy.deepcopy(fixed_obst_radii[mask])
         )
         return vel, None

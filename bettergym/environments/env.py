@@ -28,16 +28,16 @@ class EnvConfig:
     # Max and Min U[1]
     max_angle_change: float = None  # [rad/s]
 
-    max_speed_person: float = 1.0  # [m/s]
+    max_speed_person: float = 0.3  # [m/s]
 
     dt: float = 1.0  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
     obs_size: float = 0.2
 
     bottom_limit: float = 0.0
-    upper_limit: float = 100.0
+    upper_limit: float = 10.0
 
-    right_limit: float = 100.0
+    right_limit: float = 10.0
     left_limit: float = 0.0
 
     n_vel: int = None
@@ -53,7 +53,7 @@ class EnvConfig:
     speed_cost_gain = 0.0
     obstacle_cost_gain = 100.
     robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
-    num_humans: int = 200
+    num_humans: int = 40
 
 
 class State:
@@ -138,61 +138,16 @@ class Env:
         return euclidean_distance <= threshold_distance
 
     def move_human(self, human_state: State, time_step: float):
-        rand_num = (random.random() - 0.5) * 0.1
-        heading_angle = deepcopy(human_state.x[2])
-        # First Quadrant
-        if human_state.goal[0] >= human_state.x[0] and human_state.goal[1] >= human_state.x[1]:
-            if human_state.goal[0] == human_state.x[0]:
-                new_x = human_state.x[0]
-                new_y = human_state.x[1] + (human_state.x[3]) * time_step + rand_num
-            elif human_state.goal[1] == human_state.x[1]:
-                new_x = human_state.x[0] + (human_state.x[3]) * time_step + rand_num
-                new_y = human_state.x[1]
-            else:
-                heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
-                                      (human_state.goal[0] - human_state.x[0]))
-                new_x = human_state.x[0] + ((human_state.x[3]) * time_step + rand_num) * cos(heading_angle)
-                new_y = human_state.x[1] + ((human_state.x[3]) * time_step + rand_num) * sin(heading_angle)
-        # Second Quadrant
-        elif human_state.goal[0] <= human_state.x[0] and human_state.goal[1] >= human_state.x[1]:
-            if human_state.goal[0] == human_state.x[0]:
-                new_x = human_state.x[0]
-                new_y = human_state.x[1] + (human_state.x[3]) * time_step + rand_num
-            elif human_state.goal[1] == human_state.x[1]:
-                new_x = human_state.x[0] - (human_state.x[3]) * time_step - rand_num
-                new_y = human_state.x[1]
-            else:
-                heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
-                                      (human_state.goal[0] - human_state.x[0]))
-                new_x = human_state.x[0] - ((human_state.x[3]) * time_step + rand_num) * cos(heading_angle)
-                new_y = human_state.x[1] - ((human_state.x[3]) * time_step + rand_num) * sin(heading_angle)
-        # Third Quadrant
-        elif human_state.goal[0] <= human_state.x[0] and human_state.goal[1] <= human_state.x[1]:
-            if human_state.goal[0] == human_state.x[0]:
-                new_x = human_state.x[0]
-                new_y = human_state.x[1] - (human_state.x[3]) * time_step - rand_num
-            elif human_state.goal[1] == human_state.x[1]:
-                new_x = human_state.x[0] - (human_state.x[3]) * time_step - rand_num
-                new_y = human_state.x[1]
-            else:
-                heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
-                                      (human_state.goal[0] - human_state.x[0]))
-                new_x = human_state.x[0] - ((human_state.x[3]) * time_step + rand_num) * cos(heading_angle)
-                new_y = human_state.x[1] - ((human_state.x[3]) * time_step + rand_num) * sin(heading_angle)
-        # Fourth Quadrant
-        # elif human_state.goal[0] >= human_state.x[0] and human_state.goal[1] <= human_state.x[1]:
-        else:
-            if human_state.goal[0] == human_state.x[0]:
-                new_x = human_state.x[0]
-                new_y = human_state.x[1] - (human_state.x[3]) * time_step - rand_num
-            elif human_state.goal[1] == human_state.x[1]:
-                new_x = human_state.x[0] - (human_state.x[3]) * time_step + rand_num
-                new_y = human_state.x[1]
-            else:
-                heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
-                                      (human_state.goal[0] - human_state.x[0]))
-                new_x = human_state.x[0] + ((human_state.x[3]) * time_step + rand_num) * cos(heading_angle)
-                new_y = human_state.x[1] + ((human_state.x[3]) * time_step + rand_num) * sin(heading_angle)
+        rand_num = (random.random() - 0.5)
+        # rand_num = (random.random() - 0.5) * 0.1
+        # heading_angle = deepcopy(human_state.x[2])
+        human_vel = random.choices([self.config.max_speed_person, self.config.max_speed_person/2 + rand_num * 0.1])[0]
+        # human_vel = 0.3
+
+        heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
+                              (human_state.goal[0] - human_state.x[0])) + rand_num
+        new_x = human_state.x[0] + (human_vel * time_step) * cos(heading_angle)
+        new_y = human_state.x[1] + (human_vel * time_step) * sin(heading_angle)
 
         new_x = np.clip(new_x, self.config.left_limit, self.config.right_limit)
         new_y = np.clip(new_y, self.config.bottom_limit, self.config.upper_limit)
@@ -241,7 +196,7 @@ class Env:
         for _ in range(self.config.num_humans):
             human = generate_human_state()
             while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1],
-                                                         5.0):
+                                                         1.5):
                 human = generate_human_state()
             humans.append(human)
 
@@ -383,7 +338,7 @@ class Env:
                                                           state_copy.obstacles[human_idx].x[1],
                                                           state_copy.obstacles[human_idx].goal[0],
                                                           state_copy.obstacles[human_idx].goal[1],
-                                                          2):
+                                                          1):
                     to_remove.append(human_idx)
                     break
         # remove obstacles if near goal
@@ -400,8 +355,8 @@ class Env:
 
     def reset(self):
         state = State(
-            x=np.array([self.config.left_limit + 2, 25.0, math.pi / 8.0, 0.0]),
-            goal=np.array([self.config.right_limit - 2, 75.0]),
+            x=np.array([1, 1, math.pi / 8.0, 0.0]),
+            goal=np.array([9., 9.]),
             obstacles=None,
             radius=self.config.robot_radius,
         )

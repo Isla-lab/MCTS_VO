@@ -67,8 +67,8 @@ def plot_frame2(i, goal, config, obs, traj, ax):
 
     # ax.plot([70, 70], [100, 250], 'k-', lw=2)
 
-    ax.set_xlim([config.left_limit-2, config.right_limit+2])
-    ax.set_ylim([config.bottom_limit-2, config.upper_limit+2])
+    ax.set_xlim([config.left_limit-0.5, config.right_limit+0.5])
+    ax.set_ylim([config.bottom_limit-0.5, config.upper_limit+0.5])
     # ax.axis("equal")
     # ax.grid(True)
     # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")

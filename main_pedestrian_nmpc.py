@@ -61,9 +61,9 @@ def run_experiment(experiment: ExperimentData, arguments):
     real_env, sim_env = create_pedestrian_env(
         discrete=experiment.discrete,
         rwrd_in_sim=experiment.obstacle_reward,
-        out_boundaries_rwrd=arguments.rwrd,
-        n_vel=arguments.v,
-        n_angles=arguments.a,
+        out_boundaries_rwrd=True,
+        n_vel=10,
+        n_angles=10,
         vo=experiment.vo
     )
 
@@ -75,7 +75,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     s = s0
 
     obs = [s0.obstacles]
-    planner = Nmpc(environment=real_env)
+    planner = Nmpc(environment=real_env, horizon_length=arguments.horizon)
     print("Simulation Started")
     terminal = False
     rewards = []
@@ -167,55 +167,10 @@ def argument_parser():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
-        "--algorithm", default="vanilla", type=str, help="The algorithm to run"
-    )
-    parser.add_argument(
-        "--nsim",
-        default=1000,
-        type=int,
-        help="The number of simulation the algorithm will run",
-    )
-    parser.add_argument("--rwrd", default=-100, type=int, help="")
-    parser.add_argument("--dt", default=0.2, type=float, help="")
-    parser.add_argument("--std", default=0.38 * 2, type=float, help="")
-    parser.add_argument("--stdRollout", default=0.5, type=float, help="")
-    parser.add_argument("--amplitude", default=1, type=float, help="")
-    parser.add_argument("--c", default=1, type=float, help="")
-    parser.add_argument("--rollout", default="normal_towards_goal", type=str, help="")
-    parser.add_argument("--alpha", default=0.1, type=float, help="")
-    parser.add_argument("--k", default=50, type=float, help="")
-    parser.add_argument(
-        "--a", default=10, type=int, help="number of discretization of angles"
-    )
-    parser.add_argument(
-        "--v", default=10, type=int, help="number of discretization of velocities"
-    )
-    parser.add_argument(
         "--num", default=1, type=int, help="number of experiments to run"
     )
     parser.add_argument(
-        "--eps_rollout",
-        default=0.1,
-        type=float,
-        help="Percentage of Uniform Rollout in Rollout",
-    )
-    parser.add_argument(
-        "--max_depth",
-        default=100,
-        type=int,
-        help="Maximum Depth of the tree",
-    )
-    parser.add_argument(
-        "--env",
-        default="EASY",
-        type=str,
-        help="Environment",
-    )
-    parser.add_argument(
-        "--start",
-        default="corner",
-        type=str,
-        help="Where to start",
+        "--horizon", default=80, type=int, help="number of experiments to run"
     )
     return parser
 

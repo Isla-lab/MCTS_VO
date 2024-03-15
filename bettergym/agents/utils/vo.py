@@ -190,15 +190,6 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
         idx = np.argmin(angle_dist)
         velocity_space = vspaces[idx]
         alpha = alphas[idx]
-        # if any([space[0] <= x[2] <= space[1] for space in forbidden_ranges]):
-        #     velocity_space[0] = -0.1
-        #     velocity_space[1] = max(-np.max(vmin), velocity_space[0])
-        # else:
-        #     # otherwise the robot is looking away from the obstacle center then positive speed
-        #     velocity_space[0] = min(np.max(vmin), velocity_space[1])
-        #     # compute the opposite of alpha
-        #     val = alpha + np.pi
-        #     alpha = (val + math.pi) % (2 * math.pi) - math.pi
 
         angle_space = [[alpha, alpha]]
         radial = True
@@ -232,8 +223,8 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
 
     # convert points into angles and define the forbidden angles space
     forbidden_ranges = []
-    none_points = np.isnan(intersection_points)
-    inf_points = np.isinf(intersection_points)
+    none_points = np.isnan(intersection_points).all(axis=1)
+    inf_points = np.isinf(intersection_points).all(axis=1)
     if np.any(inf_points):
         forbidden_ranges.extend(robot_angles)
 
@@ -241,9 +232,6 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
     if new_points.shape[0] != 0:
         if len(new_points.shape) == 1:
             new_points = np.expand_dims(new_points, axis=0)
-        if new_points.shape[1] > 4:
-            # more than an intersection
-            new_points = np.vstack((new_points[:, 0::2], new_points[:, 1::2]))
         p1 = new_points[:, :2]
         p2 = new_points[:, 2:]
         vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])

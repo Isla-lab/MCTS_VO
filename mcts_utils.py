@@ -40,7 +40,7 @@ def compute_int_vectorized(r0, r1, d, x0, x1, y0, y1):
     x4 = x2 - h * (y1 - y0) / d
     y4 = y2 + h * (x1 - x0) / d
 
-    return np.array([(x3, y3), (x4, y4)])
+    return np.column_stack((np.column_stack((x3, y3)), np.column_stack((x4, y4))))
 
 
 def get_intersections_vectorized(x, obs_x, r0, r1):
@@ -69,8 +69,9 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
         obs_x[intersecting, 1],
     )
 
-    output_vec = np.empty((2, 2, len(d)))
+    output_vec = np.empty((len(d), 4))
     output_vec[:] = None
-    output_vec[:, :, np.logical_or(one_within_other, coincident)] = np.inf
-    output_vec[:, :, intersecting] = intersection_points
+    output_vec[np.logical_or(one_within_other, coincident), :] = np.inf
+    output_vec[intersecting, :] = intersection_points
+
     return output_vec, d

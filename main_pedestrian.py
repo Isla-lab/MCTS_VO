@@ -45,8 +45,8 @@ from experiment_utils import (
 from mcts_utils import uniform_random
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = True
-ANIMATION = True
+DEBUG_ANIMATION = False
+ANIMATION = False
 
 
 @dataclass(frozen=True)

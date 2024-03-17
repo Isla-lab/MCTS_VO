@@ -68,29 +68,35 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
 
 
 def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
-    # Extract obstacle information
-    obstacles = node.state.obstacles
-    obs_x = np.array([ob.x for ob in obstacles])
-    obs_rad = np.array([ob.radius for ob in obstacles])
-
-    # Extract robot information
-    x = node.state.x
-    dt = planner.environment.config.dt
-    ROBOT_RADIUS = planner.environment.config.robot_radius
-    VMAX = 0.3
-
-    # Calculate velocities
-    # v = get_relative_velocity(VMAX, obs_x, x)
-
-    # Calculate radii
-    r0 = VMAX + obs_x[:, 3] * dt
-    r1 = ROBOT_RADIUS + obs_rad
-
-    # Calculate intersection points
-    intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
     config = planner.environment.gym_env.config
+    x = node.state.x
+    flag = False
+
+    if len(node.state.obstacles) == 0:
+        flag = True
+    else:
+        # Extract obstacle information
+        obstacles = node.state.obstacles
+        obs_x = np.array([ob.x for ob in obstacles])
+        obs_rad = np.array([ob.radius for ob in obstacles])
+
+        # Extract robot information
+        dt = planner.environment.config.dt
+        ROBOT_RADIUS = planner.environment.config.robot_radius
+        VMAX = 0.3
+
+        # Calculate velocities
+        # v = get_relative_velocity(VMAX, obs_x, x)
+
+        # Calculate radii
+        r0 = VMAX + obs_x[:, 3] * dt
+        r1 = ROBOT_RADIUS + obs_rad
+
+        # Calculate intersection points
+        intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
+
     # If there are no intersection points
-    if np.isnan(intersection_points).all():
+    if flag or np.isnan(intersection_points).all():
         return compute_uniform_towards_goal_jit(
             x=x,
             goal=node.state.goal,
@@ -391,29 +397,31 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
 
 
 def uniform_random_vo(node, planner):
-    # Extract obstacle information
-    obstacles = node.state.obstacles
-    obs_x = np.array([ob.x for ob in obstacles])
-    obs_rad = np.array([ob.radius for ob in obstacles])
-
-    # Extract robot information
-    x = node.state.x
-    dt = planner.environment.config.dt
-    ROBOT_RADIUS = planner.environment.config.robot_radius
-    VMAX = 0.3
-
-    # Calculate velocities
-    v = get_relative_velocity(VMAX, obs_x, x)
-
-    # Calculate radii
-    r1 = obs_x[:, 3] * dt + obs_rad
-    r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
-
-    # Calculate intersection points
-    intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
+    flag = False
     config = planner.environment.gym_env.config
+    if len(node.state.obstacles) == 0:
+        flag = True
+    else:
+        # Extract obstacle information
+        obstacles = node.state.obstacles
+        obs_x = np.array([ob.x for ob in obstacles])
+        obs_rad = np.array([ob.radius for ob in obstacles])
+
+        # Extract robot information
+        x = node.state.x
+        dt = planner.environment.config.dt
+        ROBOT_RADIUS = planner.environment.config.robot_radius
+        VMAX = 0.3
+
+        # Calculate radii
+        r1 = obs_x[:, 3] * dt + obs_rad
+        r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
+
+        # Calculate intersection points
+        intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
+
     # If there are no intersection points
-    if np.isnan(intersection_points).all():
+    if flag or np.isnan(intersection_points).all():
         return uniform_random(node, planner)
     else:
         # convert intersection points into ranges of available velocities/angles

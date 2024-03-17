@@ -462,31 +462,34 @@ class BetterEnv(BetterGym):
                 np.repeat(available_angles, len(available_velocities)),
             ]
         )
+        flag = False
+        if len(state.obstacles) == 0:
+            flag = True
+        else:
+            # Extract obstacle information
+            obstacles = state.obstacles
+            obs_x = np.array([ob.x for ob in obstacles])
+            obs_rad = np.array([ob.radius for ob in obstacles])
 
-        # Extract obstacle information
-        obstacles = state.obstacles
-        obs_x = np.array([ob.x for ob in obstacles])
-        obs_rad = np.array([ob.radius for ob in obstacles])
+            # Extract robot information
+            x = state.x
+            dt = self.config.dt
+            ROBOT_RADIUS = self.config.robot_radius
+            VMAX = 0.3
 
-        # Extract robot information
-        x = state.x
-        dt = self.config.dt
-        ROBOT_RADIUS = self.config.robot_radius
-        VMAX = 0.3
+            # Calculate velocities
+            # v = get_relative_velocity(VMAX, obs_x, x)
 
-        # Calculate velocities
-        # v = get_relative_velocity(VMAX, obs_x, x)
+            # Calculate radii
+            r1 = obs_x[:, 3] * dt + obs_rad
+            r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
 
-        # Calculate radii
-        r1 = obs_x[:, 3] * dt + obs_rad
-        r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
-
-        # Calculate intersection points
-        intersection_points, dist = get_intersections_vectorized(x, obs_x, r0, r1)
-        config = self.gym_env.config
-        # to_delete = []
-        # If there are no intersection points
-        if np.isnan(intersection_points).all():
+            # Calculate intersection points
+            intersection_points, dist = get_intersections_vectorized(x, obs_x, r0, r1)
+            config = self.gym_env.config
+            # to_delete = []
+            # If there are no intersection points
+        if flag or np.isnan(intersection_points).all():
             return actions
         else:
             # convert intersection points into ranges of available velocities/angles

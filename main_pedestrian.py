@@ -44,9 +44,9 @@ from experiment_utils import (
 )
 from mcts_utils import uniform_random
 
-DEBUG_DATA = False
-DEBUG_ANIMATION = False
-ANIMATION = False
+DEBUG_DATA = True
+DEBUG_ANIMATION = True
+ANIMATION = True
 
 
 @dataclass(frozen=True)
@@ -376,13 +376,13 @@ def get_experiment_data(arguments):
             c=arguments.c,
         )
     elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ALBERO":
-        # VANILLA
+        # VO2
         return ExperimentData(
             vo=True,
             action_expansion_policy=None,
             rollout_policy=rollout_policy,
             discrete=True,
-            obstacle_reward=True,
+            obstacle_reward=False,
             std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c,

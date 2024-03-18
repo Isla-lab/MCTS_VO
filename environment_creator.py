@@ -1,11 +1,10 @@
 import math
-from copy import deepcopy
 
 import numpy as np
 from numpy import array
 
-from bettergym.environments.robot_arena import BetterRobotArena, RobotArenaState, Config
 from bettergym.environments.env import BetterEnv, EnvConfig
+from bettergym.environments.robot_arena import BetterRobotArena, RobotArenaState, Config
 
 
 def create_env_continuous(
@@ -157,6 +156,7 @@ def create_env_four_obs_difficult_continuous(
     )
     sim_env.gym_env.WALL_REWARD = out_boundaries_rwrd
     return real_env, sim_env
+
 
 def create_env_four_obs_difficult_continuous2(
         initial_pos: tuple,
@@ -364,22 +364,21 @@ def create_env_four_obs_difficult_continuous2(
     return real_env, sim_env
 
 
-
 def create_pedestrian_env(
-    discrete: bool,
-    rwrd_in_sim: bool,
-    out_boundaries_rwrd: int,
-    n_angles: int,
-    n_vel: int,
-    vo: bool,
+        discrete: bool,
+        rwrd_in_sim: bool,
+        out_boundaries_rwrd: int,
+        n_angles: int,
+        n_vel: int,
+        vo: bool,
 ):
     dt_real = 1.0
     real_c = EnvConfig(
         dt=dt_real, max_angle_change=1.9 * dt_real, n_angles=n_angles, n_vel=n_vel
     )
-    real_env = BetterEnv(discrete_env=discrete, vo=vo, config=real_c, collision_rwrd=rwrd_in_sim, sim_env=False)
+    real_env = BetterEnv(discrete_env=discrete, vo=vo, config=real_c, collision_rwrd=True, sim_env=False)
     sim_env = BetterEnv(discrete_env=discrete, vo=vo, config=real_c, collision_rwrd=rwrd_in_sim, sim_env=True)
     sim_env.gym_env.WALL_REWARD = out_boundaries_rwrd
     real_env.gym_env.WALL_REWARD = out_boundaries_rwrd
-    
+
     return real_env, sim_env

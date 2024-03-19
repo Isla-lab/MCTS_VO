@@ -103,7 +103,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             computational_budget=arguments.max_depth,
             k=arguments.k,
             alpha=arguments.alpha,
-            discount=0.99,
+            discount=arguments.discount,
             action_expansion_function=experiment.action_expansion_policy,
             rollout_policy=experiment.rollout_policy,
         )
@@ -113,7 +113,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             c=experiment.c,
             environment=sim_env,
             computational_budget=arguments.max_depth,
-            discount=0.99,
+            discount=arguments.discount,
             rollout_policy=experiment.rollout_policy,
         )
     print("Simulation Started")
@@ -162,7 +162,7 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     dist_goal = dist_to_goal(s.x[:2], s.goal)
     reach_goal = dist_goal <= real_env.config.robot_radius
-    discount = 0.99
+    discount = arguments.discount
     data = {
         "cumRwrd": round(sum(rewards), 2),
         "discCumRwrd": round(sum(np.array(rewards) * np.array([discount ** e for e in range(len(rewards))])), 2),
@@ -245,6 +245,7 @@ def argument_parser():
     )
     parser.add_argument("--rwrd", default=-100, type=int, help="")
     parser.add_argument("--dt", default=0.2, type=float, help="")
+    parser.add_argument("--discount", default=0.99, type=float, help="")
     parser.add_argument("--std", default=0.38 * 2, type=float, help="")
     parser.add_argument("--stdRollout", default=0.5, type=float, help="")
     parser.add_argument("--amplitude", default=1, type=float, help="")
@@ -299,8 +300,6 @@ def get_experiment_data(arguments):
             )
         else:
             rollout_policy = partial(towards_goal, std_angle_rollout=std_angle_rollout)
-    # elif arguments.rollout == "uniform_towards_goal":
-    #     rollout_policy = partial(uniform_towards_goal, amplitude=math.radians(arguments.amplitude))
     elif arguments.rollout == "uniform":
         if arguments.algorithm == "VO2":
             rollout_policy = uniform_random_vo

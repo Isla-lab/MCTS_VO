@@ -134,14 +134,14 @@ class Env:
         #     self.step = self.step_no_check_coll
 
     def is_within_range_check_with_points(self, p1_x, p1_y, p2_x, p2_y, threshold_distance):
-        euclidean_distance = ((p1_x - p2_x) ** 2 + (p1_y - p2_y) ** 2) ** 0.5
+        euclidean_distance = np.linalg.norm(np.array([p1_x, p1_y]) - np.array([p2_x, p2_y]))
         return euclidean_distance <= threshold_distance
 
     def move_human(self, human_state: State, time_step: float):
         rand_num = (random.random() - 0.5)
         # rand_num = (random.random() - 0.5) * 0.1
         # heading_angle = deepcopy(human_state.x[2])
-        human_vel = random.choices([self.config.max_speed_person, self.config.max_speed_person/2 + rand_num * 0.1])[0]
+        human_vel = random.choices([self.config.max_speed_person, self.config.max_speed_person / 2 + rand_num * 0.1])[0]
         # human_vel = 0.3
 
         heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
@@ -196,7 +196,7 @@ class Env:
         for _ in range(self.config.num_humans):
             human = generate_human_state()
             while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1],
-                                                         1.5):
+                                                         0.3 + human.radius + robot_state.radius):
                 human = generate_human_state()
             humans.append(human)
 
@@ -315,6 +315,7 @@ class Env:
         self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.robot_motion(self.state.x, action)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
+        # TODO check collision
         collision = False
         goal = self.dist_goal_t1 <= self.config.robot_radius
         out_boundaries = self.check_out_boundaries(self.state)
@@ -462,34 +463,32 @@ class BetterEnv(BetterGym):
                 np.repeat(available_angles, len(available_velocities)),
             ]
         )
-        flag = False
         if len(state.obstacles) == 0:
-            flag = True
-        else:
-            # Extract obstacle information
-            obstacles = state.obstacles
-            obs_x = np.array([ob.x for ob in obstacles])
-            obs_rad = np.array([ob.radius for ob in obstacles])
+            return actions
+        # Extract obstacle information
+        obstacles = state.obstacles
+        obs_x = np.array([ob.x for ob in obstacles])
+        obs_rad = np.array([ob.radius for ob in obstacles])
 
-            # Extract robot information
-            x = state.x
-            dt = self.config.dt
-            ROBOT_RADIUS = self.config.robot_radius
-            VMAX = 0.3
+        # Extract robot information
+        x = state.x
+        dt = self.config.dt
+        ROBOT_RADIUS = self.config.robot_radius
+        VMAX = 0.3
 
-            # Calculate velocities
-            # v = get_relative_velocity(VMAX, obs_x, x)
+        # Calculate velocities
+        # v = get_relative_velocity(VMAX, obs_x, x)
 
-            # Calculate radii
-            r1 = obs_x[:, 3] * dt + obs_rad
-            r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
+        # Calculate radii
+        r1 = obs_x[:, 3] * dt + obs_rad
+        r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
 
-            # Calculate intersection points
-            intersection_points, dist = get_intersections_vectorized(x, obs_x, r0, r1)
-            config = self.gym_env.config
-            # to_delete = []
-            # If there are no intersection points
-        if flag or np.isnan(intersection_points).all():
+        # Calculate intersection points
+        intersection_points, dist = get_intersections_vectorized(x, obs_x, r0, r1)
+        config = self.gym_env.config
+        # to_delete = []
+        # If there are no intersection points
+        if np.isnan(intersection_points).all():
             return actions
         else:
             # convert intersection points into ranges of available velocities/angles
@@ -503,13 +502,13 @@ class BetterEnv(BetterGym):
             )
 
             if radial:
-                available_angles = angle_spaces[0][0]
-                in_range = any([space[0] <= available_angles[0] <= space[1] for space in feasibile_range])
+                available_angle = [angle_spaces[0][0]]
+                in_range = any([space[0] <= available_angle[0] <= space[1] for space in feasibile_range])
                 print(f"IN RANGE: {in_range}")
                 actions = np.transpose(
                     [
-                        np.tile(available_velocities, len(available_angles)),
-                        np.repeat(available_angles, len(available_velocities)),
+                        np.tile(available_velocities, len(available_angle)),
+                        np.repeat(available_angle, len(available_velocities)),
                     ]
                 )
                 velocity_condition = (velocity_space[0] <= actions[:, 0]) & (actions[:, 0] <= velocity_space[1])

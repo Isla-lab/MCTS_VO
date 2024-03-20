@@ -64,7 +64,7 @@ class Nmpc(Planner):
         d = np.linalg.norm(x0 - x1)
         # cost = Qc / (1 + np.exp(kappa * (d - ROBOT_RADIUS - OBS_RADIUS)))
         cost = 0
-        if d <= self.robot_radius:
+        if d <= self.robot_radius + rad:
             cost = self.coll_cost
         return cost
 

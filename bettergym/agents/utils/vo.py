@@ -40,7 +40,7 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     # intersection_points = [
     #     get_intersections(x[:2], obs_x[i][:2], r0[i], r1[i]) for i in range(len(obs_x))
     # ]
-    intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
+    intersection_points, dist = get_intersections_vectorized(x, obs_x, r0, r1)
     config = planner.environment.gym_env.config
     # If there are no intersection points
     if np.isnan(intersection_points).all():
@@ -50,7 +50,7 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
             max_angle_change=config.max_angle_change,
             std_angle_rollout=std_angle_rollout,
             min_speed=0.0,
-            max_speed=config.max_speed,
+            max_speed=config.max_speed
         )
     else:
         # convert intersection points into ranges of available velocities/angles
@@ -59,7 +59,8 @@ def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
             x=x,
             obs=obs_x,
             r1=r1,
-            config=config
+            config=config,
+            dist=dist
         )
 
         return sample(
@@ -182,7 +183,7 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
     radial = False
 
     if dist is not None and np.any(mask := dist < r1):
-        alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
+        alpha = np.mean(np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0]))
         P = obs[mask, :2] - r1[mask] * np.column_stack((np.cos(alpha), np.sin(alpha)))
         vmin = np.linalg.norm((P - x[:2]), ord=1) / config.dt
 
@@ -191,6 +192,7 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
         # vspaces = [negative_vel, positive_vel]
         vspaces = [[-0.1, max(-np.max(vmin), config.min_speed)],
                    [min(np.max(vmin), velocity_space[1]), config.max_speed]]
+        # if negative speed use opposite of alpha, if speed is positive then use alpha
         alphas = (np.array([alpha, alpha + np.pi]) + math.pi) % (2 * math.pi) - math.pi
         angle_dist = [angle_distance(x[2], alphas[0]), angle_distance(x[2], alphas[1])]
         idx = np.argmin(angle_dist)
@@ -202,8 +204,11 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
 
     # No angle at positive velocity is safe
     if angle_space is None:
-        retro_available, angle_space = vo_negative_speed(obs, x, r1, config)
-        if disable_retro:
+        # alphas = np.arctan2(obs[:, 1] - x[1], obs[:, 0] - x[0])
+
+        if not disable_retro:
+            retro_available, angle_space = vo_negative_speed(obs, x, r1, config)
+        else:
             retro_available = False
 
         if retro_available:
@@ -418,7 +423,7 @@ def uniform_random_vo(node, planner):
         r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
 
         # Calculate intersection points
-        intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
+        intersection_points, dist = get_intersections_vectorized(x, obs_x, r0, r1)
 
     # If there are no intersection points
     if flag or np.isnan(intersection_points).all():
@@ -431,7 +436,8 @@ def uniform_random_vo(node, planner):
             obs=obs_x,
             r1=r1,
             config=config,
-            disable_retro=True
+            disable_retro=True,
+            dist=dist
         )
         return sample(
             center=None, a_space=angle_space, v_space=velocity_space, number=1

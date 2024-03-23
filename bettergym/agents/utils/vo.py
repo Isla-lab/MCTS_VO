@@ -181,8 +181,8 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
     )
     velocity_space = [0., config.max_speed]
     radial = False
-
-    if dist is not None and np.any(mask := dist < r1):
+    delta = 0.015
+    if dist is not None and np.any(mask := dist - delta < r1):
         alpha = np.mean(np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0]))
         P = obs[mask, :2] - r1[mask] * np.column_stack((np.cos(alpha), np.sin(alpha)))
         vmin = np.linalg.norm((P - x[:2]), ord=1) / config.dt

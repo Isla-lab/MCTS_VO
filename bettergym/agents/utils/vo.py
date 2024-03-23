@@ -183,15 +183,16 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
     radial = False
     delta = 0.015
     if dist is not None and np.any(mask := dist - delta < r1):
-        alpha = np.mean(np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0]))
+        alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
         P = obs[mask, :2] - r1[mask] * np.column_stack((np.cos(alpha), np.sin(alpha)))
-        vmin = np.linalg.norm((P - x[:2]), ord=1) / config.dt
-
+        vmin = np.sum(np.abs(P - x[:2]), axis=1) / config.dt
+        idx_vmin = np.argmax(vmin)
+        alpha = alpha[idx_vmin]
         # if the robot is looking toward the obstacle center then negative speed
 
         # vspaces = [negative_vel, positive_vel]
-        vspaces = [[-0.1, max(-np.max(vmin), config.min_speed)],
-                   [min(np.max(vmin), velocity_space[1]), config.max_speed]]
+        vspaces = [[-0.1, max(-vmin[idx_vmin], config.min_speed)],
+                   [min(vmin[idx_vmin], velocity_space[1]), config.max_speed]]
         # if negative speed use opposite of alpha, if speed is positive then use alpha
         alphas = (np.array([alpha, alpha + np.pi]) + math.pi) % (2 * math.pi) - math.pi
         angle_dist = [angle_distance(x[2], alphas[0]), angle_distance(x[2], alphas[1])]

@@ -74,4 +74,4 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     output_vec[np.logical_or(one_within_other, coincident), :] = np.inf
     output_vec[intersecting, :] = intersection_points
 
-    return output_vec, d
+    return output_vec, d, intersecting

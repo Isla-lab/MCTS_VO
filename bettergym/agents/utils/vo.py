@@ -184,7 +184,7 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
     delta = 0.015
     if dist is not None and np.any(mask := dist - delta < r1):
         alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
-        P = obs[mask, :2] - r1[mask] * np.column_stack((np.cos(alpha), np.sin(alpha)))
+        P = (obs[mask, :2] - r1[mask][:, np.newaxis]) * np.column_stack((np.cos(alpha), np.sin(alpha)))
         vmin = np.sum(np.abs(P - x[:2]), axis=1) / config.dt
         idx_vmin = np.argmax(vmin)
         alpha = alpha[idx_vmin]

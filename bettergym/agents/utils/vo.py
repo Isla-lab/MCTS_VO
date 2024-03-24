@@ -173,6 +173,28 @@ def angle_distance(angle1, angle2):
     return diff
 
 
+def get_spaces_vo_special_case(obs, x, r1, config, mask, curr_velocity_space):
+    alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
+    P = (obs[mask, :2] - r1[mask][:, np.newaxis]) * np.column_stack((np.cos(alpha), np.sin(alpha)))
+    vmin = np.sum(np.abs(P - x[:2]), axis=1) / config.dt
+    idx_vmin = np.argmax(vmin)
+    alpha = alpha[idx_vmin]
+    # if the robot is looking toward the obstacle center then negative speed
+
+    # vspaces = [negative_vel, positive_vel]
+    vspaces = [[-0.1, max(-vmin[idx_vmin], config.min_speed)],
+               [min(vmin[idx_vmin], curr_velocity_space[1]), config.max_speed]]
+    # if negative speed use opposite of alpha, if speed is positive then use alpha
+    alphas = (np.array([alpha, alpha + np.pi]) + math.pi) % (2 * math.pi) - math.pi
+    angle_dist = [angle_distance(x[2], alphas[0]), angle_distance(x[2], alphas[1])]
+    idx = np.argmin(angle_dist)
+    velocity_space = vspaces[idx]
+    alpha = alphas[idx]
+
+    angle_space = [[alpha, alpha]]
+    return angle_space, velocity_space
+
+
 def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dist=None):
     angle_space, forbidden_ranges = compute_safe_angle_space(
         intersection_points=intersection_points,
@@ -183,30 +205,11 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
     radial = False
     delta = 0.015
     if dist is not None and np.any(mask := dist - delta < r1):
-        alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
-        P = (obs[mask, :2] - r1[mask][:, np.newaxis]) * np.column_stack((np.cos(alpha), np.sin(alpha)))
-        vmin = np.sum(np.abs(P - x[:2]), axis=1) / config.dt
-        idx_vmin = np.argmax(vmin)
-        alpha = alpha[idx_vmin]
-        # if the robot is looking toward the obstacle center then negative speed
-
-        # vspaces = [negative_vel, positive_vel]
-        vspaces = [[-0.1, max(-vmin[idx_vmin], config.min_speed)],
-                   [min(vmin[idx_vmin], velocity_space[1]), config.max_speed]]
-        # if negative speed use opposite of alpha, if speed is positive then use alpha
-        alphas = (np.array([alpha, alpha + np.pi]) + math.pi) % (2 * math.pi) - math.pi
-        angle_dist = [angle_distance(x[2], alphas[0]), angle_distance(x[2], alphas[1])]
-        idx = np.argmin(angle_dist)
-        velocity_space = vspaces[idx]
-        alpha = alphas[idx]
-
-        angle_space = [[alpha, alpha]]
+        velocity_space, angle_space = get_spaces_vo_special_case(obs, x, r1, config, mask, velocity_space)
         radial = True
 
     # No angle at positive velocity is safe
     if angle_space is None:
-        # alphas = np.arctan2(obs[:, 1] - x[1], obs[:, 0] - x[0])
-
         if not disable_retro:
             retro_available, angle_space = vo_negative_speed(obs, x, r1, config)
         else:

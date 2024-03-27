@@ -1,6 +1,5 @@
 import math
 import random
-from copy import deepcopy
 from functools import partial
 from typing import Callable, Any
 
@@ -86,6 +85,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     obstacles = node.state.obstacles
     obs_x = np.array([ob.x for ob in obstacles])
     obs_rad = np.array([ob.radius for ob in obstacles])
+    planner.c.obstacles = obs_x
 
     # Extract robot information
     dt = planner.environment.config.dt
@@ -93,7 +93,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     VMAX = 0.3
 
     # Calculate radii
-    r1 = obs_x[:, 3] + obs_rad
+    r1 = obs_x[:, 3] * dt + obs_rad
     r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
 
     # Calculate intersection points
@@ -101,7 +101,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
 
     # If there are no intersection points
     if np.isnan(intersection_points).all():
-        return compute_uniform_towards_goal_jit(
+        return False, compute_uniform_towards_goal_jit(
             x=x,
             goal=node.state.goal,
             max_angle_change=config.max_angle_change,
@@ -110,6 +110,8 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
             max_speed=config.max_speed,
         )
     else:
+        # compute intersection with our new circumference
+        # new_intersection_points, new_dist, new_mask = get_intersections_vectorized(x, obs_x[mask], r0[mask], (r1+r0)[mask])
         angle_space, velocity_space = new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points)
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
         angle_space = np.array(angle_space)
@@ -117,14 +119,15 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
         in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
 
         if not np.any(in_range):
-            return sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+            return True, sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
         else:
             idx_angles, idx_ranges = np.where(in_range)
-            idx = random.randint(0, len(idx_angles)-1)
+            idx = random.randint(0, len(idx_angles) - 1)
             angle = angles[idx_angles[idx]]
-            velocity = np.random.uniform(low=velocity_space[idx_ranges[idx]][0], high=velocity_space[idx_ranges[idx]][1])
+            velocity = np.random.uniform(low=velocity_space[idx_ranges[idx]][0],
+                                         high=velocity_space[idx_ranges[idx]][1])
             # velocity = np.random.uniform(low=0.0, high=velocity_space[idx[0]][1])
-        return [velocity, angle]
+        return True, [velocity, angle]
 
 
 def sample_centered_robot_arena(
@@ -183,19 +186,12 @@ def get_vspace_new_vo(obs_x, mask, r0, r1, x, config):
     axis_movement = np.column_stack((np.cos(alphas), np.sin(alphas)))
     P = obs_x[mask, :2] - r1[mask][:, np.newaxis] * axis_movement
     Q = x[:2] + (r0[mask][:, np.newaxis]) * axis_movement
-    dist_pq = np.linalg.norm(P-Q, axis=1) / config.dt
+    dist_pq = np.linalg.norm(P - Q, axis=1) / config.dt
 
-    # P = obs_x[mask, :2] - (r1[mask][:, np.newaxis] - config.robot_radius) * axis_movement
-    # Q = x[:2] + (r0[mask][:, np.newaxis] - config.obs_size) * axis_movement
-    # dist_pq = np.sum(np.abs(P - Q), axis=1) / config.dt
-    # max_speed = np.min(dist_pq)
+    min_speed = np.max(dist_pq)
+    delta = 0.001
 
-    max_speed = np.min(config.max_speed-dist_pq)
-    if max_speed < 0.03:
-        return None
-    velocity_space = [0, np.min([max_speed, config.max_speed])]
-    if np.abs(config.min_speed) < velocity_space[1]:
-        velocity_space[0] = config.min_speed
+    velocity_space = [config.max_speed, config.max_speed]
     return velocity_space
 
 
@@ -288,15 +284,17 @@ def get_unsafe_angles(intersection_points, robot_angles, x):
 
 
 def compute_ranges_difference(robot_angles, forbidden_ranges):
-    new_ranges = []
-    for fr in forbidden_ranges:
-        for rr in robot_angles:
-            output = range_difference(rr, fr)
-            if output is not None:
-                new_ranges.extend(output)
-        robot_angles = deepcopy(new_ranges)
-        new_ranges = []
-    return robot_angles
+    # Convert lists of ranges to portion intervals
+    robot_intervals = P.Interval(*[P.closed(a[0], a[1]) for a in robot_angles])
+    forbidden_intervals = P.Interval(*[P.closed(a[0], a[1]) for a in forbidden_ranges])
+
+    # Compute the difference
+    result_intervals = robot_intervals - forbidden_intervals
+
+    # Convert the result back to a list of ranges
+    result_ranges = [[i.lower, i.upper] for i in result_intervals]
+
+    return result_ranges
 
 
 def compute_safe_angle_space(intersection_points, max_angle_change, x):
@@ -305,11 +303,15 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
     # convert points into angles and define the forbidden angles space
     forbidden_ranges = get_unsafe_angles(intersection_points, robot_angles, x)
     new_robot_angles = compute_ranges_difference(robot_angles, forbidden_ranges)
-
+    with open("file", "a") as f:
+        f.write(f"FORBIDDEN {forbidden_ranges}\n"
+                f"SPAN {robot_angles}\n"
+                f"SAFE {new_robot_angles}")
     if len(new_robot_angles) == 0:
         return None, None
     else:
-        return new_robot_angles, robot_angles, forbidden_ranges
+        return new_robot_angles, robot_angles
+
 
 
 def vo_negative_speed(obs, x, r1, config):
@@ -441,25 +443,12 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
 
 
 def new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points):
-    vspace_unsafe_area = get_vspace_new_vo(obs_x, mask, r0, r1, x, config)
+    vspace = get_vspace_new_vo(obs_x, mask, r0, r1, x, config)
+    safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x)
 
-    safe_angles, robot_span, unsafe_angles = compute_safe_angle_space(intersection_points, config.max_angle_change, x)
-
-    if vspace_unsafe_area is None:
-        velocity_space = [*([[config.min_speed, config.max_speed]] * len(safe_angles))]
-        angle_space = [*safe_angles]
-    else:
-        if len(unsafe_angles) > 0:
-            # vspace[0] = velocities in unsafe area
-            # vspace[1] = velocities in safe area
-            velocity_space = [*([vspace_unsafe_area] * len(unsafe_angles)), *([[config.min_speed, config.max_speed]] * len(safe_angles))]
-            # aspace[0] = angles in unsafe area
-            # aspace[1] = angles in safe area
-            angle_space = [*unsafe_angles, *safe_angles]
-        else:
-            # all robot angles are safe
-            velocity_space = [*([[config.min_speed, config.max_speed]] * len(safe_angles))]
-            angle_space = [*safe_angles]
+    # all robot angles are safe
+    velocity_space = [*([vspace] * len(safe_angles))]
+    angle_space = [*safe_angles]
 
     return angle_space, velocity_space
 
@@ -473,6 +462,7 @@ def uniform_random_vo(node, planner):
     obstacles = node.state.obstacles
     obs_x = np.array([ob.x for ob in obstacles])
     obs_rad = np.array([ob.radius for ob in obstacles])
+    planner.c.obstacles = obs_x
 
     # Extract robot information
     x = node.state.x
@@ -489,10 +479,10 @@ def uniform_random_vo(node, planner):
 
     # If there are no intersection points
     if np.isnan(intersection_points).all():
-        return uniform_random(node, planner)
+        return False, uniform_random(node, planner)
     else:
         angle_space, velocity_space = new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points)
-        return sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+        return True, sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 
 
 def epsilon_normal_uniform_vo(

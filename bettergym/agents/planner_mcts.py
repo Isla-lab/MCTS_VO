@@ -1,10 +1,10 @@
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
-from notify_run import Notify
 
 from bettergym.agents.planner import Planner
 from bettergym.better_gym import BetterGym
+from cerchi import Cerchi
 
 
 class ActionNode:
@@ -188,7 +188,19 @@ class Mcts(Planner):
         starting_depth = 0
         while not terminal and curr_depth + starting_depth != self.computational_budget:
             # print(starting_depth, current_state.x[:2])
-            chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
+            c = Cerchi()
+            c.x0, c.y0 = current_state.x[:2]
+            self.c = c
+            with open("file", "a") as f:
+                f.write(f"STARTING DEPTH {starting_depth}\n"
+                        f"X {current_state.x}\n")
+            coll, chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
+            with open("file", "a") as f:
+                f.write(
+                    f"COLL {coll}\n"
+                    f"CHOSEN ACTION {chosen_action}\n"
+                    "-----------------\n")
+            c.plot(0.5, starting_depth)
             current_state, r, terminal, _, _ = self.environment.step(
                 current_state, chosen_action
             )

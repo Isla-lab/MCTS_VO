@@ -4,7 +4,6 @@ import numpy as np
 
 from bettergym.agents.planner import Planner
 from bettergym.better_gym import BetterGym
-from cerchi import Cerchi
 
 
 class ActionNode:

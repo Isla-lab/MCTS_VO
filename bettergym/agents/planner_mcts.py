@@ -53,7 +53,8 @@ class Mcts(Planner):
     ):
         super().__init__(environment)
         self.num_sim: int = num_sim
-        self.c: float | int = c
+        self.exploration_constant: float | int = c
+        self.c = None
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
         self.rollout_policy = rollout_policy
@@ -122,7 +123,7 @@ class Mcts(Planner):
             where=node.num_visits_actions != 0,
         )
 
-        ucb_scores = q_vals + self.c * np.sqrt(
+        ucb_scores = q_vals + self.exploration_constant * np.sqrt(
             np.divide(
                 np.log(node.num_visits),
                 node.num_visits_actions,
@@ -188,19 +189,19 @@ class Mcts(Planner):
         starting_depth = 0
         while not terminal and curr_depth + starting_depth != self.computational_budget:
             # print(starting_depth, current_state.x[:2])
-            c = Cerchi()
-            c.x0, c.y0 = current_state.x[:2]
-            self.c = c
-            with open("file", "a") as f:
-                f.write(f"STARTING DEPTH {starting_depth}\n"
-                        f"X {current_state.x}\n")
-            coll, chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
-            with open("file", "a") as f:
-                f.write(
-                    f"COLL {coll}\n"
-                    f"CHOSEN ACTION {chosen_action}\n"
-                    "-----------------\n")
-            c.plot(0.5, starting_depth)
+            # c = Cerchi()
+            # c.x0, c.y0 = current_state.x[:2]
+            # self.c = c
+            # with open("file", "a") as f:
+            #     f.write(f"STARTING DEPTH {starting_depth}\n"
+            #             f"X {current_state.x}\n")
+            chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
+            # with open("file", "a") as f:
+            #     f.write(
+            #         f"COLL {coll}\n"
+            #         f"CHOSEN ACTION {chosen_action}\n"
+            #         "-----------------\n")
+            # c.plot(0.3+0.2+0.3, starting_depth)
             current_state, r, terminal, _, _ = self.environment.step(
                 current_state, chosen_action
             )

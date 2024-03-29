@@ -171,9 +171,7 @@ class Env:
         for ob in state.obstacles:
             obs_pos.append(ob.x[:2])
             obs_rad.append(ob.radius)
-        # return check_coll_jit(
-        #     state.x, np.array(obs_pos), state.radius, np.array(obs_rad)
-        # )
+
         return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius,
                                      obs_size=np.array(obs_rad))
 
@@ -195,8 +193,7 @@ class Env:
 
         for _ in range(self.config.num_humans):
             human = generate_human_state()
-            while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1],
-                                                         0.3 + human.radius + robot_state.radius):
+            while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1], 1):
                 human = generate_human_state()
             humans.append(human)
 
@@ -265,11 +262,7 @@ class Env:
         dt = self.config.dt
         new_x = np.array(x, copy=True)
         u = np.array(u, copy=True)
-        # lin velocity
-        # u[0] = max(-0.1, min(u[0], 0.3))
-        # u[1] = max(x[2] - self.config.max_angle_change, min(u[1], x[2] + self.config.max_angle_change))
-
-        # x
+        # print(new_x)
         new_x[0] += u[0] * math.cos(u[1]) * dt
         # y
         new_x[1] += u[0] * math.sin(u[1]) * dt
@@ -421,107 +414,6 @@ class BetterEnv(BetterGym):
         )
         return actions
 
-    # def get_actions_discrete_vo2(self, state: State):
-    #     config = self.gym_env.config
-    #     feasibile_range = get_robot_angles(state.x, config.max_angle_change)
-    #     if len(feasibile_range) == 1:
-    #         available_angles = np.linspace(
-    #             start=state.x[2] - config.max_angle_change,
-    #             stop=state.x[2] + config.max_angle_change,
-    #             num=config.n_angles,
-    #         )
-    #     else:
-    #         range_sizes = np.linalg.norm(feasibile_range, axis=1)
-    #         proportion = range_sizes / np.sum(range_sizes)
-    #         div = proportion * config.n_angles
-    #         div[0] = np.floor(div[0])
-    #         div[1] = np.ceil(div[1])
-    #         div = div.astype(int)
-    #         available_angles1 = np.linspace(
-    #             start=feasibile_range[0][0],
-    #             stop=feasibile_range[0][1],
-    #             num=div[0]
-    #         )
-    #         available_angles2 = np.linspace(
-    #             start=feasibile_range[1][0],
-    #             stop=feasibile_range[1][1],
-    #             num=div[1]
-    #         )
-    #         available_angles = np.concatenate([available_angles1, available_angles2])
-    #
-    #     if (curr_angle := state.x[2]) not in available_angles:
-    #         available_angles = np.append(available_angles, curr_angle)
-    #     available_velocities = np.linspace(
-    #         start=config.min_speed, stop=config.max_speed, num=config.n_vel
-    #     )
-    #     if 0.0 not in available_velocities:
-    #         available_velocities = np.append(available_velocities, 0.0)
-    #
-    #     actions = np.transpose(
-    #         [
-    #             np.tile(available_velocities, len(available_angles)),
-    #             np.repeat(available_angles, len(available_velocities)),
-    #         ]
-    #     )
-    #     if len(state.obstacles) == 0:
-    #         return actions
-    #     # Extract obstacle information
-    #     obstacles = state.obstacles
-    #     obs_x = np.array([ob.x for ob in obstacles])
-    #     obs_rad = np.array([ob.radius for ob in obstacles])
-    #
-    #     # Extract robot information
-    #     x = state.x
-    #     dt = self.config.dt
-    #     ROBOT_RADIUS = self.config.robot_radius
-    #     VMAX = 0.3
-    #
-    #     # Calculate velocities
-    #     # v = get_relative_velocity(VMAX, obs_x, x)
-    #
-    #     # Calculate radii
-    #     r1 = obs_x[:, 3] * dt + obs_rad
-    #     r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
-    #
-    #     # Calculate intersection points
-    #     intersection_points, dist = get_intersections_vectorized(x, obs_x, r0, r1)
-    #     config = self.gym_env.config
-    #     # to_delete = []
-    #     # If there are no intersection points
-    #     if np.isnan(intersection_points).all():
-    #         return actions
-    #     else:
-    #         # convert intersection points into ranges of available velocities/angles
-    #         angle_spaces, velocity_space, radial = get_spaces(
-    #             intersection_points=intersection_points,
-    #             x=x,
-    #             obs=obs_x,
-    #             r1=r1,
-    #             config=config,
-    #             dist=dist
-    #         )
-    #
-    #         if radial:
-    #             available_angle = [angle_spaces[0][0]]
-    #             in_range = any([space[0] <= available_angle[0] <= space[1] for space in feasibile_range])
-    #             print(f"IN RANGE: {in_range}")
-    #             actions = np.transpose(
-    #                 [
-    #                     np.tile(available_velocities, len(available_angle)),
-    #                     np.repeat(available_angle, len(available_velocities)),
-    #                 ]
-    #             )
-    #             velocity_condition = (velocity_space[0] <= actions[:, 0]) & (actions[:, 0] <= velocity_space[1])
-    #             return np.array(actions[velocity_condition], copy=True)
-    #
-    #         # actions_copy = np.array(actions, copy=True)
-    #         angle_spaces = np.array(angle_spaces)
-    #         velocity_condition = (velocity_space[0] <= actions[:, 0]) & (actions[:, 0] <= velocity_space[1])
-    #         angle_condition = np.any((angle_spaces[:, 0] < actions[:, 1][:, np.newaxis]) &
-    #                                  (actions[:, 1][:, np.newaxis] < angle_spaces[:, 1]), axis=1)
-    #         actions_copy = np.array(actions[velocity_condition & (angle_condition | (actions[:, 0] == 0.0))], copy=True)
-    #     return actions_copy
-
     def get_discrete_actions_basic(self, x, config, min_speed, max_speed):
         feasibile_range = get_robot_angles(x, config.max_angle_change)
         if len(feasibile_range) == 1:
@@ -610,8 +502,8 @@ class BetterEnv(BetterGym):
         VMAX = 0.3
 
         # Calculate radii
-        r1 = obs_x[:, 3] * dt + obs_rad
-        r0 = np.full_like(r1, VMAX * dt + ROBOT_RADIUS)
+        r1 = obs_x[:, 3] * dt + obs_rad + VMAX * dt
+        r0 = np.full_like(r1, ROBOT_RADIUS)
 
         # Calculate intersection points
         intersection_points, dist, mask = get_intersections_vectorized(x, obs_x, r0, r1)

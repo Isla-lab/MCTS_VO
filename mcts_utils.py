@@ -59,15 +59,18 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     intersecting = np.logical_not(np.logical_or.reduce((no_intersection, one_within_other, coincident)))
 
     # Compute intersection points
-    intersection_points = compute_int_vectorized(
-        r0[intersecting],
-        r1[intersecting],
-        d[intersecting],
-        x_exp[0, :],
-        obs_x[intersecting, 0],
-        x_exp[1, :],
-        obs_x[intersecting, 1],
-    )
+    if np.any(intersecting):
+        intersection_points = compute_int_vectorized(
+            r0[intersecting],
+            r1[intersecting],
+            d[intersecting],
+            x_exp[0, :],
+            obs_x[intersecting, 0],
+            x_exp[1, :],
+            obs_x[intersecting, 1],
+        )
+    else:
+        intersection_points = None
 
     output_vec = np.empty((len(d), 4))
     output_vec[:] = None

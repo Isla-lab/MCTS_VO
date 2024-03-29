@@ -44,8 +44,8 @@ from experiment_utils import (
 )
 from mcts_utils import uniform_random
 
-DEBUG_DATA = False
-DEBUG_ANIMATION = False
+DEBUG_DATA = True
+DEBUG_ANIMATION = True
 ANIMATION = True
 
 

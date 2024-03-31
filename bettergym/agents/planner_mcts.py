@@ -187,20 +187,7 @@ class Mcts(Planner):
         total_reward = 0
         starting_depth = 0
         while not terminal and curr_depth + starting_depth != self.computational_budget:
-            # print(starting_depth, current_state.x[:2])
-            # c = Cerchi()
-            # c.x0, c.y0 = current_state.x[:2]
-            # self.c = c
-            # with open("file", "a") as f:
-            #     f.write(f"STARTING DEPTH {starting_depth}\n"
-            #             f"X {current_state.x}\n")
             chosen_action = self.rollout_policy(RolloutStateNode(current_state), self)
-            # with open("file", "a") as f:
-            #     f.write(
-            #         f"COLL {coll}\n"
-            #         f"CHOSEN ACTION {chosen_action}\n"
-            #         "-----------------\n")
-            # c.plot(0.3+0.2+0.3, starting_depth)
             current_state, r, terminal, _, _ = self.environment.step(
                 current_state, chosen_action
             )

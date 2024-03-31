@@ -243,7 +243,7 @@ def argument_parser():
         type=int,
         help="The number of simulation the algorithm will run",
     )
-    parser.add_argument("--rwrd", default=-100, type=int, help="")
+    parser.add_argument("--rwrd", default=-100, type=int, help="Reward for going out of the map")
     parser.add_argument("--dt", default=0.2, type=float, help="")
     parser.add_argument("--discount", default=0.99, type=float, help="")
     parser.add_argument("--std", default=0.38 * 2, type=float, help="")

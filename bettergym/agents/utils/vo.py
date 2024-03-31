@@ -181,20 +181,6 @@ def angle_distance(angle1, angle2):
     return diff
 
 
-# def get_vspace_new_vo(obs_x, mask, r0, r1, x, config):
-#     alphas = np.arctan2(obs_x[mask, 1] - x[1], obs_x[mask, 0] - x[0])
-#     axis_movement = np.column_stack((np.cos(alphas), np.sin(alphas)))
-#     P = obs_x[mask, :2] - r1[mask][:, np.newaxis] * axis_movement
-#     Q = x[:2] + (r0[mask][:, np.newaxis]) * axis_movement
-#     dist_pq = np.linalg.norm(P - Q, axis=1) / config.dt
-#
-#     min_speed = np.max(dist_pq)
-#     delta = 0.001
-#
-#     velocity_space = [config.max_speed, config.max_speed]
-#     return velocity_space
-
-
 def get_spaces_vo_special_case(obs, x, r1, config, mask, curr_velocity_space):
     alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
     P = obs[mask, :2] - (r1[mask][:, np.newaxis] * np.column_stack((np.cos(alpha), np.sin(alpha))))
@@ -399,17 +385,6 @@ def voronoi_vo(
             )[0]
 
 
-def get_relative_velocity(velocity: float, obs_x: np.ndarray, x: np.ndarray):
-    conjunction_angle = np.arctan2(obs_x[:, 1] - x[1], obs_x[:, 0] - x[0])
-    v1_vec = velocity * np.column_stack(
-        (np.cos(conjunction_angle), np.sin(conjunction_angle))
-    )
-    v2_vec = obs_x[:, 3][:, np.newaxis] * np.column_stack(
-        (np.cos(obs_x[:, 2]), np.sin(obs_x[:, 2]))
-    )
-    return v1_vec - v2_vec
-
-
 def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     # Extract obstacle information
     obstacles = node.state.obstacles
@@ -447,10 +422,15 @@ def new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points):
     safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x)
     if safe_angles is None:
         safe_angles = vo_negative_speed(obs_x, x, r1, config)
-        vspace = [config.min_speed, config.min_speed]
+        if safe_angles is None:
+            vspace = [0.0, 0.0]
+            safe_angles = [[-math.pi, math.pi]]
+        else:
+            vspace = [config.min_speed, config.min_speed]
     else:
         vspace = [config.max_speed, config.max_speed]
-    # all robot angles are safe
+
+
     velocity_space = [*([vspace] * len(safe_angles))]
     angle_space = [*safe_angles]
 
@@ -502,6 +482,7 @@ def epsilon_normal_uniform_vo(
 def epsilon_uniform_uniform_vo(
         node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
 ):
+    # planner.c.obstacles = [o.x for o in node.state.obstacles]
     prob = random.random()
     if prob <= 1 - eps:
         return uniform_towards_goal_vo(node, planner, std_angle_rollout)

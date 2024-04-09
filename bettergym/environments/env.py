@@ -459,6 +459,8 @@ class BetterEnv(BetterGym):
 
     def get_discrete_space(self, space, n_sample):
         range_sizes = np.linalg.norm(space, axis=1)
+        # ensure that the range sizes are not zero
+        range_sizes += 1e-6
         proportion = range_sizes / np.sum(range_sizes)
         div = proportion * n_sample
         #  floor all odd indices and ceil all even indices

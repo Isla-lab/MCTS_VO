@@ -19,18 +19,10 @@ from numpy import mean, std
 from tqdm import tqdm
 
 from bettergym.agents.planner_mcts import Mcts
-from bettergym.agents.planner_mcts_apw import MctsApw
 from bettergym.agents.utils.utils import (
-    voo,
-    towards_goal,
-    epsilon_normal_uniform, epsilon_uniform_uniform,
+    epsilon_uniform_uniform,
 )
 from bettergym.agents.utils.vo import (
-    sample_centered_robot_arena,
-    voo_vo,
-    towards_goal_vo,
-    uniform_random_vo,
-    epsilon_normal_uniform_vo,
     epsilon_uniform_uniform_vo,
 )
 from bettergym.environments.robot_arena import dist_to_goal
@@ -42,9 +34,8 @@ from experiment_utils import (
     print_and_notify,
     create_animation_tree_trajectory,
 )
-from mcts_utils import uniform_random
 
-DEBUG_DATA = True
+DEBUG_DATA = False
 DEBUG_ANIMATION = True
 ANIMATION = True
 
@@ -73,6 +64,11 @@ def seed_everything(seed_value: int):
     seed_numba(seed_value)
 
 
+def filter_obstacles(state):
+    x = state.x
+    return [o for o in state.obstacles if np.linalg.norm(o.x[:2] - x[:2]) <= 5]
+
+
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
@@ -95,27 +91,14 @@ def run_experiment(experiment: ExperimentData, arguments):
     s = s0
 
     obs = [s0.obstacles]
-    if not experiment.discrete:
-        planner = MctsApw(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env,
-            computational_budget=arguments.max_depth,
-            k=arguments.k,
-            alpha=arguments.alpha,
-            discount=arguments.discount,
-            action_expansion_function=experiment.action_expansion_policy,
-            rollout_policy=experiment.rollout_policy,
-        )
-    else:
-        planner = Mcts(
-            num_sim=experiment.n_sim,
-            c=experiment.c,
-            environment=sim_env,
-            computational_budget=arguments.max_depth,
-            discount=arguments.discount,
-            rollout_policy=experiment.rollout_policy,
-        )
+    planner = Mcts(
+        num_sim=experiment.n_sim,
+        c=experiment.c,
+        environment=sim_env,
+        computational_budget=arguments.max_depth,
+        discount=arguments.discount,
+        rollout_policy=experiment.rollout_policy,
+    )
     print("Simulation Started")
     terminal = False
     rewards = []
@@ -129,7 +112,9 @@ def run_experiment(experiment: ExperimentData, arguments):
             break
         print(f"Step Number {step_n}")
         initial_time = time.time()
-        u, info = planner.plan(s)
+        s_copy = deepcopy(s)
+        s_copy.obstacles = filter_obstacles(s_copy)
+        u, info = planner.plan(s_copy)
         actions.append(u)
         u_copy = np.array(u, copy=True)
         final_time = time.time() - initial_time
@@ -143,7 +128,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
-        obs.append(s.obstacles)
+        obs.append(s_copy.obstacles)
         gc.collect()
 
     exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
@@ -293,20 +278,8 @@ def get_experiment_data(arguments):
     # var_angle = 0.38 * 2
     std_angle_rollout = arguments.stdRollout
 
-    if arguments.rollout == "normal_towards_goal":
-        if arguments.algorithm == "VO2":
-            rollout_policy = partial(
-                towards_goal_vo, std_angle_rollout=std_angle_rollout,
-            )
-        else:
-            rollout_policy = partial(towards_goal, std_angle_rollout=std_angle_rollout)
-    elif arguments.rollout == "uniform":
-        if arguments.algorithm == "VO2":
-            rollout_policy = uniform_random_vo
-        else:
-            rollout_policy = uniform_random
-    elif arguments.rollout == "epsilon_uniform_uniform":
-        if arguments.algorithm == "VO2" or arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
+    if arguments.rollout == "epsilon_uniform_uniform":
+        if arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
             rollout_policy = partial(
                 epsilon_uniform_uniform_vo,
                 std_angle_rollout=std_angle_rollout,
@@ -318,52 +291,10 @@ def get_experiment_data(arguments):
                 std_angle_rollout=std_angle_rollout,
                 eps=arguments.eps_rollout,
             )
-    elif arguments.rollout == "epsilon_normal_uniform":
-        if arguments.algorithm == "VO2":
-            rollout_policy = partial(
-                epsilon_normal_uniform_vo,
-                std_angle_rollout=std_angle_rollout,
-                eps=arguments.eps_rollout,
-            )
-        else:
-            rollout_policy = partial(
-                epsilon_normal_uniform,
-                std_angle_rollout=std_angle_rollout,
-                eps=arguments.eps_rollout,
-            )
     else:
         raise ValueError("rollout function not valid")
 
-    sample_centered = partial(sample_centered_robot_arena, std_angle=arguments.std)
-    if arguments.algorithm == "VOR":
-        # VORONOI + VO (albero + reward ostacoli)
-        return ExperimentData(
-            action_expansion_policy=partial(
-                voo_vo, eps=0.3, sample_centered=sample_centered
-            ),
-            rollout_policy=rollout_policy,
-            discrete=False,
-            obstacle_reward=True,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    elif arguments.algorithm == "VOO":
-        # VORONOI
-        return ExperimentData(
-            action_expansion_policy=partial(
-                voo,
-                eps=0.3,
-                sample_centered=sample_centered,
-            ),
-            rollout_policy=rollout_policy,
-            discrete=False,
-            obstacle_reward=True,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    elif arguments.algorithm == "VANILLA" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
+    if arguments.algorithm == "VANILLA":
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,
@@ -374,7 +305,7 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ALBERO":
+    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ROLLOUT" or arguments.algorithm == "VANILLA_VO_ALBERO":
         # VO2
         return ExperimentData(
             vo=True,
@@ -386,28 +317,13 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    else:
-        # VORONOI + VO (albero + rollout)
-        return ExperimentData(
-            action_expansion_policy=partial(
-                voo_vo,
-                eps=0.3,
-                sample_centered=sample_centered,
-            ),
-            rollout_policy=rollout_policy,
-            discrete=False,
-            obstacle_reward=False,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
 
 
 def main():
     global exp_num
     args = argument_parser().parse_args()
     exp = get_experiment_data(args)
-    seed_everything(2)
+    seed_everything(1)
     for exp_num in range(args.num):
         run_experiment(experiment=exp, arguments=args)
 

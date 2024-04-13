@@ -193,7 +193,7 @@ class Env:
 
         for _ in range(self.config.num_humans):
             human = generate_human_state()
-            while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1], 1):
+            while self.is_within_range_check_with_points(human.x[0], human.x[1], robot_state.x[0], robot_state.x[1], 2):
                 human = generate_human_state()
             humans.append(human)
 

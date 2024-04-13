@@ -15,7 +15,6 @@ from matplotlib.animation import FuncAnimation
 from numba import njit
 from numpy import mean, std
 
-from bettergym.agents.planner_dwa import Dwa
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
     create_env_five_small_obs_continuous, create_env_four_obs_difficult_continuous,

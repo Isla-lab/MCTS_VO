@@ -284,7 +284,7 @@ class Env:
         self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.robot_motion(self.state.x, action)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
-        collision = self.check_collision(self.state)
+        collision = self.check_collision(self.state) and action[0] > 0
         goal = self.dist_goal_t1 <= self.config.robot_radius
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(collision, goal, out_boundaries)

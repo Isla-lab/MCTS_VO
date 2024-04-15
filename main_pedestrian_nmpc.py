@@ -68,8 +68,8 @@ def run_experiment(experiment: ExperimentData, arguments):
         discrete=experiment.discrete,
         rwrd_in_sim=experiment.obstacle_reward,
         out_boundaries_rwrd=True,
-        n_vel=10,
-        n_angles=10,
+        n_vel=5,
+        n_angles=11,
         vo=experiment.vo,
         obs_pos=obstacles
     )

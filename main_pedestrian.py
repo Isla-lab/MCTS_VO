@@ -235,15 +235,11 @@ def argument_parser():
         help="The number of simulation the algorithm will run",
     )
     parser.add_argument("--rwrd", default=-100, type=int, help="Reward for going out of the map")
-    parser.add_argument("--dt", default=0.2, type=float, help="")
     parser.add_argument("--discount", default=0.99, type=float, help="")
     parser.add_argument("--std", default=0.38 * 2, type=float, help="")
     parser.add_argument("--stdRollout", default=0.5, type=float, help="")
-    parser.add_argument("--amplitude", default=1, type=float, help="")
     parser.add_argument("--c", default=1, type=float, help="")
     parser.add_argument("--rollout", default="normal_towards_goal", type=str, help="")
-    parser.add_argument("--alpha", default=0.1, type=float, help="")
-    parser.add_argument("--k", default=50, type=float, help="")
     parser.add_argument(
         "--a", default=10, type=int, help="number of discretization of angles"
     )
@@ -270,12 +266,6 @@ def argument_parser():
         default="EASY",
         type=str,
         help="Environment",
-    )
-    parser.add_argument(
-        "--start",
-        default="corner",
-        type=str,
-        help="Where to start",
     )
     parser.add_argument(
         "--fixed_obs",
@@ -306,7 +296,7 @@ def get_experiment_data(arguments):
     else:
         raise ValueError("rollout function not valid")
 
-    if arguments.algorithm == "VANILLA":
+    if arguments.algorithm == "VANILLA" :
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,
@@ -317,7 +307,7 @@ def get_experiment_data(arguments):
             n_sim=arguments.nsim,
             c=arguments.c,
         )
-    elif arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ALBERO":
+    elif arguments.algorithm == "VANILLA_VO2":
         # VO2
         return ExperimentData(
             vo=True,
@@ -335,7 +325,18 @@ def get_experiment_data(arguments):
             rollout_policy=rollout_policy,
             discrete=True,
             vo=False,
-            obstacle_reward=False,
+            obstacle_reward=True,
+            std_angle=std_angle_rollout,
+            n_sim=arguments.nsim,
+            c=arguments.c,
+        )
+    elif arguments.algorithm == "VANILLA_VO_ALBERO":
+        return ExperimentData(
+            action_expansion_policy=None,
+            rollout_policy=rollout_policy,
+            discrete=True,
+            vo=True,
+            obstacle_reward=True,
             std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c,

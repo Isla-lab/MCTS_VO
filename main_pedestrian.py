@@ -72,6 +72,11 @@ def filter_obstacles(state):
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
+    if arguments.fixed_obs:
+        with open(f"./bettergym/environments/fixed_obs/obs_{exp_num}.pkl", "rb") as f:
+            obstacles = pickle.load(f)
+    else:
+        obstacles = None
 
     real_env, sim_env = create_pedestrian_env(
         discrete=experiment.discrete,
@@ -79,7 +84,8 @@ def run_experiment(experiment: ExperimentData, arguments):
         out_boundaries_rwrd=arguments.rwrd,
         n_vel=arguments.v,
         n_angles=arguments.a,
-        vo=experiment.vo
+        vo=experiment.vo,
+        obs_pos=obstacles
     )
 
     s0, _ = real_env.reset()
@@ -270,6 +276,12 @@ def argument_parser():
         default="corner",
         type=str,
         help="Where to start",
+    )
+    parser.add_argument(
+        "--fixed_obs",
+        default=True,
+        type=bool,
+        help="Whether or not to use fixed obstacles",
     )
     return parser
 

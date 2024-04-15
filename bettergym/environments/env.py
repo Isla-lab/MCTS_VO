@@ -127,6 +127,7 @@ class Env:
         self.WALL_REWARD: float = -100.0
 
         self.reward = self.reward_grad
+        self.step_idx = 0
 
         # if collision_rwrd:
         #     self.step = self.step_check_coll
@@ -322,7 +323,12 @@ class Env:
             None,
         )
 
-    def step_real(self, action: np.ndarray):
+    def move_humans_fixed(self):
+        state_copy = deepcopy(self.state)
+        state_copy.obstacles = self.obs_fixed[self.step_idx]
+        self.state = state_copy
+
+    def move_humans(self):
         state_copy = deepcopy(self.state)
         to_remove = []
         for human_idx in range(len(self.state.obstacles)):
@@ -339,6 +345,10 @@ class Env:
         if len(to_remove) != 0:
             state_copy.obstacles = [elem for idx, elem in enumerate(state_copy.obstacles) if idx not in to_remove]
         self.state = state_copy
+
+    def step_real(self, action: np.ndarray):
+        self.move_humans()
+        self.step_idx += 1
         return self.step_check_coll(action)
 
     def step_sim_check_coll(self, action: np.ndarray):
@@ -365,7 +375,8 @@ class BetterEnv(BetterGym):
             vo: bool,
             config: EnvConfig,
             collision_rwrd: bool,
-            sim_env: bool
+            sim_env: bool,
+            obs_pos: list,
     ):
         super().__init__(
             Env(
@@ -389,6 +400,10 @@ class BetterEnv(BetterGym):
         else:
             self.gym_env.step = self.gym_env.step_real
             self.set_state = self.set_state_real
+
+        if obs_pos is not None:
+            self.gym_env.obs_fixed = obs_pos
+            self.gym_env.move_humans = self.gym_env.move_humans_fixed
 
     def get_actions_discrete(self, state: State):
         config = self.gym_env.config

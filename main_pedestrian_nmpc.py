@@ -1,6 +1,7 @@
 import argparse
 import gc
 import os
+import pickle
 import random
 import sys
 import time
@@ -57,6 +58,11 @@ def seed_everything(seed_value: int):
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
+    if arguments.fixed_obs:
+        with open(f"./bettergym/environments/fixed_obs/obs_{exp_num}.pkl", "rb") as f:
+            obstacles = pickle.load(f)
+    else:
+        obstacles = None
 
     real_env, sim_env = create_pedestrian_env(
         discrete=experiment.discrete,
@@ -64,7 +70,8 @@ def run_experiment(experiment: ExperimentData, arguments):
         out_boundaries_rwrd=True,
         n_vel=10,
         n_angles=10,
-        vo=experiment.vo
+        vo=experiment.vo,
+        obs_pos=obstacles
     )
 
     s0, _ = real_env.reset()
@@ -171,6 +178,12 @@ def argument_parser():
     )
     parser.add_argument(
         "--horizon", default=80, type=int, help="number of experiments to run"
+    )
+    parser.add_argument(
+        "--fixed_obs",
+        default=True,
+        type=bool,
+        help="Whether or not to use fixed obstacles",
     )
     return parser
 

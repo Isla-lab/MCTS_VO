@@ -1,0 +1,5 @@
+taskset --cpu-list 0-0 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=50 --num=10
+taskset --cpu-list 1-1 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=40 --num=10
+taskset --cpu-list 2-2 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=30 --num=10
+taskset --cpu-list 3-3 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=20 --num=10
+taskset --cpu-list 4-4 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=10 --num=10

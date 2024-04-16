@@ -204,7 +204,7 @@ def main():
     global exp_num
     args = argument_parser().parse_args()
     exp = get_experiment_data(args)
-    seed_everything(2)
+    seed_everything(1)
     for exp_num in range(args.num):
         run_experiment(experiment=exp, arguments=args)
 

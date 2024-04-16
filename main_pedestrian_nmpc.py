@@ -82,7 +82,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     s = s0
 
     obs = [s0.obstacles]
-    planner = Nmpc(environment=real_env, horizon_length=arguments.horizon)
+    planner = Nmpc(environment=real_env, horizon_length=arguments.horizon, gamma=0.7)
     print("Simulation Started")
     terminal = False
     rewards = []
@@ -137,7 +137,7 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     dist_goal = dist_to_goal(s.x[:2], s.goal)
     reach_goal = dist_goal <= real_env.config.robot_radius
-    discount = 0.99
+    discount = 0.7
     data = {
         "cumRwrd": round(sum(rewards), 2),
         "discCumRwrd": round(sum(np.array(rewards) * np.array([discount ** e for e in range(len(rewards))])), 2),

@@ -336,7 +336,7 @@ def get_experiment_data(arguments):
             rollout_policy=rollout_policy,
             discrete=True,
             vo=True,
-            obstacle_reward=True,
+            obstacle_reward=False,
             std_angle=std_angle_rollout,
             n_sim=arguments.nsim,
             c=arguments.c,

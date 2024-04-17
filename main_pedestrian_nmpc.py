@@ -59,7 +59,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        with open(f"./bettergym/environments/fixed_obs/obs_{exp_num}.pkl", "rb") as f:
+        with open(f"./bettergym/environments/fixed_obs/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:
         obstacles = None
@@ -71,7 +71,8 @@ def run_experiment(experiment: ExperimentData, arguments):
         n_vel=5,
         n_angles=11,
         vo=experiment.vo,
-        obs_pos=obstacles
+        obs_pos=obstacles,
+        n_obs=arguments.n_obs,
     )
 
     s0, _ = real_env.reset()
@@ -184,6 +185,12 @@ def argument_parser():
         default=True,
         type=bool,
         help="Whether or not to use fixed obstacles",
+    )
+    parser.add_argument(
+        "--n_obs",
+        default=40,
+        type=int,
+        help="Number of Pedestrian in the environment",
     )
     return parser
 

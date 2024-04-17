@@ -24,13 +24,15 @@ seed_everything(1)
 for exp_n in range(10):
     print(f"EXP {exp_n}")
     obs = []
+    n_obs = 10
     real_env, sim_env = create_pedestrian_env(
         discrete=True,
         rwrd_in_sim=False,
         out_boundaries_rwrd=False,
         n_vel=5,
         n_angles=5,
-        vo=False
+        vo=False,
+        n_obs=n_obs,
     )
     s0, _ = real_env.reset()
     s = s0

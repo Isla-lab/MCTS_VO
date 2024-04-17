@@ -1,7 +1,21 @@
-taskset --cpu-list 0-0 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=50 --num=10
-taskset --cpu-list 1-1 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=40 --num=10
-taskset --cpu-list 2-2 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=30 --num=10
-taskset --cpu-list 3-3 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=20 --num=10
-taskset --cpu-list 4-4 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=10 --num=10
-taskset --cpu-list 5-5 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=60 --num=10
-taskset --cpu-list 6-6 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=70 --num=10
+taskset --cpu-list 0-0 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=50 --num=10 --n_obs=40
+taskset --cpu-list 1-1 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=40 --num=10 --n_obs=40
+taskset --cpu-list 2-2 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=30 --num=10 --n_obs=40
+taskset --cpu-list 3-3 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=20 --num=10 --n_obs=40
+taskset --cpu-list 4-4 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=10 --num=10 --n_obs=40
+taskset --cpu-list 5-5 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=60 --num=10 --n_obs=40
+taskset --cpu-list 6-6 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=70 --num=10 --n_obs=40
+taskset --cpu-list 0-0 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=50 --num=10 --n_obs=20
+taskset --cpu-list 1-1 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=40 --num=10 --n_obs=20
+taskset --cpu-list 2-2 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=30 --num=10 --n_obs=20
+taskset --cpu-list 3-3 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=20 --num=10 --n_obs=20
+taskset --cpu-list 4-4 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=10 --num=10 --n_obs=20
+taskset --cpu-list 5-5 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=60 --num=10 --n_obs=20
+taskset --cpu-list 6-6 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=70 --num=10 --n_obs=20
+taskset --cpu-list 0-0 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=50 --num=10 --n_obs=10
+taskset --cpu-list 1-1 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=40 --num=10 --n_obs=10
+taskset --cpu-list 2-2 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=30 --num=10 --n_obs=10
+taskset --cpu-list 3-3 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=20 --num=10 --n_obs=10
+taskset --cpu-list 4-4 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=10 --num=10 --n_obs=10
+taskset --cpu-list 5-5 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=60 --num=10 --n_obs=10
+taskset --cpu-list 6-6 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=70 --num=10 --n_obs=10

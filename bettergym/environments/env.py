@@ -295,7 +295,7 @@ class Env:
             reward,
             collision or goal or out_boundaries,
             None,
-            None,
+            {"collision": int(collision), "out_boundaries": int(out_boundaries)},
         )
 
     def step_no_check_coll(

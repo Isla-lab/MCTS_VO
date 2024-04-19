@@ -167,6 +167,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
         "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
         "stdSmoothAngle": np.diff(trajectory[:, 2]).std(),
+        **env_info
     }
     data = data | arguments.__dict__
     df = pd.Series(data)

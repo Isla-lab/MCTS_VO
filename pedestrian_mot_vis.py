@@ -25,6 +25,7 @@ from bettergym.agents.utils.utils import (
 from bettergym.agents.utils.vo import (
     epsilon_uniform_uniform_vo,
 )
+from bettergym.environments.env import EnvConfig
 from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
     create_pedestrian_env,
@@ -71,156 +72,41 @@ def filter_obstacles(state):
 
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
+    fig, ax = plt.subplots()
+    config = EnvConfig(
+        dt=1, max_angle_change=1.9 * 1, n_angles=10, n_vel=5, num_humans=10
+    )
     # input [forward speed, yaw_rate]
-    if arguments.fixed_obs:
-        with open(f"./bettergym/environments/fixed_obs/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
-            obstacles = pickle.load(f)
-    else:
-        obstacles = None
 
-    real_env, sim_env = create_pedestrian_env(
-        discrete=experiment.discrete,
-        rwrd_in_sim=experiment.obstacle_reward,
-        out_boundaries_rwrd=arguments.rwrd,
-        n_vel=arguments.v,
-        n_angles=arguments.a,
-        vo=experiment.vo,
-        obs_pos=obstacles,
-        n_obs=arguments.n_obs,
-    )
+    with open(f"./debug/obs_0.pkl", "rb") as f:
+        obstacles = pickle.load(f)
 
-    s0, _ = real_env.reset()
-    trajectory = np.array(s0.x)
-    config = real_env.config
+    colors = plt.get_cmap("tab10")(np.linspace(0, 1, len(obstacles[0])))
+    trajectories = [[] for _ in range(len(obstacles[0]))]
+    for step in obstacles:
+        for i in range(len(step)):
+            trajectories[i].append(step[i].x[:2])
 
-    goal = s0.goal
+    for idx, c in enumerate(colors):
+        trj = np.array(trajectories[idx])
+        plt.plot(trj[:, 0], trj[:, 1], c=c)
 
-    s = s0
+    print("Creating Gif...")
 
-    obs = [s0.obstacles]
-    planner = Mcts(
-        num_sim=experiment.n_sim,
-        c=experiment.c,
-        environment=sim_env,
-        computational_budget=arguments.max_depth,
-        discount=arguments.discount,
-        rollout_policy=experiment.rollout_policy,
-    )
-    print("Simulation Started")
-    terminal = False
-    rewards = []
-    times = []
-    infos = []
-    actions = []
-    step_n = 0
-    while not terminal:
-        step_n += 1
-        if step_n == 1000:
-            break
-        print(f"Step Number {step_n}")
-        initial_time = time.time()
-        s_copy = deepcopy(s)
-        # s_copy.obstacles = filter_obstacles(s_copy)
-        u, info = planner.plan(s_copy)
-        actions.append(u)
-        u_copy = np.array(u, copy=True)
-        final_time = time.time() - initial_time
-        infos.append(deepcopy(info))
-        # del info['q_values']
-        # del info['actions']
-        # del info['visits']
+    ax.set_xlim([config.left_limit - 0.5, config.right_limit + 0.5])
+    ax.set_ylim([config.bottom_limit - 0.5, config.upper_limit + 0.5])
+    fig.savefig(f"cosa.png", dpi=500, facecolor="white", edgecolor="none")
+    # ani = FuncAnimation(
+    #     fig,
+    #     plot_frame2,
+    #     fargs=(goal, config, obs, trajectory, ax),
+    #     frames=tqdm(range(len(trajectory)), file=sys.stdout),
+    #     save_count=None,
+    #     cache_frame_data=False,
+    # )
+    # ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=150)
+    # plt.close(fig)
 
-        times.append(final_time)
-        s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
-        sim_env.gym_env.state = real_env.gym_env.state.copy()
-        rewards.append(r)
-        trajectory = np.vstack((trajectory, s.x))  # store state history
-        obs.append(s_copy.obstacles)
-        gc.collect()
-
-    exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
-    print_and_notify(
-        f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
-        f"Discrete: {experiment.discrete}\n"
-        f"Std Rollout Angle: {experiment.std_angle}\n"
-        f"Number of Steps: {step_n}\n"
-        f"Avg Reward Step: {round(sum(rewards) / step_n, 2)}\n"
-        f"Avg Step Time: {np.round(mean(times), 2)}±{np.round(std(times), 2)}\n"
-        f"Total Time: {sum(times)}\n"
-        f"Num Simulations: {experiment.n_sim}",
-        exp_num,
-        exp_name,
-    )
-
-    dist_goal = dist_to_goal(s.x[:2], s.goal)
-    reach_goal = dist_goal <= real_env.config.robot_radius
-    discount = arguments.discount
-    data = {
-        "cumRwrd": round(sum(rewards), 2),
-        "discCumRwrd": round(sum(np.array(rewards) * np.array([discount ** e for e in range(len(rewards))])), 2),
-        "nSteps": step_n,
-        "MeanStepTime": np.round(mean(times), 2),
-        "StdStepTime": np.round(std(times), 2),
-        "reachGoal": int(reach_goal),
-        "maxNsteps": int(step_n == 1000),
-        "meanSmoothVelocity": np.diff(trajectory[:, 3]).mean(),
-        "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
-        "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
-        "stdSmoothAngle": np.diff(trajectory[:, 2]).std(),
-        **env_info
-    }
-    data = data | arguments.__dict__
-    df = pd.Series(data)
-    df.to_csv(f"{exp_name}_{exp_num}.csv")
-
-    if ANIMATION:
-        print("Creating Gif...")
-        fig, ax = plt.subplots()
-        ani = FuncAnimation(
-            fig,
-            plot_frame2,
-            fargs=(goal, config, obs, trajectory, ax),
-            frames=tqdm(range(len(trajectory)), file=sys.stdout),
-            save_count=None,
-            cache_frame_data=False,
-        )
-        ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=2)
-        plt.close(fig)
-
-    trajectories = [i["trajectories"] for i in infos]
-    rollout_values = [i["rollout_values"] for i in infos]
-
-    with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
-        pickle.dump(trajectory, f)
-
-    if DEBUG_DATA:
-        print("Saving Debug Data...")
-        q_vals = [i["q_values"] for i in infos]
-        visits = [i["visits"] for i in infos]
-        a = [[an.action for an in i["actions"]] for i in infos]
-        with open(f"debug/trajectories_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(trajectories, f)
-        with open(f"debug/rollout_values_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(rollout_values, f)
-        with open(f"debug/visits_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(visits, f)
-        with open(f"debug/q_values_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(q_vals, f)
-        with open(f"debug/actions_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(a, f)
-        with open(f"debug/chosen_a_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(actions, f)
-        with open(f"debug/obs_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(obs, f)
-
-    if DEBUG_ANIMATION:
-        print("\nCreating Tree Trajectories Animation...")
-        create_animation_tree_trajectory(
-            goal, config, obs, exp_num, exp_name, rollout_values, trajectories
-        )
-        # create_animation_tree_trajectory_w_steps(goal, config, obs, exp_num)
-    gc.collect()
-    print("Done")
 
 
 def argument_parser():
@@ -353,11 +239,11 @@ def get_experiment_data(arguments):
 
 def main():
     global exp_num
-    args = argument_parser().parse_args()
-    exp = get_experiment_data(args)
+    # args = argument_parser().parse_args()
+    # exp = get_experiment_data(args)
     seed_everything(1)
-    for exp_num in range(args.num):
-        run_experiment(experiment=exp, arguments=args)
+    for exp_num in range(1):
+        run_experiment(experiment=None, arguments=None)
 
 
 if __name__ == "__main__":

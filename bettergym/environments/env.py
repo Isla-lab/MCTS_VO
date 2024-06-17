@@ -139,19 +139,21 @@ class Env:
         return euclidean_distance <= threshold_distance
 
     def move_human(self, human_state: State, time_step: float):
-        rand_num = (random.random() - 0.5)
-        # rand_num = (random.random() - 0.5) * 0.1
-        # heading_angle = deepcopy(human_state.x[2])
-        human_vel = random.choices([self.config.max_speed_person, self.config.max_speed_person / 2 + rand_num * 0.1])[0]
-        # human_vel = 0.3
+        omega = 0.039999996931562413
+        t = random.randint(a=0, b=100)
+        # human_state.x[0]
+        # human_state.x[1]
+        new_x = sin(omega * t) + 2 * sin(2*omega*t) + human_state.x[0]
+        new_y = cos(omega * t) - 2 * cos(2*omega*t) + human_state.x[1]
 
-        heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
-                              (human_state.goal[0] - human_state.x[0])) + rand_num
-        new_x = human_state.x[0] + (human_vel * time_step) * cos(heading_angle)
-        new_y = human_state.x[1] + (human_vel * time_step) * sin(heading_angle)
 
         new_x = np.clip(new_x, self.config.left_limit, self.config.right_limit)
         new_y = np.clip(new_y, self.config.bottom_limit, self.config.upper_limit)
+
+        delta_x = new_x - human_state.x[0]
+        delta_y = new_y - human_state.x[1]
+
+        heading_angle = np.arctan2(delta_y, delta_x)
         new_human_state = State(
             x=np.array([new_x, new_y, heading_angle, human_state.x[3]]),
             goal=human_state.goal,
@@ -160,21 +162,22 @@ class Env:
         )
         return new_human_state
 
-    def check_collision(self, state: State) -> bool:
-        """
-        Check if the robot is colliding with some obstacle
-        :param state: state of the robot
-        :return:
-        """
-        # config = self.config
-        obs_pos = []
-        obs_rad = []
-        for ob in state.obstacles:
-            obs_pos.append(ob.x[:2])
-            obs_rad.append(ob.radius)
 
-        return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius,
-                                     obs_size=np.array(obs_rad))
+    def check_collision(self, state: State) -> bool:
+            """
+            Check if the robot is colliding with some obstacle
+            :param state: state of the robot
+            :return:
+            """
+            # config = self.config
+            obs_pos = []
+            obs_rad = []
+            for ob in state.obstacles:
+                obs_pos.append(ob.x[:2])
+                obs_rad.append(ob.radius)
+
+            return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius,
+                                         obs_size=np.array(obs_rad))
 
     def generate_humans(self, robot_state):
         g1 = [self.config.bottom_limit, self.config.left_limit]
@@ -332,15 +335,14 @@ class Env:
         state_copy = deepcopy(self.state)
         to_remove = []
         for human_idx in range(len(self.state.obstacles)):
-            for _ in range(10):
-                state_copy.obstacles[human_idx] = self.move_human(self.state.obstacles[human_idx], 0.1)
-                if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0],
-                                                          state_copy.obstacles[human_idx].x[1],
-                                                          state_copy.obstacles[human_idx].goal[0],
-                                                          state_copy.obstacles[human_idx].goal[1],
-                                                          1):
-                    to_remove.append(human_idx)
-                    break
+            human_state = self.state.obstacles[human_idx]
+            state_copy.obstacles[human_idx] = self.move_human(human_state, None)
+            if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0],
+                                                      state_copy.obstacles[human_idx].x[1],
+                                                      state_copy.obstacles[human_idx].goal[0],
+                                                      state_copy.obstacles[human_idx].goal[1],
+                                                      1):
+                to_remove.append(human_idx)
         # remove obstacles if near goal
         if len(to_remove) != 0:
             state_copy.obstacles = [elem for idx, elem in enumerate(state_copy.obstacles) if idx not in to_remove]

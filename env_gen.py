@@ -24,7 +24,7 @@ seed_everything(1)
 for exp_n in range(10):
     print(f"EXP {exp_n}")
     obs = []
-    n_obs = 10
+    n_obs = 40
     real_env, sim_env = create_pedestrian_env(
         discrete=True,
         rwrd_in_sim=False,

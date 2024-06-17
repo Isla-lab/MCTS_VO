@@ -6,10 +6,10 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.animation import FuncAnimation
 
-
 # from notify_run import Notify
 #
 # notify = Notify()
+count = 0
 
 
 def plot_robot(x, y, yaw, config, ax, color="b"):
@@ -47,12 +47,13 @@ def plot_frame(i, goal, config, obs, traj, ax):
     ax.grid(True)
     # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
+
 def plot_frame2(i, goal, config, obs, traj, ax):
     x = traj[i, :]
     # ob = config.ob
     ax.clear()
     # ROBOT POSITION
-    # ax.plot(x[0], x[1], "xr")
+    ax.plot(x[0], x[1], "xr")
     # GOAL POSITION
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
@@ -67,8 +68,8 @@ def plot_frame2(i, goal, config, obs, traj, ax):
 
     # ax.plot([70, 70], [100, 250], 'k-', lw=2)
 
-    ax.set_xlim([config.left_limit-0.5, config.right_limit+0.5])
-    ax.set_ylim([config.bottom_limit-0.5, config.upper_limit+0.5])
+    ax.set_xlim([config.left_limit - 0.5, config.right_limit + 0.5])
+    ax.set_ylim([config.bottom_limit - 0.5, config.upper_limit + 0.5])
     # ax.axis("equal")
     # ax.grid(True)
     # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
@@ -201,7 +202,7 @@ def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig)
 
 
 def create_animation_tree_trajectory(
-    goal, config, obs, exp_num, exp_name, values, trajectories
+        goal, config, obs, exp_num, exp_name, values, trajectories
 ):
     fig, ax = plt.subplots()
     ani = FuncAnimation(

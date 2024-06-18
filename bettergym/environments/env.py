@@ -28,7 +28,7 @@ class EnvConfig:
     # Max and Min U[1]
     max_angle_change: float = None  # [rad/s]
 
-    max_speed_person: float = 0.3  # [m/s]
+    max_speed_person: float = 0.35  # [m/s]
 
     dt: float = 1.0  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
@@ -138,13 +138,16 @@ class Env:
         euclidean_distance = np.linalg.norm(np.array([p1_x, p1_y]) - np.array([p2_x, p2_y]))
         return euclidean_distance <= threshold_distance
 
-    def move_human(self, human_state: State, time_step: float):
-        omega = 0.039999996931562413
-        t = random.randint(a=0, b=100)
+    def move_human(self, human_state: State, t: int):
+        omega = 0.1
+        # t = random.randint(a=0, b=100)
         # human_state.x[0]
         # human_state.x[1]
-        new_x = sin(omega * t) + 2 * sin(2*omega*t) + human_state.x[0]
-        new_y = cos(omega * t) - 2 * cos(2*omega*t) + human_state.x[1]
+        scale_x = 0.12
+        scale_y = 0.1
+        multiplier = random.choice([-1, 1])
+        new_x = multiplier * scale_x * (sin(omega * t) + 2 * sin(2*omega*t)) + human_state.x[0]
+        new_y = multiplier * scale_y * (cos(omega * t) - 2 * cos(2*omega*t)) + human_state.x[1]
 
 
         new_x = np.clip(new_x, self.config.left_limit, self.config.right_limit)
@@ -152,6 +155,15 @@ class Env:
 
         delta_x = new_x - human_state.x[0]
         delta_y = new_y - human_state.x[1]
+
+        delta_s = math.sqrt(delta_x ** 2 + delta_y ** 2)
+
+        # Assuming a time interval (delta_t) of 1 (you can adjust this)
+        delta_t = 1.0
+
+        # Calculate speed
+        speed = delta_s / delta_t
+        print(f"Speed {speed:.2f}, t {t}")
 
         heading_angle = np.arctan2(delta_y, delta_x)
         new_human_state = State(
@@ -336,7 +348,7 @@ class Env:
         to_remove = []
         for human_idx in range(len(self.state.obstacles)):
             human_state = self.state.obstacles[human_idx]
-            state_copy.obstacles[human_idx] = self.move_human(human_state, None)
+            state_copy.obstacles[human_idx] = self.move_human(human_state, self.step_idx)
             if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0],
                                                       state_copy.obstacles[human_idx].x[1],
                                                       state_copy.obstacles[human_idx].goal[0],

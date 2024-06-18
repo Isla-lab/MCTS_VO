@@ -184,7 +184,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             save_count=None,
             cache_frame_data=False,
         )
-        ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=2)
+        ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
 
     trajectories = [i["trajectories"] for i in infos]

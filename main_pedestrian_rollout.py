@@ -18,10 +18,7 @@ from numba import njit
 from numpy import mean, std
 from tqdm import tqdm
 
-from bettergym.agents.planner_mcts import Mcts
-from bettergym.agents.utils.utils import (
-    epsilon_uniform_uniform,
-)
+from bettergym.agents.planner_mcts import RolloutStateNode
 from bettergym.agents.utils.vo import (
     epsilon_uniform_uniform_vo,
 )
@@ -69,6 +66,15 @@ def filter_obstacles(state):
     return [o for o in state.obstacles if np.linalg.norm(o.x[:2] - x[:2]) <= 5]
 
 
+class RolloutPlanner:
+    def __init__(self, rollout_policy, environment):
+        self.rollout_policy = rollout_policy
+        self.environment = environment
+
+    def plan(self, state):
+        return self.rollout_policy(RolloutStateNode(state), self), None
+
+
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
@@ -98,12 +104,9 @@ def run_experiment(experiment: ExperimentData, arguments):
     s = s0
 
     obs = [s0.obstacles]
-    planner = Mcts(
-        num_sim=experiment.n_sim,
-        c=experiment.c,
+
+    planner = RolloutPlanner(
         environment=sim_env,
-        computational_budget=arguments.max_depth,
-        discount=arguments.discount,
         rollout_policy=experiment.rollout_policy,
     )
     print("Simulation Started")
@@ -137,7 +140,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         trajectory = np.vstack((trajectory, s.x))  # store state history
         obs.append(s_copy.obstacles)
         gc.collect()
-
+    arguments.algorithm = "RolloutPlanner"
     exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
     print_and_notify(
         f"Simulation Ended with Reward: {round(sum(rewards), 2)}\n"
@@ -187,38 +190,13 @@ def run_experiment(experiment: ExperimentData, arguments):
         ani.save(f"debug/trajectory_{exp_name}_{exp_num}.gif", fps=150)
         plt.close(fig)
 
-    trajectories = [i["trajectories"] for i in infos]
-    rollout_values = [i["rollout_values"] for i in infos]
+    # trajectories = [i["trajectories"] for i in infos]
+    # rollout_values = [i["rollout_values"] for i in infos]
 
     with open(f"debug/trajectory_real_{exp_name}_{exp_num}.pkl", "wb") as f:
         pickle.dump(trajectory, f)
 
-    if DEBUG_DATA:
-        print("Saving Debug Data...")
-        q_vals = [i["q_values"] for i in infos]
-        visits = [i["visits"] for i in infos]
-        a = [[an.action for an in i["actions"]] for i in infos]
-        with open(f"debug/trajectories_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(trajectories, f)
-        with open(f"debug/rollout_values_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(rollout_values, f)
-        with open(f"debug/visits_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(visits, f)
-        with open(f"debug/q_values_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(q_vals, f)
-        with open(f"debug/actions_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(a, f)
-        with open(f"debug/chosen_a_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(actions, f)
-        with open(f"debug/obs_{exp_name}_{exp_num}.pkl", "wb") as f:
-            pickle.dump(obs, f)
 
-    if DEBUG_ANIMATION:
-        print("\nCreating Tree Trajectories Animation...")
-        create_animation_tree_trajectory(
-            goal, config, obs, exp_num, exp_name, rollout_values, trajectories
-        )
-        # create_animation_tree_trajectory_w_steps(goal, config, obs, exp_num)
     gc.collect()
     print("Done")
 
@@ -288,67 +266,22 @@ def get_experiment_data(arguments):
     # var_angle = 0.38 * 2
     std_angle_rollout = arguments.stdRollout
 
-    if arguments.rollout == "epsilon_uniform_uniform":
-        if arguments.algorithm == "VANILLA_VO2" or arguments.algorithm == "VANILLA_VO_ROLLOUT":
-            rollout_policy = partial(
-                epsilon_uniform_uniform_vo,
-                std_angle_rollout=std_angle_rollout,
-                eps=arguments.eps_rollout,
-            )
-        else:
-            rollout_policy = partial(
-                epsilon_uniform_uniform,
-                std_angle_rollout=std_angle_rollout,
-                eps=arguments.eps_rollout,
-            )
-    else:
-        raise ValueError("rollout function not valid")
+    rollout_policy = partial(
+        epsilon_uniform_uniform_vo,
+        std_angle_rollout=std_angle_rollout,
+        eps=arguments.eps_rollout,
+    )
 
-    if arguments.algorithm == "VANILLA" :
-        # VANILLA
-        return ExperimentData(
-            action_expansion_policy=None,
-            rollout_policy=rollout_policy,
-            discrete=True,
-            obstacle_reward=True,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    elif arguments.algorithm == "VANILLA_VO2":
-        # VO2
-        return ExperimentData(
-            vo=True,
-            action_expansion_policy=None,
-            rollout_policy=rollout_policy,
-            discrete=True,
-            obstacle_reward=False,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    elif arguments.algorithm == "VANILLA_VO_ROLLOUT":
-        return ExperimentData(
-            action_expansion_policy=None,
-            rollout_policy=rollout_policy,
-            discrete=True,
-            vo=False,
-            obstacle_reward=True,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
-    elif arguments.algorithm == "VANILLA_VO_ALBERO":
-        return ExperimentData(
-            action_expansion_policy=None,
-            rollout_policy=rollout_policy,
-            discrete=True,
-            vo=True,
-            obstacle_reward=False,
-            std_angle=std_angle_rollout,
-            n_sim=arguments.nsim,
-            c=arguments.c,
-        )
+    return ExperimentData(
+        vo=True,
+        action_expansion_policy=None,
+        rollout_policy=rollout_policy,
+        discrete=True,
+        obstacle_reward=False,
+        std_angle=std_angle_rollout,
+        n_sim=arguments.nsim,
+        c=arguments.c,
+    )
 
 
 def main():

@@ -21,7 +21,7 @@ def seed_everything(seed_value: int):
 
 
 seed_everything(1)
-for exp_n in range(10):
+for exp_n in range(100):
     print(f"EXP {exp_n}")
     obs = []
     n_obs = 40

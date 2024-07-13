@@ -57,13 +57,14 @@ class EnvConfig:
 
 
 class State:
-    def __init__(self, x: np.ndarray, goal: np.ndarray, obstacles: list, radius: float):
+    def __init__(self, x: np.ndarray, goal: np.ndarray, obstacles: list, radius: float, obs_type: str = None):
         # x, y, angle ,vel_lin
         self.x: np.ndarray = x
         # x(m), y(m)
         self.goal: np.ndarray = goal
         self.obstacles: list = obstacles
         self.radius: float = radius
+        self.obs_type: str = obs_type
 
     def __hash__(self):
         return hash(
@@ -80,7 +81,7 @@ class State:
 
     def copy(self):
         return State(
-            np.array(self.x, copy=True), self.goal, self.obstacles, self.radius
+            np.array(self.x, copy=True), self.goal, self.obstacles, self.radius, self.obs_type
         )
 
     def to_cartesian(self):
@@ -129,67 +130,26 @@ class Env:
         self.reward = self.reward_grad
         self.step_idx = 0
 
-        # if collision_rwrd:
-        #     self.step = self.step_check_coll
-        # else:
-        #     self.step = self.step_no_check_coll
-
     def is_within_range_check_with_points(self, p1_x, p1_y, p2_x, p2_y, threshold_distance):
         euclidean_distance = np.linalg.norm(np.array([p1_x, p1_y]) - np.array([p2_x, p2_y]))
         return euclidean_distance <= threshold_distance
 
-    def move_human(self, human_state: State, t: int):
-        omega = 0.1
-        # t = random.randint(a=0, b=100)
-        # human_state.x[0]
-        # human_state.x[1]
-        scale_x = 0.12
-        scale_y = 0.1
-        multiplier = random.choice([-1, 1])
-        new_x = multiplier * scale_x * (sin(omega * t) + 2 * sin(2*omega*t)) + human_state.x[0]
-        new_y = multiplier * scale_y * (cos(omega * t) - 2 * cos(2*omega*t)) + human_state.x[1]
-
-
-        new_x = np.clip(new_x, self.config.left_limit, self.config.right_limit)
-        new_y = np.clip(new_y, self.config.bottom_limit, self.config.upper_limit)
-
-        delta_x = new_x - human_state.x[0]
-        delta_y = new_y - human_state.x[1]
-
-        delta_s = math.sqrt(delta_x ** 2 + delta_y ** 2)
-
-        # Assuming a time interval (delta_t) of 1 (you can adjust this)
-        delta_t = 1.0
-
-        # Calculate speed
-        speed = delta_s / delta_t
-        print(f"Speed {speed:.2f}, t {t}")
-
-        heading_angle = np.arctan2(delta_y, delta_x)
-        new_human_state = State(
-            x=np.array([new_x, new_y, heading_angle, human_state.x[3]]),
-            goal=human_state.goal,
-            obstacles=None,
-            radius=human_state.radius
-        )
-        return new_human_state
-
-
     def check_collision(self, state: State) -> bool:
-            """
-            Check if the robot is colliding with some obstacle
-            :param state: state of the robot
-            :return:
-            """
-            # config = self.config
-            obs_pos = []
-            obs_rad = []
-            for ob in state.obstacles:
+        """
+        Check if the robot is colliding with some obstacle
+        :param state: state of the robot
+        :return:
+        """
+        # config = self.config
+        obs_pos = []
+        obs_rad = []
+        for ob in state.obstacles:
+            if ob.obs_type == 'circle':
                 obs_pos.append(ob.x[:2])
                 obs_rad.append(ob.radius)
 
-            return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius,
-                                         obs_size=np.array(obs_rad))
+        return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius,
+                                     obs_size=np.array(obs_rad))
 
     def generate_humans(self, robot_state):
         g1 = [self.config.bottom_limit, self.config.left_limit]
@@ -205,7 +165,9 @@ class Env:
                                      self.config.max_speed_person]),
                          goal=np.array(all_goals_list[random.randint(0, len(all_goals_list) - 1)]),
                          obstacles=None,
-                         radius=self.config.obs_size)
+                         radius=self.config.obs_size,
+                         obs_type="circle"
+                         )
 
         for _ in range(self.config.num_humans):
             human = generate_human_state()
@@ -289,9 +251,7 @@ class Env:
 
         return new_x
 
-    def step_check_coll(
-            self, action: np.ndarray
-    ) -> tuple[State, float, bool, Any, Any]:
+    def step_check_coll(self, action: np.ndarray) -> tuple[State, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -313,9 +273,7 @@ class Env:
             {"collision": int(collision), "out_boundaries": int(out_boundaries)},
         )
 
-    def step_no_check_coll(
-            self, action: np.ndarray
-    ) -> tuple[State, float, bool, Any, Any]:
+    def step_no_check_coll(self, action: np.ndarray) -> tuple[State, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -324,7 +282,6 @@ class Env:
         self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.robot_motion(self.state.x, action)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
-        # TODO check collision
         collision = False
         goal = self.dist_goal_t1 <= self.config.robot_radius
         out_boundaries = self.check_out_boundaries(self.state)
@@ -338,6 +295,66 @@ class Env:
             None,
         )
 
+    def move_human_trefoil(self, human_state: State, t: int):
+        omega = 0.1
+        # t = random.randint(a=0, b=100)
+        # human_state.x[0]
+        # human_state.x[1]
+        scale_x = 0.12
+        scale_y = 0.1
+        multiplier = random.choice([-1, 1])
+        new_x = multiplier * scale_x * (sin(omega * t) + 2 * sin(2 * omega * t)) + human_state.x[0]
+        new_y = multiplier * scale_y * (cos(omega * t) - 2 * cos(2 * omega * t)) + human_state.x[1]
+
+        new_x = np.clip(new_x, self.config.left_limit, self.config.right_limit)
+        new_y = np.clip(new_y, self.config.bottom_limit, self.config.upper_limit)
+
+        delta_x = new_x - human_state.x[0]
+        delta_y = new_y - human_state.x[1]
+
+        delta_s = math.sqrt(delta_x ** 2 + delta_y ** 2)
+
+        # Assuming a time interval (delta_t) of 1 (you can adjust this)
+        delta_t = 1.0
+
+        # Calculate speed
+        speed = delta_s / delta_t
+        # print(f"Speed {speed:.2f}, t {t}")
+
+        heading_angle = np.arctan2(delta_y, delta_x)
+        new_human_state = State(
+            x=np.array([new_x, new_y, heading_angle, human_state.x[3]]),
+            goal=human_state.goal,
+            obstacles=None,
+            radius=human_state.radius,
+            obs_type=human_state.obs_type
+        )
+        return new_human_state
+
+    def move_human_intentions(self, human_state: State, time_step: float):
+        rand_num = (random.random() - 0.5)
+        # rand_num = (random.random() - 0.5) * 0.1
+        # heading_angle = deepcopy(human_state.x[2])
+        human_vel = random.choices([self.config.max_speed_person, self.config.max_speed_person / 2 + rand_num * 0.1])[0]
+        # human_vel = 0.3
+
+        heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
+                              (human_state.goal[0] - human_state.x[0])) + rand_num
+        new_x = human_state.x[0] + (human_vel * time_step) * cos(heading_angle)
+        new_y = human_state.x[1] + (human_vel * time_step) * sin(heading_angle)
+
+        new_x = np.clip(new_x, self.config.left_limit, self.config.right_limit)
+        new_y = np.clip(new_y, self.config.bottom_limit, self.config.upper_limit)
+        new_human_state = State(
+            x=np.array([new_x, new_y, heading_angle, human_state.x[3]]),
+            goal=human_state.goal,
+            obstacles=None,
+            radius=human_state.radius,
+            obs_type=human_state.obs_type
+        )
+        return new_human_state
+
+
     def move_humans_fixed(self):
         state_copy = deepcopy(self.state)
         state_copy.obstacles = self.obs_fixed[self.step_idx]
@@ -348,13 +365,14 @@ class Env:
         to_remove = []
         for human_idx in range(len(self.state.obstacles)):
             human_state = self.state.obstacles[human_idx]
-            state_copy.obstacles[human_idx] = self.move_human(human_state, self.step_idx)
-            if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0],
-                                                      state_copy.obstacles[human_idx].x[1],
-                                                      state_copy.obstacles[human_idx].goal[0],
-                                                      state_copy.obstacles[human_idx].goal[1],
-                                                      1):
-                to_remove.append(human_idx)
+            if human_state.obs_type == "circle":
+                state_copy.obstacles[human_idx] = self.move_human_trefoil(human_state, self.step_idx)
+                if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0],
+                                                          state_copy.obstacles[human_idx].x[1],
+                                                          state_copy.obstacles[human_idx].goal[0],
+                                                          state_copy.obstacles[human_idx].goal[1],
+                                                          1):
+                    to_remove.append(human_idx)
         # remove obstacles if near goal
         if len(to_remove) != 0:
             state_copy.obstacles = [elem for idx, elem in enumerate(state_copy.obstacles) if idx not in to_remove]
@@ -371,6 +389,25 @@ class Env:
     def step_sim_no_check_coll(self, action: np.ndarray):
         return self.step_no_check_coll(action)
 
+    def add_walls(self, state: State):
+        walls = [
+            [self.config.bottom_limit, self.config.left_limit, self.config.upper_limit, self.config.left_limit],
+            [self.config.bottom_limit, self.config.right_limit, self.config.upper_limit, self.config.right_limit],
+            [self.config.bottom_limit, self.config.left_limit, self.config.bottom_limit, self.config.right_limit],
+            [self.config.upper_limit, self.config.left_limit, self.config.upper_limit, self.config.right_limit],
+        ]
+
+        for wall in walls:
+            state.obstacles.append(
+                State(
+                    x=np.array(wall),
+                    goal=np.array([0, 0]),
+                    obstacles=None,
+                    radius=None,
+                    obs_type="wall",
+                )
+            )
+
     def reset(self):
         state = State(
             x=np.array([1, 1, math.pi / 8.0, 0.0]),
@@ -379,6 +416,7 @@ class Env:
             radius=self.config.robot_radius,
         )
         state.obstacles = self.generate_humans(state)
+        self.add_walls(state)
         return state, None
 
 
@@ -530,7 +568,7 @@ class BetterEnv(BetterGym):
         x = state.x
         dt = config.dt
         ROBOT_RADIUS = config.robot_radius
-        VMAX = 0.3
+        VMAX = config.max_speed
 
         # Calculate radii
         r1 = obs_x[:, 3] * dt + obs_rad + VMAX * dt
@@ -542,7 +580,7 @@ class BetterEnv(BetterGym):
         if np.isnan(intersection_points).all():
             return actions
         else:
-            angle_space, velocity_space = new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points)
+            angle_space, velocity_space = new_get_spaces(obs_x, x, config, intersection_points)
             actions = self.get_discrete_actions_multi_range(angle_space, velocity_space, config)
             return actions
 

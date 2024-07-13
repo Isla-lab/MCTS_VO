@@ -43,6 +43,43 @@ def compute_int_vectorized(r0, r1, d, x0, x1, y0, y1):
     return np.column_stack((np.column_stack((x3, y3)), np.column_stack((x4, y4))))
 
 
+def find_circle_segment_intersections(robot_pos, robot_radius, segments):
+    r2 = robot_radius**2
+    A = np.array(segments[:, 2] - segments[:, 0])
+    B = np.array(segments[:, 3] - segments[:, 1])
+    C = np.array(segments[:, 0] - robot_pos[0])
+    D = np.array(segments[:, 1] - robot_pos[1])
+    a = A**2 + B**2
+    b = 2 * (A * C + B * D)
+    c = C**2 + D**2 - r2
+    discriminant = b**2 - 4 * a * c
+
+    valid_discriminant = discriminant >= 0
+
+    if not np.any(valid_discriminant):
+        return np.empty((0, 4))
+    else:
+        sqrt_discriminant = np.sqrt(discriminant[valid_discriminant])
+        t1 = (-b[valid_discriminant] + sqrt_discriminant) / (2 * a[valid_discriminant])
+        t2 = (-b[valid_discriminant] - sqrt_discriminant) / (2 * a[valid_discriminant])
+
+        valid_t1 = np.logical_and(t1 >= 0, t1 <= 1)
+        valid_t2 = np.logical_and(t2 >= 0, t2 <= 1)
+
+        if np.any(valid_t1):
+            xi_t1 = segments[valid_discriminant, 0] + t1[valid_t1] * A[valid_discriminant]
+            yi_t1 = segments[valid_discriminant, 1] + t1[valid_t1] * B[valid_discriminant]
+        else:
+            return np.empty((0, 4))
+
+        if np.any(valid_t2):
+            xi_t2 = segments[valid_discriminant, 0] + t2[valid_t2] * A[valid_discriminant]
+            yi_t2 = segments[valid_discriminant, 1] + t2[valid_t2] * B[valid_discriminant]
+        else:
+            return np.empty((0, 4))
+
+    return np.column_stack((np.column_stack((xi_t1, yi_t1)), np.column_stack((xi_t2, yi_t2))))
+
 def get_intersections_vectorized(x, obs_x, r0, r1):
     x_exp = np.expand_dims(x, 1)
     d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1] - x_exp[1, :])

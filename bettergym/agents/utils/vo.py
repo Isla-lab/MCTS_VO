@@ -1,9 +1,11 @@
 import math
+from operator import le
 import random
 from copy import deepcopy
 from functools import partial
 from typing import Callable, Any
 
+from matplotlib.bezier import get_intersection
 import numpy as np
 import portion as P
 
@@ -14,7 +16,7 @@ from bettergym.agents.utils.utils import (
     compute_towards_goal_jit,
     get_robot_angles, compute_uniform_towards_goal_jit,
 )
-from mcts_utils import uniform_random, get_intersections_vectorized
+from mcts_utils import find_circle_segment_intersections, uniform_random, get_intersections_vectorized
 
 
 def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
@@ -82,25 +84,49 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
             max_speed=config.max_speed,
         )
 
+    # Extract robot information
+    dt = config.dt
+    ROBOT_RADIUS = config.robot_radius
+    VMAX = config.max_speed
+
     # Extract obstacle information
     obstacles = node.state.obstacles
-    obs_x = np.array([ob.x for ob in obstacles])
-    obs_rad = np.array([ob.radius for ob in obstacles])
+    # obs_x, obs_rad
+    square_obs = [[], []]
+    circle_obs = [[], []]
+    wall_obs = [[], []]
+    intersection_points = np.empty((0, 4), dtype=np.float64)
+    for ob in obstacles:
+        if ob.obs_type == "square":
+            square_obs[0].append(ob.x)
+            square_obs[1].append(ob.radius)
+        elif ob.obs_type == "circle":
+            circle_obs[0].append(ob.x)
+            circle_obs[1].append(ob.radius)
+        else:
+            wall_obs[0].append(ob.x)
+            wall_obs[1].append(ob.radius)
 
-    # Extract robot information
-    dt = planner.environment.config.dt
-    ROBOT_RADIUS = planner.environment.config.robot_radius
-    VMAX = 0.3
+    # CIRCULAR OBSTACLES
+    circle_obs_x = np.array(circle_obs[0])
+    circle_obs_rad = np.array(circle_obs[1])
 
-    # Calculate radii
-    r1 = obs_x[:, 3] * dt + obs_rad + VMAX * dt
-    r0 = np.full_like(r1, ROBOT_RADIUS)
+    if len(circle_obs_x) != 0:
+        # Calculate radii
+        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + VMAX * dt
+        r0 = np.full_like(r1, ROBOT_RADIUS)
 
-    # Calculate intersection points
-    intersection_points, dist, mask = get_intersections_vectorized(x, obs_x, r0, r1)
+        # Calculate intersection points
+        intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
+
+    # WALL OBSTACLES
+    wall_int = find_circle_segment_intersections(
+        x[:2], ROBOT_RADIUS, np.array(wall_obs[0])
+    )
+    intersection_points = np.vstack((intersection_points, wall_int))
 
     # If there are no intersection points
-    if np.isnan(intersection_points).all():
+    if np.isnan(intersection_points).all() and len(intersection_points) > 0:
         return compute_uniform_towards_goal_jit(
             x=x,
             goal=node.state.goal,
@@ -111,8 +137,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
         )
     else:
         # compute intersection with our new circumference
-        # new_intersection_points, new_dist, new_mask = get_intersections_vectorized(x, obs_x[mask], r0[mask], (r1+r0)[mask])
-        angle_space, velocity_space = new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points)
+        angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points)
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
         angle_space = np.array(angle_space)
         angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
@@ -219,7 +244,7 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
     # No angle at positive velocity is safe
     if angle_space is None:
         if not disable_retro:
-            retro_available, angle_space = vo_negative_speed(obs, x, r1, config)
+            retro_available, angle_space = vo_negative_speed(obs, x, config)
         else:
             retro_available = False
 
@@ -289,26 +314,36 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x):
     # convert points into angles and define the forbidden angles space
     forbidden_ranges = get_unsafe_angles(intersection_points, robot_angles, x)
     new_robot_angles = compute_ranges_difference(robot_angles, forbidden_ranges)
-    # with open("file", "a") as f:
-    #     f.write(f"FORBIDDEN {forbidden_ranges}\n"
-    #             f"SPAN {robot_angles}\n"
-    #             f"SAFE {new_robot_angles}")
     if len(new_robot_angles) == 0:
         return None, robot_angles
     else:
         return new_robot_angles, robot_angles
 
 
-def vo_negative_speed(obs, x, r1, config):
+def vo_negative_speed(obstacles, x, config):
     VELOCITY = np.abs(config.min_speed)
-    obs_rad = config.obs_size
     ROBOT_RADIUS = config.robot_radius
-    # v = get_relative_velocity(VELOCITY, obs, x)
-    # Calculate radii
-    r1 = obs[:, 3] * config.dt + obs_rad + VELOCITY * config.dt
-    r0 = np.full_like(r1, ROBOT_RADIUS)
-    intersection_points, dist, mask = get_intersections_vectorized(x, obs, r0, r1)
-    if any(mask):
+    intersection_points = np.empty((0, 4), dtype=np.float64)
+
+    square_obs, circle_obs, wall_obs = obstacles
+
+    # CIRCULAR OBSTACLES
+    circle_obs_x = np.array(circle_obs[0])
+    circle_obs_rad = np.array(circle_obs[1])
+
+    if len(circle_obs_x) != 0:
+        # Calculate radii
+        r1 = circle_obs_x[:, 3] * config.dt + circle_obs_rad + VELOCITY * config.dt
+        r0 = np.full_like(r1, ROBOT_RADIUS)
+        intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
+
+    # WALL OBSTACLES
+    wall_int = find_circle_segment_intersections(
+        x[:2], ROBOT_RADIUS, np.array(wall_obs[0])
+    )
+    intersection_points = np.vstack((intersection_points, wall_int))
+
+    if np.isnan(intersection_points).all() and len(intersection_points) != 0:
         x_copy = x.copy()
         val = x_copy[2] + np.pi
         x_copy[2] = val
@@ -332,6 +367,7 @@ def vo_negative_speed(obs, x, r1, config):
             # TODO attention I'm returning False and None
             return None
     else:
+        # all robot angles are safe
         return get_robot_angles(x, config.max_angle_change)
 
 
@@ -418,10 +454,10 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     return chosen
 
 
-def new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points):
+def new_get_spaces(obstacles, x, config, intersection_points):
     safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x)
     if safe_angles is None:
-        safe_angles = vo_negative_speed(obs_x, x, r1, config)
+        safe_angles = vo_negative_speed(obstacles, x, config)
         if safe_angles is None:
             vspace = [0.0, 0.0]
             safe_angles = [[-math.pi, math.pi]]
@@ -429,7 +465,6 @@ def new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points):
             vspace = [config.min_speed, config.min_speed]
     else:
         vspace = [config.max_speed, config.max_speed]
-
 
     velocity_space = [*([vspace] * len(safe_angles))]
     angle_space = [*safe_angles]
@@ -465,7 +500,7 @@ def uniform_random_vo(node, planner):
     if np.isnan(intersection_points).all():
         return uniform_random(node, planner)
     else:
-        angle_space, velocity_space = new_get_spaces(obs_x, mask, r0, r1, x, config, intersection_points)
+        angle_space, velocity_space = new_get_spaces(obs_x, x, config, intersection_points)
         return sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 
 
@@ -483,8 +518,9 @@ def epsilon_uniform_uniform_vo(
         node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
 ):
     # planner.c.obstacles = [o.x for o in node.state.obstacles]
-    prob = random.random()
-    if prob <= 1 - eps:
-        return uniform_towards_goal_vo(node, planner, std_angle_rollout)
-    else:
-        return uniform_random_vo(node, planner)
+    # prob = random.random()
+    # if prob <= 1 - eps:
+    #     return uniform_towards_goal_vo(node, planner, std_angle_rollout)
+    # else:
+    #     return uniform_random_vo(node, planner)
+    return uniform_towards_goal_vo(node, planner, std_angle_rollout)

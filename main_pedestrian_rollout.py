@@ -63,7 +63,14 @@ def seed_everything(seed_value: int):
 
 def filter_obstacles(state):
     x = state.x
-    return [o for o in state.obstacles if np.linalg.norm(o.x[:2] - x[:2]) <= 5]
+    new_obstacles = []
+    for o in state.obstacles:
+        if o.obs_type == "wall":
+            new_obstacles.append(o)
+        elif np.linalg.norm(o.x[:2] - x[:2]) <= 5:
+            new_obstacles.append(o)
+            
+    return new_obstacles
 
 
 class RolloutPlanner:
@@ -102,8 +109,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
-
-    obs = [s0.obstacles]
+    obs = [[o for o in filter_obstacles(s0) if o.obs_type != "wall"]]
 
     planner = RolloutPlanner(
         environment=sim_env,
@@ -123,7 +129,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         print(f"Step Number {step_n}")
         initial_time = time.time()
         s_copy = deepcopy(s)
-        s_copy.obstacles = filter_obstacles(s_copy)
+        # s_copy.obstacles = filter_obstacles(s_copy)
         u, info = planner.plan(s_copy)
         actions.append(u)
         u_copy = np.array(u, copy=True)
@@ -138,7 +144,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
-        obs.append(s_copy.obstacles)
+        obs.append([o for o in s_copy.obstacles if o.obs_type != "wall"])
         gc.collect()
     arguments.algorithm = "RolloutPlanner"
     exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])

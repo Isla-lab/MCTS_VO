@@ -354,13 +354,12 @@ class Env:
         )
         return new_human_state
 
-
     def move_humans_fixed(self):
         state_copy = deepcopy(self.state)
         state_copy.obstacles = self.obs_fixed[self.step_idx]
         self.state = state_copy
 
-    def move_humans(self):
+    def move_humans_nofixed(self):
         state_copy = deepcopy(self.state)
         to_remove = []
         for human_idx in range(len(self.state.obstacles)):
@@ -391,10 +390,14 @@ class Env:
 
     def add_walls(self, state: State):
         walls = [
-            [self.config.bottom_limit, self.config.left_limit, self.config.upper_limit, self.config.left_limit],
-            [self.config.bottom_limit, self.config.right_limit, self.config.upper_limit, self.config.right_limit],
-            [self.config.bottom_limit, self.config.left_limit, self.config.bottom_limit, self.config.right_limit],
-            [self.config.upper_limit, self.config.left_limit, self.config.upper_limit, self.config.right_limit],
+            # BOTTOM WALL
+            [0., 0., 10., 0.],
+            # UPPER WALL
+            [10., 10., 0., 10.],
+            # LEFT WALL
+            [0., 10., 0., 0.],
+            # RIGHT WALL
+            [10., 0., 10., 10.]
         ]
 
         for wall in walls:
@@ -456,6 +459,8 @@ class BetterEnv(BetterGym):
         if obs_pos is not None:
             self.gym_env.obs_fixed = obs_pos
             self.gym_env.move_humans = self.gym_env.move_humans_fixed
+        else:
+            self.gym_env.move_humans = self.gym_env.move_humans_nofixed
 
     def get_actions_discrete(self, state: State):
         config = self.gym_env.config

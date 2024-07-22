@@ -1,11 +1,8 @@
 import math
-from operator import le
 import random
-from copy import deepcopy
 from functools import partial
 from typing import Callable, Any
 
-from matplotlib.bezier import get_intersection
 import numpy as np
 import portion as P
 
@@ -16,7 +13,8 @@ from bettergym.agents.utils.utils import (
     compute_towards_goal_jit,
     get_robot_angles, compute_uniform_towards_goal_jit,
 )
-from mcts_utils import find_circle_segment_intersections, uniform_random, get_intersections_vectorized
+from mcts_utils import uniform_random, get_intersections_vectorized, check_circle_segment_intersect, \
+    angle_distance_vector
 
 
 def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
@@ -88,6 +86,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     dt = config.dt
     ROBOT_RADIUS = config.robot_radius
     VMAX = config.max_speed
+    wall_int = None
 
     # Extract obstacle information
     obstacles = node.state.obstacles
@@ -120,13 +119,16 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
     # WALL OBSTACLES
-    wall_int = find_circle_segment_intersections(
-        x[:2], ROBOT_RADIUS, np.array(wall_obs[0])
-    )
-    intersection_points = np.vstack((intersection_points, wall_int))
+    intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
+    valid_discriminant = intersection_data[0]
+    if valid_discriminant.any():
+        wall_int = np.array(wall_obs[0])[valid_discriminant]
+        unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+    else:
+        unsafe_wall_angles = None
 
-    # If there are no intersection points
-    if np.isnan(intersection_points).all() and len(intersection_points) > 0:
+    # CASE 1 no obs intersection and no wall intersection
+    if np.isnan(intersection_points).all() and wall_int is None:
         return compute_uniform_towards_goal_jit(
             x=x,
             goal=node.state.goal,
@@ -135,9 +137,12 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
             min_speed=0.0,
             max_speed=config.max_speed,
         )
+    # CASE 2 only wall intersection
+    # CASE 3 only obs intersection
+    # CASE 4 both wall and obs intersection
     else:
         # compute intersection with our new circumference
-        angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points)
+        angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points, wall_angles=unsafe_wall_angles)
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
         angle_space = np.array(angle_space)
         angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
@@ -294,6 +299,32 @@ def get_unsafe_angles(intersection_points, robot_angles, x):
     return forbidden_ranges
 
 
+def get_unsafe_angles_wall(intersection_points, x):
+    unsafe_angles = np.array(get_unsafe_angles(intersection_points, None, x), copy=True)
+    approximations = np.arange(-np.pi, np.pi + 1, np.pi / 2)
+    forbidden_ranges = []
+
+    for i, unsafe_angle in enumerate(unsafe_angles):
+        for j, angle in enumerate(unsafe_angles[i]):
+            if angle in approximations:
+                continue
+            dist = angle_distance_vector(angle, approximations)
+            idx = np.argmin(dist)
+            unsafe_angles[i][j] = approximations[idx]
+
+    angle1 = unsafe_angles[:, 0]
+    angle2 = unsafe_angles[:, 1]
+    angle1_greater_mask = angle1 > angle2
+    forbidden_ranges.extend(np.column_stack((angle1[~angle1_greater_mask], angle2[~angle1_greater_mask])))
+    forbidden_ranges.extend(
+        np.vstack((
+            np.column_stack((angle1[angle1_greater_mask], np.full_like(angle1[angle1_greater_mask], math.pi))),
+            np.column_stack((np.full_like(angle2[angle1_greater_mask], -math.pi), angle2[angle1_greater_mask]))
+        ))
+    )
+    return forbidden_ranges
+
+
 def compute_ranges_difference(robot_angles, forbidden_ranges):
     # Convert lists of ranges to portion intervals
     robot_intervals = P.Interval(*[P.closed(a[0], a[1]) for a in robot_angles])
@@ -308,11 +339,14 @@ def compute_ranges_difference(robot_angles, forbidden_ranges):
     return result_ranges
 
 
-def compute_safe_angle_space(intersection_points, max_angle_change, x):
+def compute_safe_angle_space(intersection_points, max_angle_change, x, wall_angles):
     robot_angles = get_robot_angles(x, max_angle_change)
 
     # convert points into angles and define the forbidden angles space
     forbidden_ranges = get_unsafe_angles(intersection_points, robot_angles, x)
+    if wall_angles is not None:
+        forbidden_ranges.extend(wall_angles)
+
     new_robot_angles = compute_ranges_difference(robot_angles, forbidden_ranges)
     if len(new_robot_angles) == 0:
         return None, robot_angles
@@ -337,18 +371,27 @@ def vo_negative_speed(obstacles, x, config):
         r0 = np.full_like(r1, ROBOT_RADIUS)
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
-    # WALL OBSTACLES
-    wall_int = find_circle_segment_intersections(
-        x[:2], ROBOT_RADIUS, np.array(wall_obs[0])
-    )
-    intersection_points = np.vstack((intersection_points, wall_int))
+    # intersection_points = np.vstack((intersection_points, wall_int))
+    intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VELOCITY * config.dt,
+                                                       np.array(wall_obs[0]))
+    valid_discriminant = intersection_data[0]
+    wall_int = None
+    if valid_discriminant.any():
+        wall_int = np.array(wall_obs[0])[valid_discriminant]
+        unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+    else:
+        unsafe_wall_angles = None
 
-    if np.isnan(intersection_points).all() and len(intersection_points) != 0:
+    if np.isnan(intersection_points).all() and wall_int is None:
+        # all robot angles are safe
+        return get_robot_angles(x, config.max_angle_change)
+    else:
         x_copy = x.copy()
         val = x_copy[2] + np.pi
         x_copy[2] = val
         x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
-        safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x_copy)
+        safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x_copy,
+                                                           unsafe_wall_angles)
 
         if safe_angles is not None:
             # since angle_space was computed using the flipped angle
@@ -366,9 +409,6 @@ def vo_negative_speed(obstacles, x, config):
         else:
             # TODO attention I'm returning False and None
             return None
-    else:
-        # all robot angles are safe
-        return get_robot_angles(x, config.max_angle_change)
 
 
 def voronoi_vo(
@@ -454,8 +494,8 @@ def voo_vo(eps: float, sample_centered: Callable, node: Any, planner: Planner):
     return chosen
 
 
-def new_get_spaces(obstacles, x, config, intersection_points):
-    safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x)
+def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
+    safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x, wall_angles)
     if safe_angles is None:
         safe_angles = vo_negative_speed(obstacles, x, config)
         if safe_angles is None:

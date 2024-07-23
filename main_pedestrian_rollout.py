@@ -34,7 +34,7 @@ from experiment_utils import (
 
 DEBUG_DATA = False
 DEBUG_ANIMATION = False
-ANIMATION = False
+ANIMATION = True
 
 
 @dataclass(frozen=True)
@@ -127,13 +127,13 @@ def run_experiment(experiment: ExperimentData, arguments):
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
-        initial_time = time.time()
         s_copy = deepcopy(s)
-        # s_copy.obstacles = filter_obstacles(s_copy)
+        s_copy.obstacles = filter_obstacles(s_copy)
+        initial_time = time.time()
         u, info = planner.plan(s_copy)
+        final_time = time.time() - initial_time
         actions.append(u)
         u_copy = np.array(u, copy=True)
-        final_time = time.time() - initial_time
         infos.append(deepcopy(info))
         # del info['q_values']
         # del info['actions']

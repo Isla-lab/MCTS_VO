@@ -8,10 +8,10 @@ from typing import Any
 import numpy as np
 
 from bettergym.agents.utils.utils import get_robot_angles
-from bettergym.agents.utils.vo import new_get_spaces
+from bettergym.agents.utils.vo import new_get_spaces, get_unsafe_angles_wall
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
-from mcts_utils import get_intersections_vectorized
+from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
 
 @dataclass(frozen=True)
@@ -564,10 +564,6 @@ class BetterEnv(BetterGym):
 
         if len(state.obstacles) == 0:
             return actions
-        # Extract obstacle information
-        obstacles = state.obstacles
-        obs_x = np.array([ob.x for ob in obstacles])
-        obs_rad = np.array([ob.radius for ob in obstacles])
 
         # Extract robot information
         x = state.x
@@ -575,17 +571,52 @@ class BetterEnv(BetterGym):
         ROBOT_RADIUS = config.robot_radius
         VMAX = config.max_speed
 
-        # Calculate radii
-        r1 = obs_x[:, 3] * dt + obs_rad + VMAX * dt
-        r0 = np.full_like(r1, ROBOT_RADIUS)
+        wall_int = None
 
-        # Calculate intersection points
-        intersection_points, dist, mask = get_intersections_vectorized(x, obs_x, r0, r1)
+        # Extract obstacle information
+        obstacles = state.obstacles
+        # obs_x, obs_rad
+        square_obs = [[], []]
+        circle_obs = [[], []]
+        wall_obs = [[], []]
+        intersection_points = np.empty((0, 4), dtype=np.float64)
+        for ob in obstacles:
+            if ob.obs_type == "square":
+                square_obs[0].append(ob.x)
+                square_obs[1].append(ob.radius)
+            elif ob.obs_type == "circle":
+                circle_obs[0].append(ob.x)
+                circle_obs[1].append(ob.radius)
+            else:
+                wall_obs[0].append(ob.x)
+                wall_obs[1].append(ob.radius)
+
+        # CIRCULAR OBSTACLES
+        circle_obs_x = np.array(circle_obs[0])
+        circle_obs_rad = np.array(circle_obs[1])
+
+        if len(circle_obs_x) != 0:
+            # Calculate radii
+            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + VMAX * dt
+            r0 = np.full_like(r1, ROBOT_RADIUS)
+
+            # Calculate intersection points
+            intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
+
+        # WALL OBSTACLES
+        intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
+        valid_discriminant = intersection_data[0]
+        if valid_discriminant.any():
+            wall_int = np.array(wall_obs[0])[valid_discriminant]
+            unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+        else:
+            unsafe_wall_angles = None
+
         # If there are no intersection points
-        if np.isnan(intersection_points).all():
+        if np.isnan(intersection_points).all() and wall_int is None:
             return actions
         else:
-            angle_space, velocity_space = new_get_spaces(obs_x, x, config, intersection_points)
+            angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points, wall_angles=unsafe_wall_angles)
             actions = self.get_discrete_actions_multi_range(angle_space, velocity_space, config)
             return actions
 

@@ -74,6 +74,7 @@ class Mcts(Planner):
             "actions": [],
             "visits": [],
             "rollout_values": [],
+            "max_depth": 0,
         }
 
     def get_id(self):
@@ -109,6 +110,7 @@ class Mcts(Planner):
         return action, self.info
 
     def simulate(self, state_id: int, depth: int):
+        self.info["max_depth"] = max(depth, self.info["max_depth"])
         node = self.id_to_state_node[state_id]
         node.num_visits += 1
         current_state = node.state

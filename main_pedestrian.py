@@ -66,7 +66,42 @@ def seed_everything(seed_value: int):
 
 def filter_obstacles(state):
     x = state.x
-    return [o for o in state.obstacles if np.linalg.norm(o.x[:2] - x[:2]) <= 5]
+    new_obstacles = []
+    for o in state.obstacles:
+        if o.obs_type == "wall":
+            new_obstacles.append(o)
+        elif np.linalg.norm(o.x[:2] - x[:2]) <= 5:
+            new_obstacles.append(o)
+
+    return new_obstacles
+
+
+def get_max_depth(planner, u):
+    def recursive_get_max_depth(node, depth):
+        state_node = planner.id_to_state_node[list(node.state_to_id.values())[0]]
+        q_vals = np.divide(
+            state_node.a_values,
+            state_node.num_visits_actions,
+            out=np.full_like(state_node.a_values, np.inf),
+            where=state_node.num_visits_actions != 0,
+        )
+
+        ucb_scores = q_vals + planner.exploration_constant * np.sqrt(
+            np.divide(
+                np.log(state_node.num_visits),
+                state_node.num_visits_actions,
+                out=np.full_like(state_node.num_visits_actions, np.inf),
+                where=state_node.num_visits_actions != 0,
+            )
+        )
+        action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
+
+        # get action corresponding to the index
+        action_node = state_node.actions[action_idx]
+        return recursive_get_max_depth(action_node, depth + 1)
+
+    first_action = list(filter(lambda x: np.array_equal(x.action, u), planner.id_to_state_node[0].actions))[0]
+    return recursive_get_max_depth(first_action, 0)
 
 
 def run_experiment(experiment: ExperimentData, arguments):
@@ -96,8 +131,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
-
-    obs = [s0.obstacles]
+    obs = [[o for o in filter_obstacles(s0) if o.obs_type != "wall"]]
     planner = Mcts(
         num_sim=experiment.n_sim,
         c=experiment.c,
@@ -112,19 +146,22 @@ def run_experiment(experiment: ExperimentData, arguments):
     times = []
     infos = []
     actions = []
+    depth = []
     step_n = 0
     while not terminal:
         step_n += 1
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
-        initial_time = time.time()
         s_copy = deepcopy(s)
         s_copy.obstacles = filter_obstacles(s_copy)
+        initial_time = time.time()
         u, info = planner.plan(s_copy)
+        final_time = time.time() - initial_time
+        print(f"Depth: {info['max_depth']}")
+        depth.append(info['max_depth'])
         actions.append(u)
         u_copy = np.array(u, copy=True)
-        final_time = time.time() - initial_time
         infos.append(deepcopy(info))
         # del info['q_values']
         # del info['actions']
@@ -135,7 +172,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
-        obs.append(s_copy.obstacles)
+        obs.append([o for o in s_copy.obstacles if o.obs_type != "wall"])
         gc.collect()
 
     exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
@@ -167,6 +204,9 @@ def run_experiment(experiment: ExperimentData, arguments):
         "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
         "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
         "stdSmoothAngle": np.diff(trajectory[:, 2]).std(),
+        "minDepth": np.min(depth),
+        "maxDepth": np.max(depth),
+        "meanDepth": np.mean(depth),
         **env_info
     }
     data = data | arguments.__dict__
@@ -304,7 +344,7 @@ def get_experiment_data(arguments):
     else:
         raise ValueError("rollout function not valid")
 
-    if arguments.algorithm == "VANILLA" :
+    if arguments.algorithm == "VANILLA":
         # VANILLA
         return ExperimentData(
             action_expansion_policy=None,

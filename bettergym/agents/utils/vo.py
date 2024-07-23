@@ -517,30 +517,57 @@ def uniform_random_vo(node, planner):
     if len(node.state.obstacles) == 0:
         return uniform_random(node, planner)
 
-    # Extract obstacle information
-    obstacles = node.state.obstacles
-    obs_x = np.array([ob.x for ob in obstacles])
-    obs_rad = np.array([ob.radius for ob in obstacles])
-    # planner.c.obstacles = obs_x
-
     # Extract robot information
     x = node.state.x
     dt = planner.environment.config.dt
     ROBOT_RADIUS = planner.environment.config.robot_radius
     VMAX = 0.3
+    wall_int = None
 
-    # Calculate radii
-    r1 = obs_x[:, 3] * dt + obs_rad + VMAX * dt
-    r0 = np.full_like(r1, ROBOT_RADIUS)
+    # Extract obstacle information
+    obstacles = node.state.obstacles
+    # obs_x, obs_rad
+    square_obs = [[], []]
+    circle_obs = [[], []]
+    wall_obs = [[], []]
+    intersection_points = np.empty((0, 4), dtype=np.float64)
+    for ob in obstacles:
+        if ob.obs_type == "square":
+            square_obs[0].append(ob.x)
+            square_obs[1].append(ob.radius)
+        elif ob.obs_type == "circle":
+            circle_obs[0].append(ob.x)
+            circle_obs[1].append(ob.radius)
+        else:
+            wall_obs[0].append(ob.x)
+            wall_obs[1].append(ob.radius)
 
-    # Calculate intersection points
-    intersection_points, dist, mask = get_intersections_vectorized(x, obs_x, r0, r1)
+    # CIRCULAR OBSTACLES
+    circle_obs_x = np.array(circle_obs[0])
+    circle_obs_rad = np.array(circle_obs[1])
+
+    if len(circle_obs_x) != 0:
+        # Calculate radii
+        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + VMAX * dt
+        r0 = np.full_like(r1, ROBOT_RADIUS)
+
+        # Calculate intersection points
+        intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
+
+    # WALL OBSTACLES
+    intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
+    valid_discriminant = intersection_data[0]
+    if valid_discriminant.any():
+        wall_int = np.array(wall_obs[0])[valid_discriminant]
+        unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+    else:
+        unsafe_wall_angles = None
 
     # If there are no intersection points
-    if np.isnan(intersection_points).all():
+    if np.isnan(intersection_points).all() and wall_int is None:
         return uniform_random(node, planner)
     else:
-        angle_space, velocity_space = new_get_spaces(obs_x, x, config, intersection_points)
+        angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points,  wall_angles=unsafe_wall_angles)
         return sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 
 
@@ -558,9 +585,8 @@ def epsilon_uniform_uniform_vo(
         node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
 ):
     # planner.c.obstacles = [o.x for o in node.state.obstacles]
-    # prob = random.random()
-    # if prob <= 1 - eps:
-    #     return uniform_towards_goal_vo(node, planner, std_angle_rollout)
-    # else:
-    #     return uniform_random_vo(node, planner)
-    return uniform_towards_goal_vo(node, planner, std_angle_rollout)
+    prob = random.random()
+    if prob <= 1 - eps:
+        return uniform_towards_goal_vo(node, planner, std_angle_rollout)
+    else:
+        return uniform_random_vo(node, planner)

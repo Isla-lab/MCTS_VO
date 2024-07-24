@@ -37,7 +37,7 @@ from experiment_utils import (
 
 DEBUG_DATA = False
 DEBUG_ANIMATION = False
-ANIMATION = True
+ANIMATION = False
 
 
 @dataclass(frozen=True)
@@ -158,7 +158,6 @@ def run_experiment(experiment: ExperimentData, arguments):
         initial_time = time.time()
         u, info = planner.plan(s_copy)
         final_time = time.time() - initial_time
-        print(f"Depth: {info['max_depth']}")
         depth.append(info['max_depth'])
         actions.append(u)
         u_copy = np.array(u, copy=True)

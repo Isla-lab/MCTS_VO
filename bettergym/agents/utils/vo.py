@@ -16,6 +16,7 @@ from bettergym.agents.utils.utils import (
 from mcts_utils import uniform_random, get_intersections_vectorized, check_circle_segment_intersect, \
     angle_distance_vector
 
+from bettergym.agents.utils import settings
 
 def towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     # Extract obstacle information
@@ -141,13 +142,34 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # CASE 3 only obs intersection
     # CASE 4 both wall and obs intersection
     else:
-        # compute intersection with our new circumference
+        if settings.FLAG:
+            # compute intersection with our new circumference
+            print("X: {}".format(x))
+            print("-"*50)
+            print("Intersection points: {}".format(intersection_points))
+            print("-"*50)
+            print("Unsafe wall angles: {}".format(unsafe_wall_angles))
+            print("-"*50)
+            print("Wall Int: {}".format(wall_int))
+            print("-"*50)
+            print("Square Obs: {}".format(square_obs))
+            print("-"*50)
+            print("Circle Obs: {}".format(circle_obs))
+            print("-"*50)
+            print("Wall Obs {}".format(wall_obs))
         angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points, wall_angles=unsafe_wall_angles)
+        if settings.FLAG:
+            print("-" * 50)
+            print("Angle Space: {}".format(angle_space))
+            print("-" * 50)
+            print("Velocity Space: {}".format(velocity_space))
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
         angle_space = np.array(angle_space)
         angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
         in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
-
+        if settings.FLAG:
+            print("-" * 50)
+            print("In Range: {}".format(in_range))
         if not np.any(in_range):
             return sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
         else:
@@ -173,6 +195,9 @@ def sample_centered_robot_arena(
 def sample_multiple_spaces(center, a_space, number, v_space):
     lengths_aspace = np.linalg.norm(a_space, axis=1)
     percentages_aspace = np.cumsum(lengths_aspace / np.sum(lengths_aspace))
+    if settings.FLAG:
+        print("Lenght space: {}".format(lengths_aspace))
+        print("Percentages space: {}".format(percentages_aspace))
     pct = random.random()
     idx_space = np.flatnonzero(pct <= percentages_aspace)[0]
     return np.vstack(
@@ -584,6 +609,7 @@ def epsilon_normal_uniform_vo(
 def epsilon_uniform_uniform_vo(
         node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
 ):
+    print(settings.FLAG)
     # planner.c.obstacles = [o.x for o in node.state.obstacles]
     prob = random.random()
     if prob <= 1 - eps:

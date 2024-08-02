@@ -19,6 +19,7 @@ from numpy import mean, std
 from tqdm import tqdm
 
 from bettergym.agents.planner_mcts import Mcts
+from bettergym.agents.utils import settings
 from bettergym.agents.utils.utils import (
     epsilon_uniform_uniform,
 )
@@ -167,6 +168,8 @@ def run_experiment(experiment: ExperimentData, arguments):
         # del info['visits']
 
         times.append(final_time)
+        if exp_num == 60 and step_n == 165:
+            settings.FLAG = True
         s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)

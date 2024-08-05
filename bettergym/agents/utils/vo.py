@@ -609,7 +609,7 @@ def epsilon_normal_uniform_vo(
 def epsilon_uniform_uniform_vo(
         node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
 ):
-    print(settings.FLAG)
+    # print(settings.FLAG)
     # planner.c.obstacles = [o.x for o in node.state.obstacles]
     prob = random.random()
     if prob <= 1 - eps:

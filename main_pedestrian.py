@@ -168,7 +168,8 @@ def run_experiment(experiment: ExperimentData, arguments):
         # del info['visits']
 
         times.append(final_time)
-        if exp_num == 60 and step_n == 165:
+        if exp_num == 60 and step_n == 163:
+            print("FLAG ACTIVATED")
             settings.FLAG = True
         s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
         sim_env.gym_env.state = real_env.gym_env.state.copy()

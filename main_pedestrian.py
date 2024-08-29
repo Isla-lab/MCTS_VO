@@ -109,7 +109,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        with open(f"./bettergym/environments/fixed_obs/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
+        behaviour = "intention"
+        with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:
         obstacles = None
@@ -168,9 +169,6 @@ def run_experiment(experiment: ExperimentData, arguments):
         # del info['visits']
 
         times.append(final_time)
-        if exp_num == 60 and step_n == 163:
-            print("FLAG ACTIVATED")
-            settings.FLAG = True
         s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
@@ -400,6 +398,8 @@ def main():
     exp = get_experiment_data(args)
     seed_everything(1)
     for exp_num in range(args.num):
+        f = open(f"OUTPUT.txt", "w")
+        f.close()
         run_experiment(experiment=exp, arguments=args)
 
 

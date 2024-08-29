@@ -34,7 +34,7 @@ from experiment_utils import (
 
 DEBUG_DATA = False
 DEBUG_ANIMATION = False
-ANIMATION = False
+ANIMATION = True
 
 
 @dataclass(frozen=True)
@@ -86,7 +86,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        with open(f"./bettergym/environments/fixed_obs/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
+        behaviour = "intention"
+        with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:
         obstacles = None
@@ -128,7 +129,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             break
         print(f"Step Number {step_n}")
         s_copy = deepcopy(s)
-        s_copy.obstacles = filter_obstacles(s_copy)
+        # s_copy.obstacles = filter_obstacles(s_copy)
         initial_time = time.time()
         u, info = planner.plan(s_copy)
         final_time = time.time() - initial_time

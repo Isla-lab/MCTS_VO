@@ -129,6 +129,7 @@ class Env:
 
         self.reward = self.reward_grad
         self.step_idx = 0
+        self.behaviour_type = "INTENTION"
 
     def is_within_range_check_with_points(self, p1_x, p1_y, p2_x, p2_y, threshold_distance):
         euclidean_distance = np.linalg.norm(np.array([p1_x, p1_y]) - np.array([p2_x, p2_y]))
@@ -260,7 +261,8 @@ class Env:
         self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = self.robot_motion(self.state.x, action)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
-        collision = self.check_collision(self.state) and action[0] > 0
+        collision = self.check_collision(self.state)
+        robot_collision = collision and action[0] != 0
         goal = self.dist_goal_t1 <= self.config.robot_radius
         out_boundaries = self.check_out_boundaries(self.state)
         reward = self.reward(collision, goal, out_boundaries)
@@ -270,7 +272,7 @@ class Env:
             reward,
             collision or goal or out_boundaries,
             None,
-            {"collision": int(collision), "out_boundaries": int(out_boundaries)},
+            {"collision": int(robot_collision), "out_boundaries": int(out_boundaries), "colision_pedestrians": int(collision)},
         )
 
     def step_no_check_coll(self, action: np.ndarray) -> tuple[State, float, bool, Any, Any]:
@@ -333,18 +335,21 @@ class Env:
 
     def move_human_intentions(self, human_state: State, time_step: float):
         rand_num = (random.random() - 0.5)
-        # rand_num = (random.random() - 0.5) * 0.1
-        # heading_angle = deepcopy(human_state.x[2])
-        human_vel = random.choices([self.config.max_speed_person, self.config.max_speed_person / 2 + rand_num * 0.1])[0]
-        # human_vel = 0.3
+        human_vel = random.choices([
+            self.config.max_speed_person,
+            random.uniform(-self.config.max_speed/2, self.config.max_speed/2),
+        ])[0]
+        # CLIP HUMAN VELOCITY
+        human_vel = min(max(human_vel, -self.config.max_speed_person), self.config.max_speed_person)
 
         heading_angle = atan2((human_state.goal[1] - human_state.x[1]),
-                              (human_state.goal[0] - human_state.x[0])) + rand_num
+                              (human_state.goal[0] - human_state.x[0])) + rand_num * 2.5
         new_x = human_state.x[0] + (human_vel * time_step) * cos(heading_angle)
         new_y = human_state.x[1] + (human_vel * time_step) * sin(heading_angle)
 
         new_x = np.clip(new_x, self.config.left_limit, self.config.right_limit)
         new_y = np.clip(new_y, self.config.bottom_limit, self.config.upper_limit)
+
         new_human_state = State(
             x=np.array([new_x, new_y, heading_angle, human_state.x[3]]),
             goal=human_state.goal,
@@ -365,7 +370,13 @@ class Env:
         for human_idx in range(len(self.state.obstacles)):
             human_state = self.state.obstacles[human_idx]
             if human_state.obs_type == "circle":
-                state_copy.obstacles[human_idx] = self.move_human_trefoil(human_state, self.step_idx)
+                if self.behaviour_type == "TREFOIL":
+                    state_copy.obstacles[human_idx] = self.move_human_trefoil(human_state, self.step_idx)
+                elif self.behaviour_type == "INTENTION":
+                    human_state = self.move_human_intentions(human_state, 1)
+                    state_copy.obstacles[human_idx] = human_state
+
+                # remove obstacle when reaches goal
                 if self.is_within_range_check_with_points(state_copy.obstacles[human_idx].x[0],
                                                           state_copy.obstacles[human_idx].x[1],
                                                           state_copy.obstacles[human_idx].goal[0],

@@ -398,8 +398,8 @@ def main():
     exp = get_experiment_data(args)
     seed_everything(1)
     for exp_num in range(args.num):
-        f = open(f"OUTPUT.txt", "w")
-        f.close()
+        # f = open(f"OUTPUT.txt", "w")
+        # f.close()
         run_experiment(experiment=exp, arguments=args)
 
 

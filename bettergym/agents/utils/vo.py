@@ -18,8 +18,9 @@ from mcts_utils import uniform_random, get_intersections_vectorized, check_circl
 
 
 def print_to_file(param):
-    with open("OUTPUT.txt", "a") as f:
-        f.write(str(param))
+    # with open("OUTPUT.txt", "a") as f:
+    #     f.write(str(param))
+    pass
 
 def join_intersections(int_points, radius, x):
     """

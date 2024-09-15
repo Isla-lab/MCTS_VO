@@ -38,7 +38,7 @@ from experiment_utils import (
 
 DEBUG_DATA = False
 DEBUG_ANIMATION = False
-ANIMATION = False
+ANIMATION = True
 
 
 @dataclass(frozen=True)

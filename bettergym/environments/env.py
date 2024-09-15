@@ -272,7 +272,8 @@ class Env:
             reward,
             collision or goal or out_boundaries,
             None,
-            {"collision": int(robot_collision), "out_boundaries": int(out_boundaries), "colision_pedestrians": int(collision)},
+            {"collision": int(robot_collision), "out_boundaries": int(out_boundaries),
+             "colision_pedestrians": int(collision)},
         )
 
     def step_no_check_coll(self, action: np.ndarray) -> tuple[State, float, bool, Any, Any]:
@@ -337,7 +338,7 @@ class Env:
         rand_num = (random.random() - 0.5)
         human_vel = random.choices([
             self.config.max_speed_person,
-            random.uniform(-self.config.max_speed/2, self.config.max_speed/2),
+            random.uniform(-self.config.max_speed / 2, self.config.max_speed / 2),
         ])[0]
         # CLIP HUMAN VELOCITY
         human_vel = min(max(human_vel, -self.config.max_speed_person), self.config.max_speed_person)
@@ -608,8 +609,8 @@ class BetterEnv(BetterGym):
 
         if len(circle_obs_x) != 0:
             # Calculate radii
-            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + VMAX * dt
-            r0 = np.full_like(r1, ROBOT_RADIUS)
+            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
+            r0 = np.full_like(r1, VMAX * dt)
 
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
@@ -629,6 +630,11 @@ class BetterEnv(BetterGym):
         else:
             angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points, wall_angles=unsafe_wall_angles)
             actions = self.get_discrete_actions_multi_range(angle_space, velocity_space, config)
+            mask_negative_vel = actions[:, 0] < 0
+            if np.any(mask_negative_vel):
+                actions[mask_negative_vel, 1] = actions[mask_negative_vel, 1] + np.pi
+                actions[mask_negative_vel, 1] = (actions[mask_negative_vel, 1] + np.pi) % (2 * np.pi) - np.pi
+
             return actions
 
     def set_state_sim(self, state: State) -> None:

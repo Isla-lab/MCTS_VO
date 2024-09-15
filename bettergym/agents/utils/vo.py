@@ -5,6 +5,7 @@ from typing import Callable, Any
 
 import numpy as np
 import portion as P
+from numpy.distutils.command.config import config
 
 from bettergym.agents.planner import Planner
 from bettergym.agents.utils.utils import (
@@ -17,12 +18,77 @@ from mcts_utils import uniform_random, get_intersections_vectorized, check_circl
     angle_distance_vector
 
 
-def print_to_file(param):
-    # with open("OUTPUT.txt", "a") as f:
-    #     f.write(str(param))
-    pass
+# def print_to_file(param):
+#     # with open("OUTPUT.txt", "a") as f:
+#     #     f.write(str(param))
+#     pass
 
-def join_intersections(int_points, radius, x):
+# def join_intersections(int_points, radius, x):
+#     """
+#     Joins intersection points that are within a specified radius.
+#
+#     Parameters:
+#     int_points (np.ndarray): An array of intersection points with shape (N, 4),
+#                              where each row represents two points (x1, y1, x2, y2).
+#     radius (float): The radius within which intersection points should be joined.
+#
+#     Returns:
+#     np.ndarray: An array of joined intersection points.
+#     """
+#     # Split the intersection points into two sets of points
+#     p1 = int_points[:, :2]
+#     p2 = int_points[:, 2:]
+#
+#     vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
+#     vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
+#     angle1 = np.arctan2(vec_p1[1], vec_p1[0])
+#     angle2 = np.arctan2(vec_p2[1], vec_p2[0])
+#
+#
+#     # Create a mask to determine which points to keep
+#     mask_ang1_smaller = angle1 < angle2
+#     points = np.vstack((
+#         np.hstack((p2[~mask_ang1_smaller], p1[~mask_ang1_smaller])),
+#         int_points[mask_ang1_smaller]
+#     ))
+#     new_angles = np.vstack((
+#         np.hstack((np.expand_dims(angle2[~mask_ang1_smaller], 1), np.expand_dims(angle1[~mask_ang1_smaller], 1))),
+#         np.hstack((np.expand_dims(angle1[mask_ang1_smaller], 1), np.expand_dims(angle2[mask_ang1_smaller], 1))),
+#     ))
+#
+#
+#     # Sort the points based on the x-coordinate
+#     points = points[np.argsort(new_angles[:, 0])]
+#
+#
+#     p1 = points[:, :2]
+#     p2 = points[:, 2:]
+#
+#     # Calculate the distance between consecutive points
+#     first_int = p2[:-1, :]
+#     second_int = p1[1:, :]
+#     distance = np.linalg.norm(first_int - second_int, axis=1)
+#
+#     # Create a mask for points that need to be joined
+#     to_join_mask = distance < 2 * radius
+#     if np.any(to_join_mask):
+#         to_join_start_idx = np.where(to_join_mask)[0]
+#         to_join_end_idx = to_join_start_idx + 1
+#
+#         # Remove the points that are being joined
+#         remaining_points = np.delete(points, np.hstack((to_join_start_idx, to_join_end_idx)), axis=0)
+#
+#         # Add the joined points to the remaining points
+#         final_points = np.vstack((
+#             remaining_points,
+#             np.hstack((p1[to_join_start_idx], p2[to_join_end_idx]))
+#         ))
+#     else:
+#         final_points = int_points
+#
+#     return final_points
+
+def join_intersections2(int_points, radius, x):
     """
     Joins intersection points that are within a specified radius.
 
@@ -56,34 +122,15 @@ def join_intersections(int_points, radius, x):
     ))
 
 
-    # Sort the points based on the x-coordinate
+    # Sort the points based on the angle
     points = points[np.argsort(new_angles[:, 0])]
-
 
     p1 = points[:, :2]
     p2 = points[:, 2:]
 
-    # Calculate the distance between consecutive points
-    first_int = p2[:-1, :]
-    second_int = p1[1:, :]
-    distance = np.linalg.norm(first_int - second_int, axis=1)
-
-    # Create a mask for points that need to be joined
-    to_join_mask = distance < 2 * radius
-    if np.any(to_join_mask):
-        to_join_start_idx = np.where(to_join_mask)[0]
-        to_join_end_idx = to_join_start_idx + 1
-
-        # Remove the points that are being joined
-        remaining_points = np.delete(points, np.hstack((to_join_start_idx, to_join_end_idx)), axis=0)
-
-        # Add the joined points to the remaining points
-        final_points = np.vstack((
-            remaining_points,
-            np.hstack((p1[to_join_start_idx], p2[to_join_end_idx]))
-        ))
-    else:
-        final_points = int_points
+    initial_point = p1[0]
+    final_point = p2[-1]
+    final_points = np.expand_dims(np.hstack((initial_point, final_point)), 0)
 
     return final_points
 
@@ -131,8 +178,8 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad
-        r0 = np.full_like(r1, ROBOT_RADIUS) + VMAX * dt
+        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
+        r0 = np.full_like(r1, VMAX * dt)
 
         # Calculate intersection points
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
@@ -161,35 +208,35 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # CASE 4 both wall and obs intersection
     else:
         # compute intersection with our new circumference
-        print_to_file(
-            "X: {}".format(x) + "\n" +
-            "-" * 50 + "\n" +
-            "Intersection points: {}".format(intersection_points) + "\n" +
-            "-" * 50 + "\n" +
-            "Unsafe wall angles: {}".format(unsafe_wall_angles) + "\n" +
-            "-" * 50 + "\n" +
-            "Wall Int: {}".format(wall_int) + "\n" +
-            "-" * 50 + "\n" +
-            "Square Obs: {}".format(square_obs) + "\n" +
-            "-" * 50 + "\n" +
-            "Circle Obs: {}".format(circle_obs) + "\n" +
-            "-" * 50 + "\n" +
-            "Wall Obs {}".format(wall_obs) + "\n"
-        )
+        # print_to_file(
+        #     "X: {}".format(x) + "\n" +
+        #     "-" * 50 + "\n" +
+        #     "Intersection points: {}".format(intersection_points) + "\n" +
+        #     "-" * 50 + "\n" +
+        #     "Unsafe wall angles: {}".format(unsafe_wall_angles) + "\n" +
+        #     "-" * 50 + "\n" +
+        #     "Wall Int: {}".format(wall_int) + "\n" +
+        #     "-" * 50 + "\n" +
+        #     "Square Obs: {}".format(square_obs) + "\n" +
+        #     "-" * 50 + "\n" +
+        #     "Circle Obs: {}".format(circle_obs) + "\n" +
+        #     "-" * 50 + "\n" +
+        #     "Wall Obs {}".format(wall_obs) + "\n"
+        # )
         # if sum(mask) > 1:
-        #     intersection_points = join_intersections(intersection_points[mask], ROBOT_RADIUS, x)
+        #     intersection_points = join_intersections2(intersection_points[mask], ROBOT_RADIUS, x)
         angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points,
                                                      wall_angles=unsafe_wall_angles)
-        print_to_file(
-            "Angle Space: {}".format(angle_space) + "\n" +
-            "-" * 50 + "\n" +
-            "Velocity Space: {}".format(velocity_space) + "\n"
-        )
+        # print_to_file(
+        #     "Angle Space: {}".format(angle_space) + "\n" +
+        #     "-" * 50 + "\n" +
+        #     "Velocity Space: {}".format(velocity_space) + "\n"
+        # )
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
         angle_space = np.array(angle_space)
         angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
         in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
-        print_to_file("In Range: {}".format(in_range))
+        # print_to_file("In Range: {}".format(in_range))
         if not np.any(in_range):
             action = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
             if action[0] < 0:
@@ -211,11 +258,11 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
 def sample_multiple_spaces(center, a_space, number, v_space):
     lengths_aspace = np.linalg.norm(a_space, axis=1)
     percentages_aspace = np.cumsum(lengths_aspace / np.sum(lengths_aspace))
-    print_to_file(
-        "Lenght space: {}".format(lengths_aspace) + "\n" +
-        "-" * 50 + "\n" +
-        "Percentages space: {}".format(percentages_aspace) + "\n"
-    )
+    # print_to_file(
+    #     "Lenght space: {}".format(lengths_aspace) + "\n" +
+    #     "-" * 50 + "\n" +
+    #     "Percentages space: {}".format(percentages_aspace) + "\n"
+    # )
     pct = random.random()
     idx_space = np.flatnonzero(pct <= percentages_aspace)[0]
     return np.vstack(
@@ -403,8 +450,8 @@ def vo_negative_speed(obstacles, x, config):
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1 = circle_obs_x[:, 3] * config.dt + circle_obs_rad
-        r0 = np.full_like(r1, ROBOT_RADIUS) + VELOCITY * config.dt
+        r1 = circle_obs_x[:, 3] * config.dt + circle_obs_rad + ROBOT_RADIUS
+        r0 = np.full_like(r1, VELOCITY * config.dt)
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
     # intersection_points = np.vstack((intersection_points, wall_int))
@@ -484,8 +531,8 @@ def uniform_random_vo(node, planner):
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + VMAX * dt
-        r0 = np.full_like(r1, ROBOT_RADIUS)
+        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
+        r0 = np.full_like(r1, VMAX * dt)
 
         # Calculate intersection points
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)

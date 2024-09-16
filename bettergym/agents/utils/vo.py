@@ -88,51 +88,51 @@ from mcts_utils import uniform_random, get_intersections_vectorized, check_circl
 #
 #     return final_points
 
-def join_intersections2(int_points, radius, x):
-    """
-    Joins intersection points that are within a specified radius.
-
-    Parameters:
-    int_points (np.ndarray): An array of intersection points with shape (N, 4),
-                             where each row represents two points (x1, y1, x2, y2).
-    radius (float): The radius within which intersection points should be joined.
-
-    Returns:
-    np.ndarray: An array of joined intersection points.
-    """
-    # Split the intersection points into two sets of points
-    p1 = int_points[:, :2]
-    p2 = int_points[:, 2:]
-
-    vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
-    vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
-    angle1 = np.arctan2(vec_p1[1], vec_p1[0])
-    angle2 = np.arctan2(vec_p2[1], vec_p2[0])
-
-
-    # Create a mask to determine which points to keep
-    mask_ang1_smaller = angle1 < angle2
-    points = np.vstack((
-        np.hstack((p2[~mask_ang1_smaller], p1[~mask_ang1_smaller])),
-        int_points[mask_ang1_smaller]
-    ))
-    new_angles = np.vstack((
-        np.hstack((np.expand_dims(angle2[~mask_ang1_smaller], 1), np.expand_dims(angle1[~mask_ang1_smaller], 1))),
-        np.hstack((np.expand_dims(angle1[mask_ang1_smaller], 1), np.expand_dims(angle2[mask_ang1_smaller], 1))),
-    ))
-
-
-    # Sort the points based on the angle
-    points = points[np.argsort(new_angles[:, 0])]
-
-    p1 = points[:, :2]
-    p2 = points[:, 2:]
-
-    initial_point = p1[0]
-    final_point = p2[-1]
-    final_points = np.expand_dims(np.hstack((initial_point, final_point)), 0)
-
-    return final_points
+# def join_intersections2(int_points, radius, x):
+#     """
+#     Joins intersection points that are within a specified radius.
+#
+#     Parameters:
+#     int_points (np.ndarray): An array of intersection points with shape (N, 4),
+#                              where each row represents two points (x1, y1, x2, y2).
+#     radius (float): The radius within which intersection points should be joined.
+#
+#     Returns:
+#     np.ndarray: An array of joined intersection points.
+#     """
+#     # Split the intersection points into two sets of points
+#     p1 = int_points[:, :2]
+#     p2 = int_points[:, 2:]
+#
+#     vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
+#     vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
+#     angle1 = np.arctan2(vec_p1[1], vec_p1[0])
+#     angle2 = np.arctan2(vec_p2[1], vec_p2[0])
+#
+#
+#     # Create a mask to determine which points to keep
+#     mask_ang1_smaller = angle1 < angle2
+#     points = np.vstack((
+#         np.hstack((p2[~mask_ang1_smaller], p1[~mask_ang1_smaller])),
+#         int_points[mask_ang1_smaller]
+#     ))
+#     new_angles = np.vstack((
+#         np.hstack((np.expand_dims(angle2[~mask_ang1_smaller], 1), np.expand_dims(angle1[~mask_ang1_smaller], 1))),
+#         np.hstack((np.expand_dims(angle1[mask_ang1_smaller], 1), np.expand_dims(angle2[mask_ang1_smaller], 1))),
+#     ))
+#
+#
+#     # Sort the points based on the angle
+#     points = points[np.argsort(new_angles[:, 0])]
+#
+#     p1 = points[:, :2]
+#     p2 = points[:, 2:]
+#
+#     initial_point = p1[0]
+#     final_point = p2[-1]
+#     final_points = np.expand_dims(np.hstack((initial_point, final_point)), 0)
+#
+#     return final_points
 
 def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.gym_env.config

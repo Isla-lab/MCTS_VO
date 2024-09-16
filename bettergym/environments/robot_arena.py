@@ -5,10 +5,10 @@ from typing import Any
 
 import numpy as np
 
-from bettergym.agents.utils.vo import get_spaces
+from bettergym.agents.utils.vo import get_spaces, get_unsafe_angles_wall, new_get_spaces
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_jit
-from mcts_utils import get_intersections_vectorized
+from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
 
 @dataclass(frozen=True)
@@ -372,41 +372,61 @@ class BetterRobotArena(BetterGym):
             ]
         )
 
-        # Extract obstacle information
-        obstacles = state.obstacles
-        obs_x = np.array([ob.x for ob in obstacles])
-        obs_rad = np.array([ob.radius for ob in obstacles])
-
         # Extract robot information
         x = state.x
         dt = self.config.dt
         ROBOT_RADIUS = self.config.robot_radius
         VMAX = 0.3
+        wall_int = None
 
-        # Calculate velocities
-        # v = get_relative_velocity(VMAX, obs_x, x)
+        # Extract obstacle information
+        obstacles = state.obstacles
+        # obs_x, obs_rad
+        square_obs = [[], []]
+        circle_obs = [[], []]
+        wall_obs = [[], []]
+        intersection_points = np.empty((0, 4), dtype=np.float64)
+        for ob in obstacles:
+            if ob.obs_type == "square":
+                square_obs[0].append(ob.x)
+                square_obs[1].append(ob.radius)
+            elif ob.obs_type == "circle":
+                circle_obs[0].append(ob.x)
+                circle_obs[1].append(ob.radius)
+            else:
+                wall_obs[0].append(ob.x)
+                wall_obs[1].append(ob.radius)
 
-        # Calculate radii
-        r0 = VMAX + obs_x[:, 3] * dt
-        r1 = ROBOT_RADIUS + obs_rad
+        # CIRCULAR OBSTACLES
+        circle_obs_x = np.array(circle_obs[0])
+        circle_obs_rad = np.array(circle_obs[1])
 
-        # Calculate intersection points
-        intersection_points, _ = get_intersections_vectorized(x, obs_x, r0, r1)
+        if len(circle_obs_x) != 0:
+            # Calculate radii
+            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
+            r0 = np.full_like(r1, VMAX * dt)
+
+            # Calculate intersection points
+            intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
+
+        # WALL OBSTACLES
+        intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
+        valid_discriminant = intersection_data[0]
+        if valid_discriminant.any():
+            wall_int = np.array(wall_obs[0])[valid_discriminant]
+            unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+        else:
+            unsafe_wall_angles = None
+
         config = self.gym_env.config
         to_delete = []
         # If there are no intersection points
-        if np.isnan(intersection_points).all():
+        if np.isnan(intersection_points).all() and wall_int is None:
             return actions
         else:
             # convert intersection points into ranges of available velocities/angles
-            angle_spaces, velocity_space, radial = get_spaces(
-                intersection_points=intersection_points,
-                x=x,
-                obs=obs_x,
-                r1=r1,
-                config=config
-            )
-
+            angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config,
+                                                         intersection_points, wall_angles=unsafe_wall_angles)
             actions_copy = np.array(actions, copy=True)
             for idx, a in enumerate(actions):
                 safe = False
@@ -414,7 +434,7 @@ class BetterRobotArena(BetterGym):
                     if a[0] == 0.0:
                         safe = True
                     else:
-                        for a_space in angle_spaces:
+                        for a_space in angle_space:
                             if a_space[0] < a[1] < a_space[1]:
                                 safe = True
                                 break

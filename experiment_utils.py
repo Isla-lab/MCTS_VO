@@ -164,8 +164,13 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
     for ob in obs[i]:
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
+
+    for trj in step:
+        # last_points_trj = trj[:-1][:, :2]
+        ax.plot(trj[:, 0], trj[:, 1], "r--", alpha=0.5)
     cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker="x")
     plt.colorbar(cmap)
+    plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
 
 def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig):

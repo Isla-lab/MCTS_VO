@@ -6,13 +6,17 @@ from math import atan2, cos, sin
 from typing import Any
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 from bettergym.agents.utils.utils import get_robot_angles
-from bettergym.agents.utils.vo import new_get_spaces, get_unsafe_angles_wall
+from bettergym.agents.utils.vo import new_get_spaces, get_unsafe_angles_wall, compute_safe_angle_space, \
+    vo_negative_speed, get_spaces_vo_special_case
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
 from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
+
+i = 0
 
 @dataclass(frozen=True)
 class EnvConfig:
@@ -28,7 +32,7 @@ class EnvConfig:
     # Max and Min U[1]
     max_angle_change: float = None  # [rad/s]
 
-    max_speed_person: float = 0.35  # [m/s]
+    max_speed_person: float = 0.2  # [m/s]
 
     dt: float = 1.0  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
@@ -499,6 +503,8 @@ class BetterEnv(BetterGym):
         return actions
 
     def get_discrete_actions_basic(self, x, config, min_speed, max_speed):
+        # I use the robot's forward feasible range also for when the robot is moving backwards
+
         feasibile_range = get_robot_angles(x, config.max_angle_change)
         if len(feasibile_range) == 1:
             available_angles = np.linspace(
@@ -615,6 +621,11 @@ class BetterEnv(BetterGym):
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
+            # delta = 0.015
+            # if dist is not None and np.any(mask := dist - delta < r1):
+            #     velocity_space, angle_space = get_spaces_vo_special_case(circle_obs_x, x, r1, config, mask, velocity_space)
+            #     radial = True
+
         # WALL OBSTACLES
         intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
         valid_discriminant = intersection_data[0]
@@ -628,13 +639,34 @@ class BetterEnv(BetterGym):
         if np.isnan(intersection_points).all() and wall_int is None:
             return actions
         else:
-            angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points, wall_angles=unsafe_wall_angles)
-            actions = self.get_discrete_actions_multi_range(angle_space, velocity_space, config)
-            mask_negative_vel = actions[:, 0] < 0
-            if np.any(mask_negative_vel):
-                actions[mask_negative_vel, 1] = actions[mask_negative_vel, 1] + np.pi
-                actions[mask_negative_vel, 1] = (actions[mask_negative_vel, 1] + np.pi) % (2 * np.pi) - np.pi
+            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change, x, unsafe_wall_angles)
+            if forward_available := (safe_angles_forward is not None):
+                vspace = [config.max_speed, config.max_speed]
+                v_space_forward = [*([vspace] * len(safe_angles_forward))]
+                actions_forward = self.get_discrete_actions_multi_range(safe_angles_forward, v_space_forward, config)
+            else:
+                actions_forward = np.empty((0, 2))
 
+            safe_angles_backward = vo_negative_speed([square_obs, circle_obs, wall_obs], x, config)
+            if retro_available := (safe_angles_backward is not None):
+                vspace = [config.min_speed, config.min_speed]
+                v_space_backward = [*([vspace] * len(safe_angles_backward))]
+                actions_backward = self.get_discrete_actions_multi_range(safe_angles_backward, v_space_backward, config)
+                actions_backward[:, 1] = actions_backward[:, 1] + np.pi
+                actions_backward[:, 1] = (actions_backward[:, 1] + np.pi) % (2 * np.pi) - np.pi
+            else:
+                actions_backward = np.empty((0, 2))
+
+            if not (forward_available or retro_available):
+                vspace = [[0.0, 0.0]]
+                safe_angles = [[-math.pi, math.pi]]
+                actions = self.get_discrete_actions_multi_range(safe_angles, vspace, config)
+            else:
+                actions = np.concatenate([actions_forward, actions_backward])
+
+            actions = np.unique(actions, axis=0)
+            if len(actions) > config.n_angles * config.n_vel:
+                actions = np.random.choice(actions, size=config.n_angles * config.n_vel, replace=False)
             return actions
 
     def set_state_sim(self, state: State) -> None:

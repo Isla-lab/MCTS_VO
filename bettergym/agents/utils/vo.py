@@ -23,70 +23,70 @@ from mcts_utils import uniform_random, get_intersections_vectorized, check_circl
 #     #     f.write(str(param))
 #     pass
 
-# def join_intersections(int_points, radius, x):
-#     """
-#     Joins intersection points that are within a specified radius.
-#
-#     Parameters:
-#     int_points (np.ndarray): An array of intersection points with shape (N, 4),
-#                              where each row represents two points (x1, y1, x2, y2).
-#     radius (float): The radius within which intersection points should be joined.
-#
-#     Returns:
-#     np.ndarray: An array of joined intersection points.
-#     """
-#     # Split the intersection points into two sets of points
-#     p1 = int_points[:, :2]
-#     p2 = int_points[:, 2:]
-#
-#     vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
-#     vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
-#     angle1 = np.arctan2(vec_p1[1], vec_p1[0])
-#     angle2 = np.arctan2(vec_p2[1], vec_p2[0])
-#
-#
-#     # Create a mask to determine which points to keep
-#     mask_ang1_smaller = angle1 < angle2
-#     points = np.vstack((
-#         np.hstack((p2[~mask_ang1_smaller], p1[~mask_ang1_smaller])),
-#         int_points[mask_ang1_smaller]
-#     ))
-#     new_angles = np.vstack((
-#         np.hstack((np.expand_dims(angle2[~mask_ang1_smaller], 1), np.expand_dims(angle1[~mask_ang1_smaller], 1))),
-#         np.hstack((np.expand_dims(angle1[mask_ang1_smaller], 1), np.expand_dims(angle2[mask_ang1_smaller], 1))),
-#     ))
-#
-#
-#     # Sort the points based on the x-coordinate
-#     points = points[np.argsort(new_angles[:, 0])]
-#
-#
-#     p1 = points[:, :2]
-#     p2 = points[:, 2:]
-#
-#     # Calculate the distance between consecutive points
-#     first_int = p2[:-1, :]
-#     second_int = p1[1:, :]
-#     distance = np.linalg.norm(first_int - second_int, axis=1)
-#
-#     # Create a mask for points that need to be joined
-#     to_join_mask = distance < 2 * radius
-#     if np.any(to_join_mask):
-#         to_join_start_idx = np.where(to_join_mask)[0]
-#         to_join_end_idx = to_join_start_idx + 1
-#
-#         # Remove the points that are being joined
-#         remaining_points = np.delete(points, np.hstack((to_join_start_idx, to_join_end_idx)), axis=0)
-#
-#         # Add the joined points to the remaining points
-#         final_points = np.vstack((
-#             remaining_points,
-#             np.hstack((p1[to_join_start_idx], p2[to_join_end_idx]))
-#         ))
-#     else:
-#         final_points = int_points
-#
-#     return final_points
+def join_intersections(int_points, radius, x):
+    """
+    Joins intersection points that are within a specified radius.
+
+    Parameters:
+    int_points (np.ndarray): An array of intersection points with shape (N, 4),
+                             where each row represents two points (x1, y1, x2, y2).
+    radius (float): The radius within which intersection points should be joined.
+
+    Returns:
+    np.ndarray: An array of joined intersection points.
+    """
+    # Split the intersection points into two sets of points
+    p1 = int_points[:, :2]
+    p2 = int_points[:, 2:]
+
+    vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
+    vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
+    angle1 = np.arctan2(vec_p1[1], vec_p1[0])
+    angle2 = np.arctan2(vec_p2[1], vec_p2[0])
+
+
+    # Create a mask to determine which points to keep
+    mask_ang1_smaller = angle1 < angle2
+    points = np.vstack((
+        np.hstack((p2[~mask_ang1_smaller], p1[~mask_ang1_smaller])),
+        int_points[mask_ang1_smaller]
+    ))
+    new_angles = np.vstack((
+        np.hstack((np.expand_dims(angle2[~mask_ang1_smaller], 1), np.expand_dims(angle1[~mask_ang1_smaller], 1))),
+        np.hstack((np.expand_dims(angle1[mask_ang1_smaller], 1), np.expand_dims(angle2[mask_ang1_smaller], 1))),
+    ))
+
+
+    # Sort the points based on the x-coordinate
+    points = points[np.argsort(new_angles[:, 0])]
+
+
+    p1 = points[:, :2]
+    p2 = points[:, 2:]
+
+    # Calculate the distance between consecutive points
+    first_int = p2[:-1, :]
+    second_int = p1[1:, :]
+    distance = np.linalg.norm(first_int - second_int, axis=1)
+
+    # Create a mask for points that need to be joined
+    to_join_mask = distance < 2 * radius
+    if np.any(to_join_mask):
+        to_join_start_idx = np.where(to_join_mask)[0]
+        to_join_end_idx = to_join_start_idx + 1
+
+        # Remove the points that are being joined
+        remaining_points = np.delete(points, np.hstack((to_join_start_idx, to_join_end_idx)), axis=0)
+
+        # Add the joined points to the remaining points
+        final_points = np.vstack((
+            remaining_points,
+            np.hstack((p1[to_join_start_idx], p2[to_join_end_idx]))
+        ))
+    else:
+        final_points = int_points
+
+    return final_points
 
 # def join_intersections2(int_points, radius, x):
 #     """

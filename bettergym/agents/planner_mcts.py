@@ -1,10 +1,12 @@
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 from bettergym.agents.planner import Planner
 from bettergym.better_gym import BetterGym
 
+i = 0
 
 class ActionNode:
     def __init__(self, action: Any):
@@ -81,10 +83,61 @@ class Mcts(Planner):
         self.last_id += 1
         return self.last_id
 
+    def plot_robot(self, state):
+        robot_state = state.x
+        # Extract obstacle information
+        obstacles = state.obstacles
+        # obs_x, obs_rad
+        square_obs = [[], []]
+        circle_obs = [[], []]
+        wall_obs = [[], []]
+        intersection_points = np.empty((0, 4), dtype=np.float64)
+        for ob in obstacles:
+            if ob.obs_type == "square":
+                square_obs[0].append(ob.x)
+                square_obs[1].append(ob.radius)
+            elif ob.obs_type == "circle":
+                circle_obs[0].append(ob.x)
+                circle_obs[1].append(ob.radius)
+            else:
+                wall_obs[0].append(ob.x)
+                wall_obs[1].append(ob.radius)
+
+        # CIRCULAR OBSTACLES
+        obstacles = np.array(circle_obs[0])
+
+        fig, ax = plt.subplots()
+        r = 0.3
+        obs_r = 0.2 + 0.2 + 0.3
+
+        for o in obstacles:
+            # plot the obstacle
+            circle = plt.Circle((o[0], o[1]), obs_r, color='g', fill=False)
+            ax.add_artist(circle)
+
+        # Circle
+        circle = plt.Circle((robot_state[0], robot_state[1]), r, color='b', fill=False)
+        ax.add_artist(circle)
+
+        # Setting the aspect ratio of the plot to be equal
+        ax.set_aspect('equal', adjustable='box')
+        plt.xlim(-1, 12)
+        plt.ylim(-1, 12)
+
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.title('Intersection of Circle and Line Segments')
+        plt.grid(True)
+        global i
+        plt.savefig(f'vo_{i}.png', dpi=500, facecolor='white', edgecolor='none')
+        i += 1
+
     def plan(self, initial_state: Any):
         self.initialize_variables()
         root_id = self.get_id()
         root_node = StateNode(self.environment, initial_state, root_id)
+        # self.plot_robot(initial_state)
+
         self.id_to_state_node[root_id] = root_node
         for sn in range(self.num_sim):
             self.info["trajectories"].append(np.array([initial_state.x]))

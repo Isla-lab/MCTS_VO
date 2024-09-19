@@ -19,7 +19,6 @@ from numpy import mean, std
 from tqdm import tqdm
 
 from bettergym.agents.planner_mcts import Mcts
-from bettergym.agents.utils import settings
 from bettergym.agents.utils.utils import (
     epsilon_uniform_uniform,
 )
@@ -117,7 +116,7 @@ def run_experiment(experiment: ExperimentData, arguments):
 
     real_env, sim_env = create_pedestrian_env(
         discrete=experiment.discrete,
-        rwrd_in_sim=experiment.obstacle_reward,
+        rwrd_in_sim=True,
         out_boundaries_rwrd=arguments.rwrd,
         n_vel=arguments.v,
         n_angles=arguments.a,

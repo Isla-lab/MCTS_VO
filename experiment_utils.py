@@ -170,7 +170,7 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
         ax.plot(trj[:, 0], trj[:, 1], "r--", alpha=0.5)
     cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker="x")
     plt.colorbar(cmap)
-    plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
+    # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
 
 def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig):

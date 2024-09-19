@@ -615,8 +615,8 @@ class BetterEnv(BetterGym):
 
         if len(circle_obs_x) != 0:
             # Calculate radii
-            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
-            r0 = np.full_like(r1, VMAX * dt)
+            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad
+            r0 = np.full_like(r1, VMAX * dt) + ROBOT_RADIUS
 
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)

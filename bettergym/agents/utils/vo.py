@@ -178,8 +178,8 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
-        r0 = np.full_like(r1, VMAX * dt)
+        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad
+        r0 = np.full_like(r1, VMAX * dt) + ROBOT_RADIUS
 
         # Calculate intersection points
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
@@ -450,8 +450,8 @@ def vo_negative_speed(obstacles, x, config):
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1 = circle_obs_x[:, 3] * config.dt + circle_obs_rad + ROBOT_RADIUS
-        r0 = np.full_like(r1, VELOCITY * config.dt)
+        r1 = circle_obs_x[:, 3] * config.dt + circle_obs_rad
+        r0 = np.full_like(r1, VELOCITY * config.dt) + ROBOT_RADIUS
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
     # intersection_points = np.vstack((intersection_points, wall_int))
@@ -531,8 +531,8 @@ def uniform_random_vo(node, planner):
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
-        r0 = np.full_like(r1, VMAX * dt)
+        r1 = circle_obs_x[:, 3] * dt + circle_obs_rad
+        r0 = np.full_like(r1, VMAX * dt) + ROBOT_RADIUS
 
         # Calculate intersection points
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)

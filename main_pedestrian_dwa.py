@@ -59,7 +59,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        with open(f"./bettergym/environments/fixed_obs/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
+        behaviour = "intention"
+        with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:
         obstacles = None
@@ -83,7 +84,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
-
+    s.obstacles = [o for o in s.obstacles if o.obs_type != "wall"]
     obs = [s0.obstacles]
     planner = Dwa(environment=sim_env)
     print("Simulation Started")
@@ -98,7 +99,6 @@ def run_experiment(experiment: ExperimentData, arguments):
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
-        print(f"{s.x[:2]}")
         initial_time = time.time()
         ob = np.array([ob.x[:2] for ob in s.obstacles])
         u, info = planner.plan(initial_state=s, obs=ob, robot_obs=[])

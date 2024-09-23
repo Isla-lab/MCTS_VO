@@ -35,3 +35,4 @@ python /home/lorenzobonanni/robotArena/main_pedestrian.py --algorithm=VANILLA_VO
 python /home/lorenzobonanni/robotArena/main_pedestrian.py --algorithm=VANILLA_VO_ROLLOUT --nsim=20 --rwrd=-100 --std=0.5 --rollout=epsilon_uniform_uniform --c=10 --num=100 --env=EASY --eps_rollout=0.2 --stdRollout=1 --v=5 --a=11 --discount=0.7 --n_obs=40
 python /home/lorenzobonanni/robotArena/main_pedestrian.py --algorithm=VANILLA_VO_ROLLOUT --nsim=10 --rwrd=-100 --std=0.5 --rollout=epsilon_uniform_uniform --c=10 --num=100 --env=EASY --eps_rollout=0.2 --stdRollout=1 --v=5 --a=11 --discount=0.7 --n_obs=40
 python /home/lorenzobonanni/robotArena/main_pedestrian_rollout.py --algorithm=VANILLA_VO2 --nsim=200 --rwrd=-100 --std=0.5 --rollout=epsilon_uniform_uniform --c=10 --num=100 --env=EASY --eps_rollout=0 --stdRollout=1 --v=5 --a=11 --discount=0.7 --n_obs=40
+python /home/lorenzobonanni/robotArena/main_pedestrian_dwa.py --num=100 --horizon=80 --n_obs=40

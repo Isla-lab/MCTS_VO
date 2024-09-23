@@ -59,7 +59,8 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        with open(f"./bettergym/environments/fixed_obs/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
+        behaviour = "intention"
+        with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:
         obstacles = None
@@ -81,6 +82,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
+    s.obstacles = s0.obstacles = [o for o in s.obstacles if o.obs_type != "wall"]
 
     obs = [s0.obstacles]
     planner = Nmpc(environment=real_env, horizon_length=arguments.horizon, gamma=0.7)
@@ -96,7 +98,6 @@ def run_experiment(experiment: ExperimentData, arguments):
         if step_n == 1000:
             break
         print(f"Step Number {step_n}")
-        print(f"{s.x[:2]}")
         initial_time = time.time()
         new_s = s.to_cartesian()
         u, info = planner.plan(new_s)
@@ -116,6 +117,7 @@ def run_experiment(experiment: ExperimentData, arguments):
 
         times.append(final_time)
         s, r, terminal, truncated, env_info = real_env.step(s, new_u)
+        s.obstacles = [o for o in s.obstacles if o.obs_type != "wall"]
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history

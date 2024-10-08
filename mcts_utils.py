@@ -91,6 +91,29 @@ def angle_distance_vector(a1, angles):
 
     return diff
 
+def get_tangents(robot_state, obs_r, obstacles, d):
+    # Calculate angles from the robot to each obstacle
+    alphas = np.arctan2(robot_state[1]-obstacles[:, 1], robot_state[0]-obstacles[:, 0])
+
+    # Create rotation matrices for each angle
+    matrices = [np.array([[np.cos(alpha), -np.sin(alpha)], [np.sin(alpha), np.cos(alpha)]]) for alpha in alphas]
+
+    # Calculate the angles for the tangent points
+    phi = np.arccos(obs_r / d)
+
+    # Calculate the tangent points on the obstacles
+    obs_r_expanded = np.expand_dims(obs_r, 1)
+    P1 = obs_r_expanded * np.stack((np.cos(phi), np.sin(phi)), axis=1)
+    P2 = obs_r_expanded * np.stack((np.cos(-phi), np.sin(-phi)), axis=1)
+
+    # Apply the rotation matrices and translate the points to the robot's position
+    new_P1 = np.array([matrices[i] @ P1[i] + robot_state[:2] for i in range(len(P1))])
+    new_P2 = np.array([matrices[i] @ P2[i] + robot_state[:2] for i in range(len(P2))])
+
+    # Combine the tangent points into a single array and return them
+    intersections = np.hstack((new_P1, new_P2))
+    return intersections
+
 def get_intersections_vectorized(x, obs_x, r0, r1):
     x_exp = np.expand_dims(x, 1)
     d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1] - x_exp[1, :])
@@ -108,14 +131,11 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
 
     # Compute intersection points
     if np.any(intersecting):
-        intersection_points = compute_int_vectorized(
-            r0[intersecting],
+        intersection_points = get_tangents(
+            x,
             r1[intersecting],
-            d[intersecting],
-            x_exp[0, :],
-            obs_x[intersecting, 0],
-            x_exp[1, :],
-            obs_x[intersecting, 1],
+            obs_x[intersecting],
+            d[intersecting]
         )
     else:
         intersection_points = None

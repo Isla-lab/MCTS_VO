@@ -84,7 +84,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
-    s.obstacles = [o for o in s.obstacles if o.obs_type != "wall"]
+    s.obstacles = s0.obstacles = [o for o in s.obstacles if o.obs_type != "wall"]
     obs = [s0.obstacles]
     planner = Dwa(environment=sim_env)
     print("Simulation Started")
@@ -119,6 +119,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         times.append(final_time)
         u_copy[1] = s.x[2] + u[1] * config.dt
         s, r, terminal, truncated, env_info = real_env.step(s, u_copy)
+        s.obstacles = [o for o in s.obstacles if o.obs_type != "wall"]
         sim_env.gym_env.state = real_env.gym_env.state.copy()
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history

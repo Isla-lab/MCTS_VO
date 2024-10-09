@@ -131,11 +131,14 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
 
     # Compute intersection points
     if np.any(intersecting):
-        intersection_points = get_tangents(
-            x,
+        intersection_points = compute_int_vectorized(
+            r0[intersecting],
             r1[intersecting],
-            obs_x[intersecting],
-            d[intersecting]
+            d[intersecting],
+            x_exp[0, :],
+            obs_x[intersecting, 0],
+            x_exp[1, :],
+            obs_x[intersecting, 1],
         )
     else:
         intersection_points = None

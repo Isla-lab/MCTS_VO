@@ -59,7 +59,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        behaviour = "intention"
+        behaviour = "treefoil"
         with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:

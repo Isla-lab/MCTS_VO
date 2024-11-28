@@ -86,7 +86,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        behaviour = "treefoil"
+        behaviour = "intention"
         with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:
@@ -165,6 +165,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     dist_goal = dist_to_goal(s.x[:2], s.goal)
     reach_goal = dist_goal <= real_env.config.robot_radius
     discount = arguments.discount
+    print(mean(times))
     data = {
         "cumRwrd": round(sum(rewards), 2),
         "discCumRwrd": round(sum(np.array(rewards) * np.array([discount ** e for e in range(len(rewards))])), 2),
@@ -173,10 +174,10 @@ def run_experiment(experiment: ExperimentData, arguments):
         "StdStepTime": np.round(std(times), 2),
         "reachGoal": int(reach_goal),
         "maxNsteps": int(step_n == 1000),
-        "meanSmoothVelocity": np.diff(trajectory[:, 3]).mean(),
-        "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
-        "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
-        "stdSmoothAngle": np.diff(trajectory[:, 2]).std(),
+        "meanSmoothVelocity": np.abs(np.diff(trajectory[:, 3])).mean(),
+        "stdSmoothVelocity": np.abs(np.diff(trajectory[:, 3])).std(),
+        "meanSmoothAngle": np.abs(np.diff(trajectory[:, 2])).mean(),
+        "stdSmoothAngle": np.abs(np.diff(trajectory[:, 2])).std(),
         **env_info
     }
     data = data | arguments.__dict__

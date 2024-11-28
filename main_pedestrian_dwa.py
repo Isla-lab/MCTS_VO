@@ -27,8 +27,8 @@ from experiment_utils import (
 )
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = True
-ANIMATION = True
+DEBUG_ANIMATION = False
+ANIMATION = False
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        behaviour = "treefoil"
+        behaviour = "intention"
         with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:
@@ -152,10 +152,10 @@ def run_experiment(experiment: ExperimentData, arguments):
         "MeanStepTime": np.round(mean(times), 2),
         "StdStepTime": np.round(std(times), 2),
         "reachGoal": int(reach_goal),
-        "meanSmoothVelocity": np.diff(trajectory[:, 3]).mean(),
-        "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
-        "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
-        "stdSmoothAngle": np.diff(trajectory[:, 2]).std(),
+        "meanSmoothVelocity": np.abs(np.diff(trajectory[:, 3])).mean(),
+        "stdSmoothVelocity": np.abs(np.diff(trajectory[:, 3])).std(),
+        "meanSmoothAngle": np.abs(np.diff(trajectory[:, 2])).mean(),
+        "stdSmoothAngle": np.abs(np.diff(trajectory[:, 2])).std(),
         **env_info
     }
     data = data | arguments.__dict__
@@ -175,6 +175,9 @@ def run_experiment(experiment: ExperimentData, arguments):
         )
         ani.save(f"debug/trajectory_{exp_name}_dwa_{exp_num}.gif", fps=150)
         plt.close(fig)
+
+    with open(f"debug/trajectory_real_dwa_{exp_name}_{exp_num}.pkl", "wb") as f:
+        pickle.dump(trajectory, f)
 
 
 def argument_parser():

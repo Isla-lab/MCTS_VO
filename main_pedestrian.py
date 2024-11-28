@@ -108,7 +108,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
     if arguments.fixed_obs:
-        behaviour = "treefoil"
+        behaviour = "intention"
         with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
             obstacles = pickle.load(f)
     else:
@@ -200,10 +200,10 @@ def run_experiment(experiment: ExperimentData, arguments):
         "StdStepTime": np.round(std(times), 2),
         "reachGoal": int(reach_goal),
         "maxNsteps": int(step_n == 1000),
-        "meanSmoothVelocity": np.diff(trajectory[:, 3]).mean(),
-        "stdSmoothVelocity": np.diff(trajectory[:, 3]).std(),
-        "meanSmoothAngle": np.diff(trajectory[:, 2]).mean(),
-        "stdSmoothAngle": np.diff(trajectory[:, 2]).std(),
+        "meanSmoothVelocity": np.abs(np.diff(trajectory[:, 3])).mean(),
+        "stdSmoothVelocity": np.abs(np.diff(trajectory[:, 3])).std(),
+        "meanSmoothAngle": np.abs(np.diff(trajectory[:, 2])).mean(),
+        "stdSmoothAngle": np.abs(np.diff(trajectory[:, 2])).std(),
         "minDepth": np.min(depth),
         "maxDepth": np.max(depth),
         "meanDepth": np.mean(depth),

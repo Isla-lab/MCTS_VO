@@ -98,7 +98,6 @@ class RobotArena:
         self.dist_goal_t1 = None
         self.dist_goal_t = None
         self.WALL_REWARD: float = -100.0
-
         self.reward = self.reward_grad
 
         if collision_rwrd:
@@ -255,15 +254,15 @@ class RobotArena:
 
         GOAL_REWARD: float = 100.0
         COLLISION_REWARD: float = -100.0
-
+        rwrd = 0
         if is_goal:
-            return GOAL_REWARD
+            rwrd += GOAL_REWARD
 
         if is_collision:
-            return COLLISION_REWARD
+            rwrd += COLLISION_REWARD
 
         if out_boundaries:
-            return self.WALL_REWARD
+            rwrd += self.WALL_REWARD
 
         return - self.dist_goal_t1 / self.max_eudist
 

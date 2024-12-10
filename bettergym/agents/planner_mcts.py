@@ -1,10 +1,12 @@
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
+from matplotlib import pyplot as plt
 
 from bettergym.agents.planner import Planner
 from bettergym.better_gym import BetterGym
 
+i = 0
 
 class ActionNode:
     def __init__(self, action: Any):
@@ -42,17 +44,18 @@ class RolloutStateNode:
 
 class Mcts(Planner):
     def __init__(
-        self,
-        num_sim: int,
-        c: float | int,
-        environment: BetterGym,
-        computational_budget: int,
-        rollout_policy: Callable,
-        discount: float | int = 1,
+            self,
+            num_sim: int,
+            c: float | int,
+            environment: BetterGym,
+            computational_budget: int,
+            rollout_policy: Callable,
+            discount: float | int = 1,
     ):
         super().__init__(environment)
         self.num_sim: int = num_sim
-        self.c: float | int = c
+        self.exploration_constant: float | int = c
+        self.c = None
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
         self.rollout_policy = rollout_policy
@@ -73,16 +76,68 @@ class Mcts(Planner):
             "actions": [],
             "visits": [],
             "rollout_values": [],
+            "max_depth": 0,
         }
 
     def get_id(self):
         self.last_id += 1
         return self.last_id
 
+    def plot_robot(self, state):
+        robot_state = state.x
+        # Extract obstacle information
+        obstacles = state.obstacles
+        # obs_x, obs_rad
+        square_obs = [[], []]
+        circle_obs = [[], []]
+        wall_obs = [[], []]
+        intersection_points = np.empty((0, 4), dtype=np.float64)
+        for ob in obstacles:
+            if ob.obs_type == "square":
+                square_obs[0].append(ob.x)
+                square_obs[1].append(ob.radius)
+            elif ob.obs_type == "circle":
+                circle_obs[0].append(ob.x)
+                circle_obs[1].append(ob.radius)
+            else:
+                wall_obs[0].append(ob.x)
+                wall_obs[1].append(ob.radius)
+
+        # CIRCULAR OBSTACLES
+        obstacles = np.array(circle_obs[0])
+
+        fig, ax = plt.subplots()
+        r = 0.3
+        obs_r = 0.2 + 0.2 + 0.3
+
+        for o in obstacles:
+            # plot the obstacle
+            circle = plt.Circle((o[0], o[1]), obs_r, color='g', fill=False)
+            ax.add_artist(circle)
+
+        # Circle
+        circle = plt.Circle((robot_state[0], robot_state[1]), r, color='b', fill=False)
+        ax.add_artist(circle)
+
+        # Setting the aspect ratio of the plot to be equal
+        ax.set_aspect('equal', adjustable='box')
+        plt.xlim(-1, 12)
+        plt.ylim(-1, 12)
+
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.title('Intersection of Circle and Line Segments')
+        plt.grid(True)
+        global i
+        plt.savefig(f'vo_{i}.png', dpi=500, facecolor='white', edgecolor='none')
+        i += 1
+
     def plan(self, initial_state: Any):
         self.initialize_variables()
         root_id = self.get_id()
         root_node = StateNode(self.environment, initial_state, root_id)
+        # self.plot_robot(initial_state)
+
         self.id_to_state_node[root_id] = root_node
         for sn in range(self.num_sim):
             self.info["trajectories"].append(np.array([initial_state.x]))
@@ -108,6 +163,7 @@ class Mcts(Planner):
         return action, self.info
 
     def simulate(self, state_id: int, depth: int):
+        self.info["max_depth"] = max(depth, self.info["max_depth"])
         node = self.id_to_state_node[state_id]
         node.num_visits += 1
         current_state = node.state
@@ -121,7 +177,7 @@ class Mcts(Planner):
             where=node.num_visits_actions != 0,
         )
 
-        ucb_scores = q_vals + self.c * np.sqrt(
+        ucb_scores = q_vals + self.exploration_constant * np.sqrt(
             np.divide(
                 np.log(node.num_visits),
                 node.num_visits_actions,
@@ -132,6 +188,7 @@ class Mcts(Planner):
 
         # randomly choose between actions which have the maximum ucb value
         action_idx = np.random.choice(np.flatnonzero(ucb_scores == np.max(ucb_scores)))
+
         # get action corresponding to the index
         action_node = node.actions[action_idx]
         action = action_node.action
@@ -149,9 +206,9 @@ class Mcts(Planner):
 
         prev_node = node
         if (
-            new_state_id is None
-            and depth + 1 < self.computational_budget
-            and not terminal
+                new_state_id is None
+                and depth + 1 < self.computational_budget
+                and not terminal
         ):
             # Leaf Node
             state_id = self.get_id()

@@ -6,22 +6,49 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.animation import FuncAnimation
 
-
 # from notify_run import Notify
 #
 # notify = Notify()
+count = 0
 
 
 def plot_robot(x, y, yaw, config, ax, color="b"):
     circle = plt.Circle((x, y), config.robot_radius, color=color)
     ax.add_artist(circle)
-    out_x, out_y = (
-        np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
-    )
-    ax.plot([x, out_x], [y, out_y], "-k")
+    # out_x, out_y = (
+    #         np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
+    # )
+    # ax.plot([x, out_x], [y, out_y], "-k")
 
 
 def plot_frame(i, goal, config, obs, traj, ax):
+    x = traj[i, :]
+    # ob = config.ob
+    ax.clear()
+    # ROBOT POSITION
+    # ax.plot(x[0], x[1], "xr")
+    # GOAL POSITION
+    ax.plot(goal[0], goal[1], "xb")
+    # OBSTACLES
+    for ob in obs[0]:
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        ax.add_artist(circle)
+    # BOX AROUND ROBOT
+    plot_robot(x[0], x[1], None, config, ax)
+    # TRAJECTORY
+    sub_traj = traj[:i]
+    ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")
+
+    # ax.plot([70, 70], [100, 250], 'k-', lw=2)
+
+    ax.set_xlim([config.left_limit, config.right_limit])
+    ax.set_ylim([config.bottom_limit, config.upper_limit])
+    # ax.axis("equal")
+    ax.grid(True)
+    # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
+
+
+def plot_frame2(i, goal, config, obs, traj, ax):
     x = traj[i, :]
     # ob = config.ob
     ax.clear()
@@ -34,18 +61,18 @@ def plot_frame(i, goal, config, obs, traj, ax):
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
     # BOX AROUND ROBOT
-    plot_robot(x[0], x[1], x[2], config, ax)
+    plot_robot(x[0], x[1], None, config, ax)
     # TRAJECTORY
     sub_traj = traj[:i]
     ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")
 
     # ax.plot([70, 70], [100, 250], 'k-', lw=2)
 
-    ax.set_xlim([config.left_limit, config.right_limit])
-    ax.set_ylim([config.bottom_limit, config.upper_limit])
+    ax.set_xlim([config.left_limit - 0.5, config.right_limit + 0.5])
+    ax.set_ylim([config.bottom_limit - 0.5, config.upper_limit + 0.5])
     # ax.axis("equal")
-    ax.grid(True)
-
+    # ax.grid(True)
+    # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
 def plot_action_evolution(actions: np.ndarray, exp_num: int):
     def plot(data):
@@ -72,8 +99,8 @@ def plot_action_evolution(actions: np.ndarray, exp_num: int):
 def print_and_notify(message: str, exp_num: int, exp_name: str):
     print(message)
     # notify.send(message)
-    with open(f"debug/{exp_name}_{exp_num}.txt", "w") as f:
-        f.write(message)
+    # with open(f"debug/{exp_name}_{exp_num}.txt", "w") as f:
+    #     f.write(message)
 
 
 def plot_real_trajectory_information(trj: np.ndarray, exp_num: int):
@@ -138,8 +165,12 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
 
+    for trj in step:
+        # last_points_trj = trj[:-1][:, :2]
+        ax.plot(trj[:, 0], trj[:, 1], "r--", alpha=0.5)
     cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker="x")
     plt.colorbar(cmap)
+    # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
 
 def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig):
@@ -176,7 +207,7 @@ def plot_frame_tree_traj_wsteps(i, goal, config, obs, trajectories, values, fig)
 
 
 def create_animation_tree_trajectory(
-    goal, config, obs, exp_num, exp_name, values, trajectories
+        goal, config, obs, exp_num, exp_name, values, trajectories
 ):
     fig, ax = plt.subplots()
     ani = FuncAnimation(
@@ -235,6 +266,54 @@ def plot_frame_multiagent(i, goal1, goal2, config, obs, traj1, traj2, ax):
     # TRAJECTORY
     sub_traj2 = traj2[:i]
     ax.plot(sub_traj2[:, 0], sub_traj2[:, 1], "--b")
+
+    ax.set_xlim([config.left_limit, config.right_limit])
+    ax.set_ylim([config.bottom_limit, config.upper_limit])
+    ax.grid(True)
+
+
+def plot_frame_no_obs(i, goals, config, trajectories, ax):
+    x = [traj[i, :] for traj in trajectories]
+    colors = ["m", "b", "g", "y"]
+    # ob = config.ob
+    ax.clear()
+    for idx in range(len(x)):
+        # ROBOT POSITION
+        ax.plot(x[idx][0], x[idx][1], "xr")
+        # GOAL POSITION
+        ax.plot(goals[idx][0], goals[idx][1], "xb")
+        # CIRCLE AROUND ROBOT
+        plot_robot(x[idx][0], x[idx][1], x[idx][2], config, ax, color=colors[idx])
+        # TRAJECTORY1
+        sub_traj = trajectories[idx][:i]
+        ax.plot(sub_traj[:, 0], sub_traj[:, 1], f"--{colors[idx]}")
+
+    ax.set_xlim([config.left_limit, config.right_limit])
+    ax.set_ylim([config.bottom_limit, config.upper_limit])
+    ax.grid(True)
+
+
+def plot_frame_obs(i, goals, config, trajectories, ax, obs):
+    x = trajectories[i, :, :]
+    colors = ["m", "b", "g", "y", 'c', 'r', 'bisque', 'olive']
+    # ob = config.ob
+    ax.clear()
+    for idx in range(len(x)):
+        # ROBOT POSITION
+        ax.plot(x[idx][0], x[idx][1], "xr")
+        # GOAL POSITION
+        ax.plot(goals[idx][0], goals[idx][1], "xb")
+        # CIRCLE AROUND ROBOT
+        plot_robot(x[idx][0], x[idx][1], None, config, ax, color=colors[idx])
+        # TRAJECTORY1
+        # sub_traj = trajectories[idx][:i]
+        sub_traj = trajectories[:i, idx, :]
+        ax.plot(sub_traj[:, 0], sub_traj[:, 1], f"--", color=colors[idx])
+
+    # STATIC OBSTACLES
+    for ob in obs:
+        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+        ax.add_artist(circle)
 
     ax.set_xlim([config.left_limit, config.right_limit])
     ax.set_ylim([config.bottom_limit, config.upper_limit])

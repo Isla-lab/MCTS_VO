@@ -1,0 +1,2 @@
+taskset --cpu-list 0-9 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=30 --num=100 --n_obs=40
+taskset --cpu-list 0-9 python /home/lorenzobonanni/robotArena/main_pedestrian_nmpc.py --horizon=70 --num=100 --n_obs=40

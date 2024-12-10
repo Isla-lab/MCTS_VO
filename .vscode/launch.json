@@ -1,0 +1,16 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "main_pedestrian.py",
+            "console": "integratedTerminal",
+            "args": ["--algorithm", "VANILLA_VO2", "--nsim", "1000", "--rwrd", "-100", "--dt", "1", "--std", "0.5", "--rollout", "epsilon_uniform_uniform", "--alpha", "0.1", "--k", "50", "--c", "10", "--num", "1", "--env", "EASY", "--eps_rollout", "0.2", "--stdRollout", "1", "--start", "corner", "--v", "5", "--a", "11"]
+        }
+    ]
+}

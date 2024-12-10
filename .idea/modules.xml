@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/RobotArena.iml" filepath="$PROJECT_DIR$/.idea/RobotArena.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/MCTS_VO.iml" filepath="$PROJECT_DIR$/.idea/MCTS_VO.iml" />
     </modules>
   </component>
 </project>

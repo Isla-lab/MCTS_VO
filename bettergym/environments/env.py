@@ -3,17 +3,15 @@ import random
 from copy import deepcopy
 from dataclasses import dataclass
 from math import atan2, cos, sin
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
-from matplotlib import pyplot as plt
 
-from bettergym.agents.utils.utils import get_robot_angles
-from bettergym.agents.utils.vo import new_get_spaces, get_unsafe_angles_wall, compute_safe_angle_space, \
-    vo_negative_speed, get_spaces_vo_special_case
-from bettergym.better_gym import BetterGym
-from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
-from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
+from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles
+from MCTS_VO.bettergym.agents.utils.vo import get_unsafe_angles_wall, compute_safe_angle_space, vo_negative_speed
+from MCTS_VO.bettergym.better_gym import BetterGym
+from MCTS_VO.bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
+from MCTS_VO.mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
 
 i = 0
@@ -256,7 +254,7 @@ class Env:
 
         return new_x
 
-    def step_check_coll(self, action: np.ndarray) -> tuple[State, float, bool, Any, Any]:
+    def step_check_coll(self, action: np.ndarray) -> Tuple[State, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -280,7 +278,7 @@ class Env:
              "colision_pedestrians": int(collision)},
         )
 
-    def step_no_check_coll(self, action: np.ndarray) -> tuple[State, float, bool, Any, Any]:
+    def step_no_check_coll(self, action: np.ndarray) -> Tuple[State, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -434,8 +432,8 @@ class Env:
             obstacles=None,
             radius=self.config.robot_radius,
         )
-        state.obstacles = self.generate_humans(state)
-        self.add_walls(state)
+        # state.obstacles = self.generate_humans(state)
+        # self.add_walls(state)
         return state, None
 
 
@@ -627,11 +625,14 @@ class BetterEnv(BetterGym):
             #     radial = True
 
         # WALL OBSTACLES
-        intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
-        valid_discriminant = intersection_data[0]
-        if valid_discriminant.any():
-            wall_int = np.array(wall_obs[0])[valid_discriminant]
-            unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+        if len(wall_obs[0]) != 0:
+            intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
+            valid_discriminant = intersection_data[0]
+            if valid_discriminant.any():
+                wall_int = np.array(wall_obs[0])[valid_discriminant]
+                unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+            else:
+                unsafe_wall_angles = None
         else:
             unsafe_wall_angles = None
 

@@ -1,20 +1,15 @@
 import math
 import random
-from functools import partial
-from typing import Callable, Any
+from typing import Any
 
 import numpy as np
 import portion as P
-from numpy.distutils.command.config import config
 
-from bettergym.agents.planner import Planner
-from bettergym.agents.utils.utils import (
-    voronoi,
-    clip_act,
-    compute_towards_goal_jit,
+from MCTS_VO.bettergym.agents.planner import Planner
+from MCTS_VO.bettergym.agents.utils.utils import (
     get_robot_angles, compute_uniform_towards_goal_jit,
 )
-from mcts_utils import uniform_random, get_intersections_vectorized, check_circle_segment_intersect, \
+from MCTS_VO.mcts_utils import uniform_random, get_intersections_vectorized, check_circle_segment_intersect, \
     angle_distance_vector
 
 
@@ -185,11 +180,14 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
     # WALL OBSTACLES
-    intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
-    valid_discriminant = intersection_data[0]
-    if valid_discriminant.any():
-        wall_int = np.array(wall_obs[0])[valid_discriminant]
-        unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+    if len(wall_obs[0]) != 0:
+        intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
+        valid_discriminant = intersection_data[0]
+        if valid_discriminant.any():
+            wall_int = np.array(wall_obs[0])[valid_discriminant]
+            unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+        else:
+            unsafe_wall_angles = None
     else:
         unsafe_wall_angles = None
 
@@ -454,15 +452,18 @@ def vo_negative_speed(obstacles, x, config):
         r0 = np.full_like(r1, VELOCITY * config.dt)
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
-    # intersection_points = np.vstack((intersection_points, wall_int))
-    intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VELOCITY * config.dt, np.array(wall_obs[0]))
-    valid_discriminant = intersection_data[0]
-    wall_int = None
-    if valid_discriminant.any():
-        wall_int = np.array(wall_obs[0])[valid_discriminant]
-        unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+    if len(wall_obs[0]) != 0:
+        intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VELOCITY * config.dt, None)
+        valid_discriminant = intersection_data[0]
+        wall_int = None
+        if valid_discriminant.any():
+            wall_int = np.array(wall_obs[0])[valid_discriminant]
+            unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
+        else:
+            unsafe_wall_angles = None
     else:
         unsafe_wall_angles = None
+    
 
     if np.isnan(intersection_points).all() and wall_int is None:
         # all robot angles are safe

@@ -8,8 +8,9 @@ import numpy as np
 from numba import njit
 from scipy.spatial.distance import cdist
 
-from bettergym.agents.planner import Planner
-from mcts_utils import uniform_random
+from MCTS_VO.bettergym.agents.planner import Planner
+from MCTS_VO.mcts_utils import uniform_random
+
 
 
 def get_robot_angles(x, max_angle_change):

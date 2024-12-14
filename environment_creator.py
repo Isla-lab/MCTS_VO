@@ -3,9 +3,8 @@ import math
 import numpy as np
 from numpy import array
 
-from bettergym.environments.env import BetterEnv, EnvConfig
-from bettergym.environments.robot_arena import BetterRobotArena, RobotArenaState, Config
-
+from MCTS_VO.bettergym.environments.env import BetterEnv, EnvConfig
+from MCTS_VO.bettergym.environments.robot_arena import BetterRobotArena, Config, RobotArenaState
 
 def create_env_continuous(
         initial_pos,

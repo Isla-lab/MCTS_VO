@@ -1,14 +1,15 @@
 import math
 import random
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
 
-from bettergym.agents.utils.vo import get_spaces, get_unsafe_angles_wall, new_get_spaces
-from bettergym.better_gym import BetterGym
-from bettergym.environments.env_utils import dist_to_goal, check_coll_jit
-from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
+
+from MCTS_VO.bettergym.agents.utils.vo import get_unsafe_angles_wall, new_get_spaces
+from MCTS_VO.bettergym.better_gym import BetterGym
+from MCTS_VO.bettergym.environments.env_utils import check_coll_jit, dist_to_goal
+from MCTS_VO.mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
 
 @dataclass(frozen=True)
@@ -105,9 +106,7 @@ class RobotArena:
         else:
             self.step = self.step_no_check_coll
 
-    def reset(
-            self, *, seed: int | None = None, options: dict[str, Any] | None = None
-    ) -> tuple[RobotArenaState, Any]:
+    def reset(self, *, seed = None, options = None) -> Tuple[RobotArenaState, Any]:
         return self.state.copy(), None
 
     def check_out_boundaries(self, state: RobotArenaState) -> bool:
@@ -194,7 +193,7 @@ class RobotArena:
 
     def step_check_coll(
             self, action: np.ndarray
-    ) -> tuple[RobotArenaState, float, bool, Any, Any]:
+    ) -> Tuple[RobotArenaState, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -218,7 +217,7 @@ class RobotArena:
 
     def step_no_check_coll(
             self, action: np.ndarray
-    ) -> tuple[RobotArenaState, float, bool, Any, Any]:
+    ) -> Tuple[RobotArenaState, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent

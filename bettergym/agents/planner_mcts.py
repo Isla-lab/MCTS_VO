@@ -3,8 +3,8 @@ from typing import Union, Any, Dict, Callable
 import numpy as np
 from matplotlib import pyplot as plt
 
-from bettergym.agents.planner import Planner
-from bettergym.better_gym import BetterGym
+from MCTS_VO.bettergym.agents.planner import Planner
+from MCTS_VO.bettergym.better_gym import BetterGym
 
 i = 0
 
@@ -46,11 +46,11 @@ class Mcts(Planner):
     def __init__(
             self,
             num_sim: int,
-            c: float | int,
+            c: float,
             environment: BetterGym,
             computational_budget: int,
             rollout_policy: Callable,
-            discount: float | int = 1,
+            discount: float = 1.0,
     ):
         super().__init__(environment)
         self.num_sim: int = num_sim

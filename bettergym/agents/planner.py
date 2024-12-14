@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from bettergym.better_gym import BetterGym
+from MCTS_VO.bettergym.better_gym import BetterGym
 
 
 class Planner(ABC):

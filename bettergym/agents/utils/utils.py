@@ -5,17 +5,15 @@ from typing import Any, Callable
 
 # import graphviz
 import numpy as np
-from numba import njit
+from numba import jit
 from scipy.spatial.distance import cdist
 
 from MCTS_VO.bettergym.agents.planner import Planner
 from MCTS_VO.mcts_utils import uniform_random
 
 
-
 def get_robot_angles(x, max_angle_change):
-    robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
-    robot_angles = np.array(robot_angles)
+    robot_angles = np.array([x[2] - max_angle_change, x[2] + max_angle_change])
     # Make sure angle is within range of -π to π
     robot_angles = (robot_angles + np.pi) % (2 * np.pi) - np.pi
     if type(robot_angles[0]) is np.float64:
@@ -41,7 +39,7 @@ def uniform_discrete(node: Any, planner: Planner):
     return random.choice(actions)
 
 
-@njit
+@jit(nopython=True, cache=True)
 def compute_towards_goal_jit(
         x: np.ndarray,
         goal: np.ndarray,
@@ -108,7 +106,7 @@ def epsilon_uniform_uniform(
         return uniform_random(node, planner)
 
 
-@njit
+@jit(nopython=True, cache=True)
 def compute_uniform_towards_goal_jit(
         x: np.ndarray,
         goal: np.ndarray,
@@ -223,7 +221,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
         )
 
 
-@njit
+@jit(nopython=True)
 def clip_act(
         chosen: np.ndarray, max_angle_change: float, x: np.ndarray, allow_negative: bool
 ):

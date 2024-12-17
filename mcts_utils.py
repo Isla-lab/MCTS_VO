@@ -100,7 +100,6 @@ def get_tangents(robot_state, obs_r, obstacles, d):
 
     # Calculate the angles for the tangent points
     phi = np.arccos(obs_r / d)
-
     # Calculate the tangent points on the obstacles
     obs_r_expanded = np.expand_dims(obs_r, 1)
     P1 = obs_r_expanded * np.stack((np.cos(phi), np.sin(phi)), axis=1)
@@ -119,7 +118,7 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1] - x_exp[1, :])
 
     # Non-intersecting
-    no_intersection = d > r0 + r1
+    no_intersection = d > r0 + r1 + 0.3
 
     # One circle within the other
     one_within_other = d < np.abs(r0 - r1)
@@ -128,18 +127,18 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     coincident = np.logical_and(d == 0, r0 == r1)
 
     intersecting = np.logical_not(np.logical_or.reduce((no_intersection, one_within_other, coincident)))
-
     # Compute intersection points
     if np.any(intersecting):
-        intersection_points = compute_int_vectorized(
-            r0[intersecting],
-            r1[intersecting],
-            d[intersecting],
-            x_exp[0, :],
-            obs_x[intersecting, 0],
-            x_exp[1, :],
-            obs_x[intersecting, 1],
-        )
+        # intersection_points = compute_int_vectorized(
+        #     r0[intersecting],
+        #     r1[intersecting],
+        #     d[intersecting],
+        #     x_exp[0, :],
+        #     obs_x[intersecting, 0],
+        #     x_exp[1, :],
+        #     obs_x[intersecting, 1],
+        # )
+        intersection_points = get_tangents(x, r0[intersecting]+r1[intersecting], obs_x[intersecting], d[intersecting])
     else:
         intersection_points = None
 

@@ -12,43 +12,43 @@ from MCTS_VO.bettergym.environments.env_utils import check_coll_jit, dist_to_goa
 from MCTS_VO.mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
 
-@dataclass(frozen=True)
-class Config:
-    """
-    simulation parameter class
-    """
+# @dataclass(frozen=True)
+# class Config:
+#     """
+#     simulation parameter class
+#     """
 
-    # robot parameter
-    # Max U[0]
-    max_speed: float = 0.3  # [m/s]
-    # Min U[0]
-    min_speed: float = -0.1  # [m/s]
-    # Max and Min U[1]
-    max_angle_change: float = None  # [rad/s]
+#     # robot parameter
+#     # Max U[0]
+#     max_speed: float = 0.3  # [m/s]
+#     # Min U[0]
+#     min_speed: float = -0.1  # [m/s]
+#     # Max and Min U[1]
+#     max_angle_change: float = None  # [rad/s]
 
-    dt: float = 1.0  # [s] Time tick for motion prediction
-    robot_radius: float = 0.3  # [m] for collision check
-    obs_size: float = 0.6
+#     dt: float = 1.0  # [s] Time tick for motion prediction
+#     robot_radius: float = 0.3  # [m] for collision check
+#     obs_size: float = 0.6
 
-    bottom_limit: float = -0.5
-    upper_limit: float = 11.5
+#     bottom_limit: float = 4.83088693
+#     upper_limit: float = -5.16911307
 
-    right_limit: float = 11.5
-    left_limit: float = -0.5
+#     right_limit: float = 4.09
+#     left_limit: float = -5.91
 
-    n_vel: int = None
-    n_angles: int = None
-    max_yaw_rate = 1.9  # [rad/s]
-    max_accel = 6  # [m/ss]
-    max_delta_yaw_rate = 40 * math.pi / 180.0  # [rad/ss]
-    v_resolution = 0.1  # [m/s]
-    yaw_rate_resolution = max_yaw_rate / 11.0  # [rad/s]
-    # predict_time = 15.0 * dt  # [s]
-    predict_time = 100.0 * dt  # [s]
-    to_goal_cost_gain = 1.
-    speed_cost_gain = 0.0
-    obstacle_cost_gain = 100.
-    robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
+#     n_vel: int = None
+#     n_angles: int = None
+#     max_yaw_rate = 1.9  # [rad/s]
+#     max_accel = 6  # [m/ss]
+#     max_delta_yaw_rate = 40 * math.pi / 180.0  # [rad/ss]
+#     v_resolution = 0.1  # [m/s]
+#     yaw_rate_resolution = max_yaw_rate / 11.0  # [rad/s]
+#     # predict_time = 15.0 * dt  # [s]
+#     predict_time = 100.0 * dt  # [s]
+#     to_goal_cost_gain = 1.
+#     speed_cost_gain = 0.0
+#     obstacle_cost_gain = 100.
+#     robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
 
 
 class RobotArenaState:

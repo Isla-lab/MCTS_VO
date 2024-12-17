@@ -2,7 +2,7 @@ import timeit
 from functools import partial
 
 import numpy as np
-from numba import njit
+from numba import njit, jit
 from numpy import array
 
 
@@ -15,13 +15,15 @@ def check_coll_jit(x, obs, robot_radius, obs_size):
     return False
 
 
+@jit(cache=True, nopython=True)
 def check_coll_vectorized(x, obs, robot_radius, obs_size):
-    if len(obs) == 0:
-        return False
-    dist_to_ob = np.linalg.norm(obs - x[:2], axis=1)
-    return np.any(dist_to_ob <= robot_radius + obs_size)
+    n = obs.shape[0]
+    distances = np.empty(n)
+    for i in range(n):
+        distances[i] = np.sqrt(np.sum((obs[i] - x)**2))
+    return np.any(distances <= robot_radius + obs_size)
 
 
-@njit
+@jit(cache=True, nopython=True)
 def dist_to_goal(goal: np.ndarray, x: np.ndarray):
-    return np.linalg.norm(x - goal)
+    return np.sqrt(np.sum((x-goal)**2))

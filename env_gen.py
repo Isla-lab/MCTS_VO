@@ -18,6 +18,7 @@ def seed_everything(seed_value: int):
     random.seed(seed_value)
     np.random.seed(seed_value)
     os.environ["PYTHONHASHSEED"] = str(seed_value)
+    seed_numba(seed_value)
 
 
 seed_everything(1)

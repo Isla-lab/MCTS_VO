@@ -1,9 +1,6 @@
-import timeit
-from functools import partial
 
 import numpy as np
 from numba import njit, jit
-from numpy import array
 
 
 @njit

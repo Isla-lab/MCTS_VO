@@ -118,13 +118,13 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1] - x_exp[1, :])
 
     # Non-intersecting
-    no_intersection = d > r0 + r1 + 0.3
+    no_intersection = d > 1.6*(r0 + r1)
 
     # One circle within the other
-    one_within_other = d < np.abs(r0 - r1)
+    one_within_other = d < r0 + r1
 
     # Coincident circles
-    coincident = np.logical_and(d == 0, r0 == r1)
+    coincident = d == 0
 
     intersecting = np.logical_not(np.logical_or.reduce((no_intersection, one_within_other, coincident)))
     # Compute intersection points

@@ -18,6 +18,8 @@ from numba import njit
 from numpy import mean, std
 from tqdm import tqdm
 
+from bettergym.environments.env_utils import dist_to_goal
+from bettergym.environments.env import State
 from bettergym.agents.planner_mcts import Mcts
 from bettergym.agents.utils.utils import (
     epsilon_uniform_uniform,
@@ -25,7 +27,6 @@ from bettergym.agents.utils.utils import (
 from bettergym.agents.utils.vo import (
     epsilon_uniform_uniform_vo,
 )
-from bettergym.environments.robot_arena import dist_to_goal
 from environment_creator import (
     create_pedestrian_env,
 )
@@ -36,7 +37,7 @@ from experiment_utils import (
 )
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = True
+DEBUG_ANIMATION = False 
 ANIMATION = True
 
 
@@ -107,25 +108,46 @@ def get_max_depth(planner, u):
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     # input [forward speed, yaw_rate]
-    if arguments.fixed_obs:
-        behaviour = "intention"
-        with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
-            obstacles = pickle.load(f)
-    else:
-        obstacles = None
+    # if arguments.fixed_obs:
+    #     behaviour = "intention"
+    #     with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
+    #         obstacles = pickle.load(f)
+    # else:
+    #     obstacles = None
 
     real_env, sim_env = create_pedestrian_env(
-        discrete=experiment.discrete,
+        discrete=True,
         rwrd_in_sim=True,
-        out_boundaries_rwrd=arguments.rwrd,
-        n_vel=arguments.v,
-        n_angles=arguments.a,
-        vo=experiment.vo,
-        obs_pos=obstacles,
-        n_obs=arguments.n_obs,
+        out_boundaries_rwrd=-100,
+        n_vel=5,
+        n_angles=11,
+        vo=True,
+        obs_pos=None,
+        n_obs=None,
     )
-
     s0, _ = real_env.reset()
+    obstacles = [
+        [-1.82, -0.306, 0.0, 0.0],
+        [-0.92, -1.651, 0.0, 0.0],
+        [-1.127, -0.833, 0.0, 0.0],
+        [-1.724, -1.647, 0.0, 0.0]
+    ]
+
+    obstacles = [
+        State(
+            x=np.array(obstacles[i]),
+            goal=None,
+            obs_type='circle',
+            radius=0.1,
+            obstacles=None
+        )
+        for i in range(len(obstacles))
+    ]
+    initial_state = np.array([0.22631004, -0.98857212,  -3.1395514971795864,  0. ])
+    s0.obstacles = obstacles
+    s0.x = initial_state
+    s0.goal = np.array([-2.783, -0.993])
+    
     trajectory = np.array(s0.x)
     config = real_env.config
 
@@ -151,11 +173,11 @@ def run_experiment(experiment: ExperimentData, arguments):
     step_n = 0
     while not terminal:
         step_n += 1
-        if step_n == 1000:
+        if step_n == 500:
             break
         print(f"Step Number {step_n}")
         s_copy = deepcopy(s)
-        s_copy.obstacles = filter_obstacles(s_copy)
+        # s_copy.obstacles = filter_obstacles(s_copy)
         initial_time = time.time()
         u, info = planner.plan(s_copy)
         final_time = time.time() - initial_time
@@ -209,7 +231,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         "meanDepth": np.mean(depth),
         **env_info
     }
-    data = data | arguments.__dict__
+    data = data.update(arguments.__dict__)
     df = pd.Series(data)
     df.to_csv(f"{exp_name}_{exp_num}.csv")
 

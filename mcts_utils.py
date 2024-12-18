@@ -92,8 +92,17 @@ def angle_distance_vector(a1, angles):
     return diff
 
 def get_tangents(robot_state, obs_r, obstacles, d):
+    """
+    Calculate the tangent points from the robot to each obstacle.
+
+    :param robot_state: The state of the robot, typically containing its position.
+    :param obs_r: Radii of the obstacles.
+    :param obstacles: Array of obstacle positions.
+    :param d: Distance from the robot to each obstacle.
+    :return: Array of tangent points.
+    """
     # Calculate angles from the robot to each obstacle
-    alphas = np.arctan2(robot_state[1]-obstacles[:, 1], robot_state[0]-obstacles[:, 0])
+    alphas = np.arctan2(robot_state[1] - obstacles[:, 1], robot_state[0] - obstacles[:, 0])
 
     # Create rotation matrices for each angle
     matrices = [np.array([[np.cos(alpha), -np.sin(alpha)], [np.sin(alpha), np.cos(alpha)]]) for alpha in alphas]
@@ -119,27 +128,27 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1] - x_exp[1, :])
 
     # Non-intersecting
-    no_intersection = d > r0 + r1
+    no_intersection = d > 1.6*(r0 + r1)
 
     # One circle within the other
-    one_within_other = d < np.abs(r0 - r1)
+    one_within_other = d < r0 + r1
 
     # Coincident circles
-    coincident = np.logical_and(d == 0, r0 == r1)
+    coincident = d == 0
 
     intersecting = np.logical_not(np.logical_or.reduce((no_intersection, one_within_other, coincident)))
-
     # Compute intersection points
     if np.any(intersecting):
-        intersection_points = compute_int_vectorized(
-            r0[intersecting],
-            r1[intersecting],
-            d[intersecting],
-            x_exp[0, :],
-            obs_x[intersecting, 0],
-            x_exp[1, :],
-            obs_x[intersecting, 1],
-        )
+        # intersection_points = compute_int_vectorized(
+        #     r0[intersecting],
+        #     r1[intersecting],
+        #     d[intersecting],
+        #     x_exp[0, :],
+        #     obs_x[intersecting, 0],
+        #     x_exp[1, :],
+        #     obs_x[intersecting, 1],
+        # )
+        intersection_points = get_tangents(x, r0[intersecting]+r1[intersecting], obs_x[intersecting], d[intersecting])
     else:
         intersection_points = None
 

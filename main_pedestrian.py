@@ -173,7 +173,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
         obs.append([o for o in s_copy.obstacles if o.obs_type != "wall"])
-        gc.collect()
+        # gc.collect()
 
     exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
     print_and_notify(

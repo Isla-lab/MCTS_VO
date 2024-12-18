@@ -5,6 +5,7 @@ from typing import Callable, Any
 
 import numpy as np
 import portion as P
+from intervaltree import IntervalTree
 from numpy.distutils.command.config import config
 
 from bettergym.agents.planner import Planner
@@ -355,17 +356,18 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
 
 
 def compute_ranges_difference(robot_angles, forbidden_ranges):
-    # Convert lists of ranges to portion intervals
-    robot_intervals = P.Interval(*[P.closed(a[0], a[1]) for a in robot_angles])
-    forbidden_intervals = P.Interval(*[P.closed(a[0], a[1]) for a in forbidden_ranges])
-
-    # Compute the difference
-    result_intervals = robot_intervals - forbidden_intervals
-
-    # Convert the result back to a list of ranges
-    result_ranges = [[i.lower, i.upper] for i in result_intervals]
-
-    return result_ranges
+    try:
+        t1 = IntervalTree.from_tuples(robot_angles)
+    except ValueError:
+        r = np.array(robot_angles)
+        robot_angles = r[r[:, 1] != r[:, 0]]
+        t1 = IntervalTree.from_tuples(robot_angles)
+    t1.merge_overlaps(strict=False)
+    t2 = IntervalTree.from_tuples(forbidden_ranges)
+    t2.merge_overlaps(strict=False)
+    for i in t2:
+        t1.chop(i.begin, i.end)
+    return [[i.begin, i.end] for i in t1.all_intervals]
 
 
 def get_unsafe_angles(intersection_points, robot_angles, x):

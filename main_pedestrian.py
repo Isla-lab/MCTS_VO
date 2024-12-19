@@ -36,8 +36,8 @@ from experiment_utils import (
 )
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = True
-ANIMATION = True
+DEBUG_ANIMATION = False
+ANIMATION = False
 
 
 @dataclass(frozen=True)
@@ -209,7 +209,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         "meanDepth": np.mean(depth),
         **env_info
     }
-    data = data | arguments.__dict__
+    data = data.update(arguments.__dict__)
     df = pd.Series(data)
     df.to_csv(f"{exp_name}_{exp_num}.csv")
 

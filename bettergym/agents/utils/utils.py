@@ -5,12 +5,11 @@ from typing import Any, Callable
 
 # import graphviz
 import numpy as np
-from numba import njit
+from numba import njit, jit
 from scipy.spatial.distance import cdist
 
 from bettergym.agents.planner import Planner
 from mcts_utils import uniform_random
-
 
 def get_robot_angles(x, max_angle_change):
     robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
@@ -98,7 +97,7 @@ def epsilon_uniform_uniform(
         return compute_uniform_towards_goal_jit(
             x=node.state.x,
             goal=node.state.goal,
-            max_angle_change=config.max_angle_change,
+            max_angle_change=config.max_angle_change*config.dt,
             amplitude=std_angle_rollout,
             min_speed=config.min_speed,
             max_speed=config.max_speed,
@@ -107,7 +106,7 @@ def epsilon_uniform_uniform(
         return uniform_random(node, planner)
 
 
-@njit
+@jit(nopython=True, cache=True)
 def compute_uniform_towards_goal_jit(
         x: np.ndarray,
         goal: np.ndarray,

@@ -1,17 +1,19 @@
 import math
 
 import numpy as np
+from numba import jit
 
 
 def uniform_random(node, planner):
     state = node.state
     config = planner.environment.gym_env.config
+    max_angle_change = config.max_angle_change * config.dt
     action = np.random.uniform(
         low=np.array(
-            [config.min_speed, state.x[2] - config.max_angle_change], dtype=np.float64
+            [config.min_speed, state.x[2] - max_angle_change], dtype=np.float64
         ),
         high=np.array(
-            [config.max_speed, state.x[2] + config.max_angle_change], dtype=np.float64
+            [config.max_speed, state.x[2] + max_angle_change], dtype=np.float64
         ),
     )
     action[1] = (action[1] + math.pi) % (2 * math.pi) - math.pi
@@ -42,13 +44,13 @@ def compute_int_vectorized(r0, r1, d, x0, x1, y0, y1):
 
     return np.column_stack((np.column_stack((x3, y3)), np.column_stack((x4, y4))))
 
-
+@jit(cache=True, nopython=True)
 def check_circle_segment_intersect(robot_pos, robot_radius, segments):
     r2 = robot_radius ** 2
-    A = np.array(segments[:, 2] - segments[:, 0])
-    B = np.array(segments[:, 3] - segments[:, 1])
-    C = np.array(segments[:, 0] - robot_pos[0])
-    D = np.array(segments[:, 1] - robot_pos[1])
+    A = segments[:, 2] - segments[:, 0]
+    B = segments[:, 3] - segments[:, 1]
+    C = segments[:, 0] - robot_pos[0]
+    D = segments[:, 1] - robot_pos[1]
     a = A ** 2 + B ** 2
     b = 2 * (A * C + B * D)
     c = C ** 2 + D ** 2 - r2
@@ -56,6 +58,7 @@ def check_circle_segment_intersect(robot_pos, robot_radius, segments):
 
     valid_discriminant = discriminant >= 0
     return valid_discriminant, discriminant, b, a, segments, A, B
+
 
 
 def find_circle_segment_intersections(discriminant, valid_discriminant, b, a, segments, A, B):
@@ -91,6 +94,8 @@ def angle_distance_vector(a1, angles):
 
     return diff
 
+
+@jit(cache=True, nopython=True)
 def get_tangents(robot_state, obs_r, obstacles, d):
     """
     Calculate the tangent points from the robot to each obstacle.
@@ -103,21 +108,21 @@ def get_tangents(robot_state, obs_r, obstacles, d):
     """
     # Calculate angles from the robot to each obstacle
     alphas = np.arctan2(robot_state[1] - obstacles[:, 1], robot_state[0] - obstacles[:, 0])
-
-    # Create rotation matrices for each angle
-    matrices = [np.array([[np.cos(alpha), -np.sin(alpha)], [np.sin(alpha), np.cos(alpha)]]) for alpha in alphas]
-
     # Calculate the angles for the tangent points
     phi = np.arccos(obs_r / d)
-
+    robot_xy = robot_state[:2]
     # Calculate the tangent points on the obstacles
-    obs_r_expanded = np.expand_dims(obs_r, 1)
-    P1 = obs_r_expanded * np.stack((np.cos(phi), np.sin(phi)), axis=1)
-    P2 = obs_r_expanded * np.stack((np.cos(-phi), np.sin(-phi)), axis=1)
-
-    # Apply the rotation matrices and translate the points to the robot's position
-    new_P1 = np.array([matrices[i] @ P1[i] + robot_state[:2] for i in range(len(P1))])
-    new_P2 = np.array([matrices[i] @ P2[i] + robot_state[:2] for i in range(len(P2))])
+    P1 = obs_r[:, None] * np.hstack((np.cos(phi)[:, None], np.sin(phi)[:, None]))
+    P2 = obs_r[:, None] * np.hstack((np.cos(-phi)[:, None], np.sin(-phi)[:, None]))
+    new_P1 = np.empty((phi.shape[0], 2), dtype=np.float64)
+    new_P2 = np.empty((phi.shape[0], 2), dtype=np.float64)
+    for i in range(len(alphas)):
+        alpha = alphas[i]
+        # Create rotation matrices for each angle
+        matrix = np.array([[np.cos(alpha), -np.sin(alpha)], [np.sin(alpha), np.cos(alpha)]])
+        # Apply the rotation matrices and translate the points to the robot's position
+        new_P1[i] = matrix @ P1[i] + robot_xy
+        new_P2[i] = matrix @ P2[i] + robot_xy
 
     # Combine the tangent points into a single array and return them
     intersections = np.hstack((new_P1, new_P2))

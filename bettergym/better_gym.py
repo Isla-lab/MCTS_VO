@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Any, Union
+from typing import Any, Union, Dict, Tuple
 
 
 class BetterGym:
@@ -8,7 +8,7 @@ class BetterGym:
 
     def step(
         self, state, action
-    ) -> tuple[Any, Union[float, int], bool, bool, Union[dict[str, Any]]]:
+    ) -> Tuple[Any, Union[float, int], bool, bool, Union[Dict[str, Any]]]:
         """
         A transition function that works by
         :param state: the state of the environments

@@ -3,20 +3,17 @@ import random
 from copy import deepcopy
 from dataclasses import dataclass
 from math import atan2, cos, sin
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 from bettergym.agents.utils.utils import get_robot_angles
-from bettergym.agents.utils.vo import new_get_spaces, get_unsafe_angles_wall, compute_safe_angle_space, \
-    vo_negative_speed, get_spaces_vo_special_case
+from bettergym.agents.utils.vo import get_unsafe_angles_wall, compute_safe_angle_space, \
+    vo_negative_speed
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
 from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
-
-i = 0
 
 @dataclass(frozen=True)
 class EnvConfig:
@@ -153,7 +150,7 @@ class Env:
                 obs_pos.append(ob.x[:2])
                 obs_rad.append(ob.radius)
 
-        return check_coll_vectorized(x=state.x, obs=obs_pos, robot_radius=self.config.robot_radius,
+        return check_coll_vectorized(x=state.x[:2], obs=np.array(obs_pos), robot_radius=self.config.robot_radius,
                                      obs_size=np.array(obs_rad))
 
     def generate_humans(self, robot_state):
@@ -256,7 +253,7 @@ class Env:
 
         return new_x
 
-    def step_check_coll(self, action: np.ndarray) -> tuple[State, float, bool, Any, Any]:
+    def step_check_coll(self, action: np.ndarray) -> Tuple[State, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -280,7 +277,7 @@ class Env:
              "colision_pedestrians": int(collision)},
         )
 
-    def step_no_check_coll(self, action: np.ndarray) -> tuple[State, float, bool, Any, Any]:
+    def step_no_check_coll(self, action: np.ndarray) -> Tuple[State, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -478,107 +475,9 @@ class BetterEnv(BetterGym):
         else:
             self.gym_env.move_humans = self.gym_env.move_humans_nofixed
 
-    def get_actions_discrete(self, state: State):
-        config = self.gym_env.config
-        available_angles = np.linspace(
-            start=state.x[2] - config.max_angle_change,
-            stop=state.x[2] + config.max_angle_change,
-            num=config.n_angles,
-        )
-        if (curr_angle := state.x[2]) not in available_angles:
-            available_angles = np.append(available_angles, curr_angle)
-        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
-        available_velocities = np.linspace(
-            start=config.min_speed, stop=config.max_speed, num=config.n_vel
-        )
-        if 0.0 not in available_velocities:
-            available_velocities = np.append(available_velocities, 0.0)
-
-        actions = np.transpose(
-            [
-                np.tile(available_velocities, len(available_angles)),
-                np.repeat(available_angles, len(available_velocities)),
-            ]
-        )
-        return actions
-
-    def get_discrete_actions_basic(self, x, config, min_speed, max_speed):
-        # I use the robot's forward feasible range also for when the robot is moving backwards
-
-        feasibile_range = get_robot_angles(x, config.max_angle_change)
-        if len(feasibile_range) == 1:
-            available_angles = np.linspace(
-                start=x[2] - config.max_angle_change,
-                stop=x[2] + config.max_angle_change,
-                num=config.n_angles,
-            )
-        else:
-            range_sizes = np.linalg.norm(feasibile_range, axis=1)
-            proportion = range_sizes / np.sum(range_sizes)
-            div = proportion * config.n_angles
-            div[0] = np.floor(div[0])
-            div[1] = np.ceil(div[1])
-            div = div.astype(int)
-            available_angles1 = np.linspace(
-                start=feasibile_range[0][0],
-                stop=feasibile_range[0][1],
-                num=div[0]
-            )
-            available_angles2 = np.linspace(
-                start=feasibile_range[1][0],
-                stop=feasibile_range[1][1],
-                num=div[1]
-            )
-            available_angles = np.concatenate([available_angles1, available_angles2])
-
-        if (curr_angle := x[2]) not in available_angles:
-            available_angles = np.append(available_angles, curr_angle)
-        available_velocities = np.linspace(
-            start=min_speed, stop=max_speed, num=config.n_vel
-        )
-        if 0.0 not in available_velocities:
-            available_velocities = np.append(available_velocities, 0.0)
-
-        actions = np.transpose(
-            [
-                np.tile(available_velocities, len(available_angles)),
-                np.repeat(available_angles, len(available_velocities)),
-            ]
-        )
-        return actions
-
-    def get_discrete_space(self, space, n_sample):
-        range_sizes = np.linalg.norm(space, axis=1)
-        # ensure that the range sizes are not zero
-        range_sizes += 1e-6
-        proportion = range_sizes / np.sum(range_sizes)
-        div = proportion * n_sample
-        #  floor all odd indices and ceil all even indices
-        div[::2] = np.floor(div[::2])
-        div[1::2] = np.ceil(div[1::2])
-        div = div.astype(int)
-        return [
-            np.linspace(start=space[i][0], stop=space[i][1], num=div[i])
-            for i in range(len(space))
-        ]
-
-    def get_discrete_actions_multi_range(self, aspace, vspace, config):
-        available_angles = self.get_discrete_space(aspace, config.n_angles)
-        available_velocities = self.get_discrete_space(vspace, config.n_vel)
-        actions = np.concatenate(
-            [
-                np.transpose([
-                    np.tile(available_velocities[i], len(available_angles[i])),
-                    np.repeat(available_angles[i], len(available_velocities[i])),
-                ])
-                for i in range(len(aspace))
-            ]
-        )
-        return actions
-
     def get_actions_discrete_vo2(self, state: State):
         config = self.gym_env.config
-        actions = self.get_discrete_actions_basic(state.x, config, config.min_speed, config.max_speed)
+        actions = self.get_actions_discrete(state)
 
         if len(state.obstacles) == 0:
             return actions
@@ -588,7 +487,6 @@ class BetterEnv(BetterGym):
         dt = config.dt
         ROBOT_RADIUS = config.robot_radius
         VMAX = config.max_speed
-
         wall_int = None
 
         # Extract obstacle information
@@ -621,11 +519,6 @@ class BetterEnv(BetterGym):
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
-            # delta = 0.015
-            # if dist is not None and np.any(mask := dist - delta < r1):
-            #     velocity_space, angle_space = get_spaces_vo_special_case(circle_obs_x, x, r1, config, mask, velocity_space)
-            #     radial = True
-
         # WALL OBSTACLES
         intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
         valid_discriminant = intersection_data[0]
@@ -639,7 +532,7 @@ class BetterEnv(BetterGym):
         if np.isnan(intersection_points).all() and wall_int is None:
             return actions
         else:
-            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change, x, unsafe_wall_angles)
+            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change*dt, x, unsafe_wall_angles)
             if forward_available := (safe_angles_forward is not None):
                 vspace = [config.max_speed, config.max_speed]
                 v_space_forward = [*([vspace] * len(safe_angles_forward))]
@@ -668,6 +561,61 @@ class BetterEnv(BetterGym):
             if len(actions) > config.n_angles * config.n_vel:
                 actions = np.random.choice(actions, size=config.n_angles * config.n_vel, replace=False)
             return actions
+
+    def get_actions_discrete(self, state: State):
+        config = self.gym_env.config
+        max_angle_change = config.max_angle_change * config.dt
+        available_angles = np.linspace(
+            start=state.x[2] - max_angle_change,
+            stop=state.x[2] + max_angle_change,
+            num=config.n_angles,
+        )
+        if (curr_angle := state.x[2]) not in available_angles:
+            available_angles = np.append(available_angles, curr_angle)
+        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
+        available_velocities = np.linspace(
+            start=config.min_speed, stop=config.max_speed, num=config.n_vel
+        )
+        if 0.0 not in available_velocities:
+            available_velocities = np.append(available_velocities, 0.0)
+
+        actions = np.transpose(
+            [
+                np.tile(available_velocities, len(available_angles)),
+                np.repeat(available_angles, len(available_velocities)),
+            ]
+        )
+        return actions
+
+
+    def get_discrete_space(self, space, n_sample):
+        range_sizes = np.linalg.norm(space, axis=1)
+        # ensure that the range sizes are not zero
+        range_sizes += 1e-6
+        proportion = range_sizes / np.sum(range_sizes)
+        div = proportion * n_sample
+        #  floor all odd indices and ceil all even indices
+        div[::2] = np.floor(div[::2])
+        div[1::2] = np.ceil(div[1::2])
+        div = div.astype(int)
+        return [
+            np.linspace(start=space[i][0], stop=space[i][1], num=div[i])
+            for i in range(len(space))
+        ]
+
+    def get_discrete_actions_multi_range(self, aspace, vspace, config):
+        available_angles = self.get_discrete_space(aspace, config.n_angles)
+        available_velocities = self.get_discrete_space(vspace, config.n_vel)
+        actions = np.concatenate(
+            [
+                np.transpose([
+                    np.tile(available_velocities[i], len(available_angles[i])),
+                    np.repeat(available_angles[i], len(available_velocities[i])),
+                ])
+                for i in range(len(aspace))
+            ]
+        )
+        return actions
 
     def set_state_sim(self, state: State) -> None:
         self.gym_env.state = state.copy()

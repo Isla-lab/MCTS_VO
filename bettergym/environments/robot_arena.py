@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import math
 import random
 from dataclasses import dataclass
@@ -5,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from bettergym.agents.utils.vo import get_spaces, get_unsafe_angles_wall, new_get_spaces
+from bettergym.agents.utils.vo import get_unsafe_angles_wall, new_get_spaces
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_jit
 from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect

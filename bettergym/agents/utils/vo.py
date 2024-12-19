@@ -1,18 +1,12 @@
 import math
 import random
-from functools import partial
-from typing import Callable, Any
+from typing import Any
 
 import numpy as np
-import portion as P
 from intervaltree import IntervalTree
-from numpy.distutils.command.config import config
 
 from bettergym.agents.planner import Planner
 from bettergym.agents.utils.utils import (
-    voronoi,
-    clip_act,
-    compute_towards_goal_jit,
     get_robot_angles, compute_uniform_towards_goal_jit,
 )
 from mcts_utils import uniform_random, get_intersections_vectorized, check_circle_segment_intersect, \
@@ -89,51 +83,6 @@ def join_intersections(int_points, radius, x):
 
     return final_points
 
-# def join_intersections2(int_points, radius, x):
-#     """
-#     Joins intersection points that are within a specified radius.
-#
-#     Parameters:
-#     int_points (np.ndarray): An array of intersection points with shape (N, 4),
-#                              where each row represents two points (x1, y1, x2, y2).
-#     radius (float): The radius within which intersection points should be joined.
-#
-#     Returns:
-#     np.ndarray: An array of joined intersection points.
-#     """
-#     # Split the intersection points into two sets of points
-#     p1 = int_points[:, :2]
-#     p2 = int_points[:, 2:]
-#
-#     vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
-#     vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
-#     angle1 = np.arctan2(vec_p1[1], vec_p1[0])
-#     angle2 = np.arctan2(vec_p2[1], vec_p2[0])
-#
-#
-#     # Create a mask to determine which points to keep
-#     mask_ang1_smaller = angle1 < angle2
-#     points = np.vstack((
-#         np.hstack((p2[~mask_ang1_smaller], p1[~mask_ang1_smaller])),
-#         int_points[mask_ang1_smaller]
-#     ))
-#     new_angles = np.vstack((
-#         np.hstack((np.expand_dims(angle2[~mask_ang1_smaller], 1), np.expand_dims(angle1[~mask_ang1_smaller], 1))),
-#         np.hstack((np.expand_dims(angle1[mask_ang1_smaller], 1), np.expand_dims(angle2[mask_ang1_smaller], 1))),
-#     ))
-#
-#
-#     # Sort the points based on the angle
-#     points = points[np.argsort(new_angles[:, 0])]
-#
-#     p1 = points[:, :2]
-#     p2 = points[:, 2:]
-#
-#     initial_point = p1[0]
-#     final_point = p2[-1]
-#     final_points = np.expand_dims(np.hstack((initial_point, final_point)), 0)
-#
-#     return final_points
 
 def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.gym_env.config
@@ -208,36 +157,11 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # CASE 3 only obs intersection
     # CASE 4 both wall and obs intersection
     else:
-        # compute intersection with our new circumference
-        # print_to_file(
-        #     "X: {}".format(x) + "\n" +
-        #     "-" * 50 + "\n" +
-        #     "Intersection points: {}".format(intersection_points) + "\n" +
-        #     "-" * 50 + "\n" +
-        #     "Unsafe wall angles: {}".format(unsafe_wall_angles) + "\n" +
-        #     "-" * 50 + "\n" +
-        #     "Wall Int: {}".format(wall_int) + "\n" +
-        #     "-" * 50 + "\n" +
-        #     "Square Obs: {}".format(square_obs) + "\n" +
-        #     "-" * 50 + "\n" +
-        #     "Circle Obs: {}".format(circle_obs) + "\n" +
-        #     "-" * 50 + "\n" +
-        #     "Wall Obs {}".format(wall_obs) + "\n"
-        # )
-        # if sum(mask) > 1:
-        #     intersection_points = join_intersections2(intersection_points[mask], ROBOT_RADIUS, x)
-        angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points,
-                                                     wall_angles=unsafe_wall_angles)
-        # print_to_file(
-        #     "Angle Space: {}".format(angle_space) + "\n" +
-        #     "-" * 50 + "\n" +
-        #     "Velocity Space: {}".format(velocity_space) + "\n"
-        # )
+        angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points, wall_angles=unsafe_wall_angles)
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
         angle_space = np.array(angle_space)
         angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
         in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
-        # print_to_file("In Range: {}".format(in_range))
         if not np.any(in_range):
             action = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
             if action[0] < 0:
@@ -248,8 +172,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
             idx_angles, idx_ranges = np.where(in_range)
             idx = random.randint(0, len(idx_angles) - 1)
             angle = angles[idx_angles[idx]]
-            velocity = np.random.uniform(low=velocity_space[idx_ranges[idx]][0],
-                                         high=velocity_space[idx_ranges[idx]][1])
+            velocity = np.random.uniform(low=velocity_space[idx_ranges[idx]][0], high=velocity_space[idx_ranges[idx]][1])
             if velocity < 0:
                 angle = angle + math.pi
                 angle = (angle + math.pi) % (2 * math.pi) - math.pi
@@ -259,19 +182,12 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
 def sample_multiple_spaces(center, a_space, number, v_space):
     lengths_aspace = np.linalg.norm(a_space, axis=1)
     percentages_aspace = np.cumsum(lengths_aspace / np.sum(lengths_aspace))
-    # print_to_file(
-    #     "Lenght space: {}".format(lengths_aspace) + "\n" +
-    #     "-" * 50 + "\n" +
-    #     "Percentages space: {}".format(percentages_aspace) + "\n"
-    # )
     pct = random.random()
     idx_space = np.flatnonzero(pct <= percentages_aspace)[0]
     return np.vstack(
         [
             np.random.uniform(low=v_space[idx_space][0], high=v_space[idx_space][1], size=number),
-            np.random.uniform(
-                low=a_space[idx_space][0], high=a_space[idx_space][1], size=number
-            ),
+            np.random.uniform(low=a_space[idx_space][0], high=a_space[idx_space][1], size=number),
         ]
     ).T
 
@@ -302,69 +218,42 @@ def angle_distance(angle1, angle2):
     return diff
 
 
-def get_spaces_vo_special_case(obs, x, r1, config, mask, curr_velocity_space):
-    alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
-    P = obs[mask, :2] - (r1[mask][:, np.newaxis] * np.column_stack((np.cos(alpha), np.sin(alpha))))
-    vmin = np.sum(np.abs(P - x[:2]), axis=1) / config.dt
-    idx_vmin = np.argmax(vmin)
-    alpha = alpha[idx_vmin]
-    # if the robot is looking toward the obstacle center then negative speed
+# def get_spaces_vo_special_case(obs, x, r1, config, mask, curr_velocity_space):
+#     alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
+#     P = obs[mask, :2] - (r1[mask][:, np.newaxis] * np.column_stack((np.cos(alpha), np.sin(alpha))))
+#     vmin = np.sum(np.abs(P - x[:2]), axis=1) / config.dt
+#     idx_vmin = np.argmax(vmin)
+#     alpha = alpha[idx_vmin]
+#     # if the robot is looking toward the obstacle center then negative speed
+#
+#     # vspaces = [negative_vel, positive_vel]
+#     vspaces = [[-0.1, max(-vmin[idx_vmin], config.min_speed)],
+#                [min(vmin[idx_vmin], curr_velocity_space[1]), config.max_speed]]
+#     # if negative speed use opposite of alpha, if speed is positive then use alpha
+#     alphas = (np.array([alpha, alpha + np.pi]) + math.pi) % (2 * math.pi) - math.pi
+#     angle_dist = [angle_distance(x[2], alphas[0]), angle_distance(x[2], alphas[1])]
+#     idx = np.argmin(angle_dist)
+#     velocity_space = vspaces[idx]
+#     alpha = alphas[idx]
+#
+#     angle_space = [[alpha, alpha]]
+#     return angle_space, velocity_space
 
-    # vspaces = [negative_vel, positive_vel]
-    vspaces = [[-0.1, max(-vmin[idx_vmin], config.min_speed)],
-               [min(vmin[idx_vmin], curr_velocity_space[1]), config.max_speed]]
-    # if negative speed use opposite of alpha, if speed is positive then use alpha
-    alphas = (np.array([alpha, alpha + np.pi]) + math.pi) % (2 * math.pi) - math.pi
-    angle_dist = [angle_distance(x[2], alphas[0]), angle_distance(x[2], alphas[1])]
-    idx = np.argmin(angle_dist)
-    velocity_space = vspaces[idx]
-    alpha = alphas[idx]
-
-    angle_space = [[alpha, alpha]]
-    return angle_space, velocity_space
-
-
-def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dist=None):
-    angle_space, forbidden_ranges = compute_safe_angle_space(
-        intersection_points=intersection_points,
-        max_angle_change=config.max_angle_change,
-        x=x,
-    )
-    velocity_space = [0., config.max_speed]
-    radial = False
-    delta = 0.015
-    if dist is not None and np.any(mask := dist - delta < r1):
-        velocity_space, angle_space = get_spaces_vo_special_case(obs, x, r1, config, mask, velocity_space)
-        radial = True
-
-    # No angle at positive velocity is safe
-    if angle_space is None:
-        if not disable_retro:
-            retro_available, angle_space = vo_negative_speed(obs, x, config)
-        else:
-            retro_available = False
-
-        if retro_available:
-            # If VO with negative speed is possible, use it
-            velocity_space = [config.min_speed, 0.]
-        else:
-            # TODO: check if this is correct
-            velocity_space = [0.0, 0.0]
-            angle_space = get_robot_angles(x, config.max_angle_change)
-
-    return angle_space, velocity_space, radial
 
 
 def compute_ranges_difference(robot_angles, forbidden_ranges):
-    try:
-        t1 = IntervalTree.from_tuples(robot_angles)
-    except ValueError:
-        r = np.array(robot_angles)
-        robot_angles = r[r[:, 1] != r[:, 0]]
-        t1 = IntervalTree.from_tuples(robot_angles)
-    t1.merge_overlaps(strict=False)
-    t2 = IntervalTree.from_tuples(forbidden_ranges)
-    t2.merge_overlaps(strict=False)
+    def get_interval_tree(ranges):
+        try:
+            return IntervalTree.from_tuples(ranges)
+        except ValueError:
+            r = np.array(ranges)
+            ranges = r[r[:, 1] != r[:, 0]]
+            it = IntervalTree.from_tuples(ranges)
+            it.merge_overlaps(strict=False)
+            return it
+
+    t1 = get_interval_tree(robot_angles)
+    t2 = get_interval_tree(forbidden_ranges)
     for i in t2:
         t1.chop(i.begin, i.end)
     return [[i.begin, i.end] for i in t1.all_intervals]
@@ -388,7 +277,12 @@ def get_unsafe_angles(intersection_points, robot_angles, x):
         angle1 = np.arctan2(vec_p1[1], vec_p1[0])
         angle2 = np.arctan2(vec_p2[1], vec_p2[0])
         angle1_greater_mask = angle1 > angle2
-        forbidden_ranges.extend(np.column_stack((angle1[~angle1_greater_mask], angle2[~angle1_greater_mask])))
+        forbidden_ranges.extend(
+            np.column_stack((
+                angle1[~angle1_greater_mask],
+                angle2[~angle1_greater_mask]
+            ))
+        )
         forbidden_ranges.extend(
             np.vstack((
                 np.column_stack((angle1[angle1_greater_mask], np.full_like(angle1[angle1_greater_mask], math.pi))),
@@ -470,10 +364,10 @@ def vo_negative_speed(obstacles, x, config):
         # all robot angles are safe
         return get_robot_angles(x, config.max_angle_change)
     else:
-        x_copy = x.copy()
+        x_copy = np.array(x, copy=True)
         val = x_copy[2] + np.pi
         x_copy[2] = val
-        x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
+        x_copy[2] = (x_copy[2] + np.pi) % (2 * np.pi) - np.pi
         safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x_copy,
                                                            unsafe_wall_angles)
         return safe_angles

@@ -6,8 +6,8 @@ from math import atan2, cos, sin
 from typing import Any, Tuple
 
 import numpy as np
+from numba import jit
 
-from bettergym.agents.utils.utils import get_robot_angles
 from bettergym.agents.utils.vo import get_unsafe_angles_wall, compute_safe_angle_space, \
     vo_negative_speed
 from bettergym.better_gym import BetterGym
@@ -56,6 +56,31 @@ class EnvConfig:
     robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
     num_humans: int = 40
 
+@jit(nopython=True, cache=True)
+def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
+    """
+    Computes the new state of the robot given the current state, control inputs, and time step.
+
+    Parameters:
+    x (np.ndarray): The current state of the robot, represented as a numpy array.
+    u (np.ndarray): The control inputs, represented as a numpy array.
+    dt (float): The time step for the motion prediction.
+
+    Returns:
+    np.ndarray: The new state of the robot after applying the control inputs for the given time step.
+    """
+    x, y, theta, v = state_x
+    new_x = np.empty(state_x.shape[0], dtype=np.float64)
+    omega = (((u[1] - theta)/dt) + np.pi) % (2 * np.pi) - np.pi
+    matrix = np.array([[np.cos(theta), 0.0],
+                       [np.sin(theta), 0.0],
+                       [0.0          , 1.0]])
+    deltas = matrix @ np.array([[u[0]],[omega]])
+    deltas = deltas * dt
+    new_x[:3] = state_x[:3] + deltas[:, 0]
+    new_x[3] = u[0] # v
+
+    return new_x
 
 class State:
     def __init__(self, x: np.ndarray, goal: np.ndarray, obstacles: list, radius: float, obs_type: str = None):
@@ -242,12 +267,19 @@ class Env:
         dt = self.config.dt
         new_x = np.array(x, copy=True)
         u = np.array(u, copy=True)
+        theta = x[2]
+        omega = ((u[1] - theta) + np.pi) % (2 * np.pi) - np.pi
+        matrix = np.array([[np.cos(theta), 0.0],
+                           [np.sin(theta), 0.0],
+                           [0.0          , 1.0]])
+        dx, dy, dtheta = matrix * np.array([[u[0]],[omega]])
+
         # print(new_x)
-        new_x[0] += u[0] * math.cos(u[1]) * dt
+        new_x[0] += dx * dt
         # y
-        new_x[1] += u[0] * math.sin(u[1]) * dt
+        new_x[1] += dy * dt
         # angle
-        new_x[2] = u[1]
+        new_x[2] = theta + dtheta * dt
         # vel lineare
         new_x[3] = u[0]
 
@@ -260,7 +292,7 @@ class Env:
         :return:
         """
         self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
-        self.state.x = self.robot_motion(self.state.x, action)
+        self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
         collision = self.check_collision(self.state)
         robot_collision = collision and action[0] != 0
@@ -284,7 +316,7 @@ class Env:
         :return:
         """
         self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
-        self.state.x = self.robot_motion(self.state.x, action)
+        self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
         collision = False
         goal = self.dist_goal_t1 <= self.config.robot_radius

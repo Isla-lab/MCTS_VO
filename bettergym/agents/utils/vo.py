@@ -362,13 +362,13 @@ def vo_negative_speed(obstacles, x, config):
 
     if np.isnan(intersection_points).all() and wall_int is None:
         # all robot angles are safe
-        return get_robot_angles(x, config.max_angle_change)
+        return get_robot_angles(x, config.max_angle_change*config.dt)
     else:
         x_copy = np.array(x, copy=True)
         val = x_copy[2] + np.pi
         x_copy[2] = val
         x_copy[2] = (x_copy[2] + np.pi) % (2 * np.pi) - np.pi
-        safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x_copy,
+        safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change*config.dt, x_copy,
                                                            unsafe_wall_angles)
         return safe_angles
 

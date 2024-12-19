@@ -319,7 +319,7 @@ class Env:
         delta_s = math.sqrt(delta_x ** 2 + delta_y ** 2)
 
         # Assuming a time interval (delta_t) of 1 (you can adjust this)
-        delta_t = 1.0
+        delta_t = self.config.dt
 
         # Calculate speed
         speed = delta_s / delta_t
@@ -375,7 +375,7 @@ class Env:
                 if self.behaviour_type == "TREFOIL":
                     state_copy.obstacles[human_idx] = self.move_human_trefoil(human_state, self.step_idx)
                 elif self.behaviour_type == "INTENTION":
-                    human_state = self.move_human_intentions(human_state, 1)
+                    human_state = self.move_human_intentions(human_state, self.config.dt)
                     state_copy.obstacles[human_idx] = human_state
 
                 # remove obstacle when reaches goal

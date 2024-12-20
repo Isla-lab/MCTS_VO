@@ -124,8 +124,11 @@ def run_experiment(experiment: ExperimentData, arguments):
         vo=True,
         obs_pos=None,
         n_obs=None,
+        dt_real=0.2,
     )
     s0, _ = real_env.reset()
+    # X UNITY = -Y PYTHON
+    # Z UNITY = X PYTHON
     obstacles = [
         [-1.82, -0.306, 0.0, 0.0],
         [-0.92, -1.651, 0.0, 0.0],

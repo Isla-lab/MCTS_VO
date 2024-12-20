@@ -3,8 +3,7 @@ import random
 from typing import Any
 
 import numpy as np
-import portion as P
-
+from intervaltree import IntervalTree
 from MCTS_VO.bettergym.agents.planner import Planner
 from MCTS_VO.bettergym.agents.utils.utils import (
     get_robot_angles, compute_uniform_towards_goal_jit,
@@ -83,52 +82,6 @@ def join_intersections(int_points, radius, x):
         final_points = int_points
 
     return final_points
-
-# def join_intersections2(int_points, radius, x):
-#     """
-#     Joins intersection points that are within a specified radius.
-#
-#     Parameters:
-#     int_points (np.ndarray): An array of intersection points with shape (N, 4),
-#                              where each row represents two points (x1, y1, x2, y2).
-#     radius (float): The radius within which intersection points should be joined.
-#
-#     Returns:
-#     np.ndarray: An array of joined intersection points.
-#     """
-#     # Split the intersection points into two sets of points
-#     p1 = int_points[:, :2]
-#     p2 = int_points[:, 2:]
-#
-#     vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
-#     vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
-#     angle1 = np.arctan2(vec_p1[1], vec_p1[0])
-#     angle2 = np.arctan2(vec_p2[1], vec_p2[0])
-#
-#
-#     # Create a mask to determine which points to keep
-#     mask_ang1_smaller = angle1 < angle2
-#     points = np.vstack((
-#         np.hstack((p2[~mask_ang1_smaller], p1[~mask_ang1_smaller])),
-#         int_points[mask_ang1_smaller]
-#     ))
-#     new_angles = np.vstack((
-#         np.hstack((np.expand_dims(angle2[~mask_ang1_smaller], 1), np.expand_dims(angle1[~mask_ang1_smaller], 1))),
-#         np.hstack((np.expand_dims(angle1[mask_ang1_smaller], 1), np.expand_dims(angle2[mask_ang1_smaller], 1))),
-#     ))
-#
-#
-#     # Sort the points based on the angle
-#     points = points[np.argsort(new_angles[:, 0])]
-#
-#     p1 = points[:, :2]
-#     p2 = points[:, 2:]
-#
-#     initial_point = p1[0]
-#     final_point = p2[-1]
-#     final_points = np.expand_dims(np.hstack((initial_point, final_point)), 0)
-#
-#     return final_points
 
 def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.gym_env.config
@@ -220,11 +173,6 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
 def sample_multiple_spaces(center, a_space, number, v_space):
     lengths_aspace = np.linalg.norm(a_space, axis=1)
     percentages_aspace = np.cumsum(lengths_aspace / np.sum(lengths_aspace))
-    # print_to_file(
-    #     "Lenght space: {}".format(lengths_aspace) + "\n" +
-    #     "-" * 50 + "\n" +
-    #     "Percentages space: {}".format(percentages_aspace) + "\n"
-    # )
     pct = random.random()
     idx_space = np.flatnonzero(pct <= percentages_aspace)[0]
     return np.vstack(
@@ -315,17 +263,19 @@ def get_spaces(intersection_points, x, obs, r1, config, disable_retro=False, dis
 
     return angle_space, velocity_space, radial
 
-
 def compute_ranges_difference(robot_angles, forbidden_ranges):
-    try:
-        t1 = IntervalTree.from_tuples(robot_angles)
-    except ValueError:
-        r = np.array(robot_angles)
-        robot_angles = r[r[:, 1] != r[:, 0]]
-        t1 = IntervalTree.from_tuples(robot_angles)
-    t1.merge_overlaps(strict=False)
-    t2 = IntervalTree.from_tuples(forbidden_ranges)
-    t2.merge_overlaps(strict=False)
+    def get_interval_tree(ranges):
+        try:
+            return IntervalTree.from_tuples(ranges)
+        except ValueError:
+            r = np.array(ranges)
+            ranges = r[r[:, 1] != r[:, 0]]
+            it = IntervalTree.from_tuples(ranges)
+            it.merge_overlaps(strict=False)
+            return it
+
+    t1 = get_interval_tree(robot_angles)
+    t2 = get_interval_tree(forbidden_ranges)
     for i in t2:
         t1.chop(i.begin, i.end)
     return [[i.begin, i.end] for i in t1.all_intervals]
@@ -349,7 +299,12 @@ def get_unsafe_angles(intersection_points, robot_angles, x):
         angle1 = np.arctan2(vec_p1[1], vec_p1[0])
         angle2 = np.arctan2(vec_p2[1], vec_p2[0])
         angle1_greater_mask = angle1 > angle2
-        forbidden_ranges.extend(np.column_stack((angle1[~angle1_greater_mask], angle2[~angle1_greater_mask])))
+        forbidden_ranges.extend(
+            np.column_stack((
+                angle1[~angle1_greater_mask],
+                angle2[~angle1_greater_mask]
+            ))
+        )
         forbidden_ranges.extend(
             np.vstack((
                 np.column_stack((angle1[angle1_greater_mask], np.full_like(angle1[angle1_greater_mask], math.pi))),
@@ -404,7 +359,7 @@ def vo_negative_speed(obstacles, x, config):
     VELOCITY = np.abs(config.min_speed)
     ROBOT_RADIUS = config.robot_radius
     intersection_points = np.empty((0, 4), dtype=np.float64)
-
+    max_angle_change = config.max_angle_change * config.dt
     square_obs, circle_obs, wall_obs = obstacles
 
     # CIRCULAR OBSTACLES
@@ -420,13 +375,13 @@ def vo_negative_speed(obstacles, x, config):
 
     if np.isnan(intersection_points).all():
         # all robot angles are safe
-        return get_robot_angles(x, config.max_angle_change)
+        return get_robot_angles(x, max_angle_change)
     else:
         x_copy = x.copy()
         val = x_copy[2] + np.pi
         x_copy[2] = val
         x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
-        safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x_copy, None)
+        safe_angles, robot_span = compute_safe_angle_space(intersection_points, max_angle_change, x_copy, None)
         return safe_angles
 
 
@@ -464,7 +419,7 @@ def uniform_random_vo(node, planner):
     # obs_x, obs_rad
     square_obs = [[], []]
     circle_obs = [[], []]
-    wall_obs = [[], []]
+    wall_obs =   [[], []]
     intersection_points = np.empty((0, 4), dtype=np.float64)
     for ob in obstacles:
         if ob.obs_type == "square":

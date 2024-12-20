@@ -6,15 +6,36 @@ from math import atan2, cos, sin
 from typing import Any, Tuple
 
 import numpy as np
-
+from numba import jit
 from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles
-from MCTS_VO.bettergym.agents.utils.vo import get_unsafe_angles_wall, compute_safe_angle_space, vo_negative_speed
+from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
 from MCTS_VO.bettergym.better_gym import BetterGym
 from MCTS_VO.bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
-from MCTS_VO.mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
+from MCTS_VO.mcts_utils import get_intersections_vectorized
 
 
-i = 0
+@jit(nopython=True, cache=True)
+def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
+    """
+    Computes the new state of the robot given the current state, control inputs, and time step.
+    Parameters:
+    x (np.ndarray): The current state of the robot, represented as a numpy array.
+    u (np.ndarray): The control inputs, represented as a numpy array.
+    dt (float): The time step for the motion prediction.
+    Returns:
+    np.ndarray: The new state of the robot after applying the control inputs for the given time step.
+    """
+    x, y, theta, v = state_x
+    new_x = np.empty(state_x.shape[0], dtype=np.float64)
+    omega = (((u[1] - theta)/dt) + np.pi) % (2 * np.pi) - np.pi
+    matrix = np.array([[np.cos(theta), 0.0],
+                       [np.sin(theta), 0.0],
+                       [0.0          , 1.0]])
+    deltas = matrix @ np.array([[u[0]],[omega]])
+    deltas = deltas * dt
+    new_x[:3] = state_x[:3] + deltas[:, 0]
+    new_x[3] = u[0] # v
+    return new_x
 
 @dataclass(frozen=True)
 class EnvConfig:
@@ -223,26 +244,6 @@ class Env:
                y_pos + c.robot_radius > c.upper_limit or \
                y_pos - c.robot_radius < c.bottom_limit
 
-    def robot_motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
-        """
-        Describes how the robot moves
-        :param x: current robot state
-        :param u: action performed by the robot
-        :return: the new robot state
-        """
-        dt = self.config.dt
-        new_x = np.array(x, copy=True)
-        u = np.array(u, copy=True)
-        # print(new_x)
-        new_x[0] += u[0] * math.cos(u[1]) * dt
-        # y
-        new_x[1] += u[0] * math.sin(u[1]) * dt
-        # angle
-        new_x[2] = u[1]
-        # vel lineare
-        new_x[3] = u[0]
-
-        return new_x
 
     def step_check_coll(self, action: np.ndarray) -> Tuple[State, float, bool, Any, Any]:
         """
@@ -250,8 +251,7 @@ class Env:
         :param action: action performed by the agent
         :return:
         """
-        self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
-        self.state.x = self.robot_motion(self.state.x, action)
+        self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
         collision = self.check_collision(self.state)
         robot_collision = collision and action[0] != 0
@@ -275,8 +275,7 @@ class Env:
         :param action: action performed by the agent
         :return:
         """
-        # self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
-        self.state.x = self.robot_motion(self.state.x, action)
+        self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
         collision = False
         goal = self.dist_goal_t1 <= self.config.robot_radius
@@ -311,7 +310,7 @@ class Env:
         delta_s = math.sqrt(delta_x ** 2 + delta_y ** 2)
 
         # Assuming a time interval (delta_t) of 1 (you can adjust this)
-        delta_t = 1.0
+        delta_t = self.config.dt
 
         # Calculate speed
         speed = delta_s / delta_t
@@ -367,7 +366,7 @@ class Env:
                 if self.behaviour_type == "TREFOIL":
                     state_copy.obstacles[human_idx] = self.move_human_trefoil(human_state, self.step_idx)
                 elif self.behaviour_type == "INTENTION":
-                    human_state = self.move_human_intentions(human_state, 1)
+                    human_state = self.move_human_intentions(human_state, self.config.dt)
                     state_copy.obstacles[human_idx] = human_state
 
                 # remove obstacle when reaches goal
@@ -491,51 +490,6 @@ class BetterEnv(BetterGym):
         )
         return actions
 
-    def get_discrete_actions_basic(self, x, config, min_speed, max_speed):
-        # I use the robot's forward feasible range also for when the robot is moving backwards
-
-        feasibile_range = get_robot_angles(x, config.max_angle_change)
-        if len(feasibile_range) == 1:
-            available_angles = np.linspace(
-                start=x[2] - config.max_angle_change,
-                stop=x[2] + config.max_angle_change,
-                num=config.n_angles,
-            )
-        else:
-            range_sizes = np.linalg.norm(feasibile_range, axis=1)
-            proportion = range_sizes / np.sum(range_sizes)
-            div = proportion * config.n_angles
-            div[0] = np.floor(div[0])
-            div[1] = np.ceil(div[1])
-            div = div.astype(int)
-            available_angles1 = np.linspace(
-                start=feasibile_range[0][0],
-                stop=feasibile_range[0][1],
-                num=div[0]
-            )
-            available_angles2 = np.linspace(
-                start=feasibile_range[1][0],
-                stop=feasibile_range[1][1],
-                num=div[1]
-            )
-            available_angles = np.concatenate([available_angles1, available_angles2])
-
-        if (curr_angle := x[2]) not in available_angles:
-            available_angles = np.append(available_angles, curr_angle)
-        available_velocities = np.linspace(
-            start=min_speed, stop=max_speed, num=config.n_vel
-        )
-        if 0.0 not in available_velocities:
-            available_velocities = np.append(available_velocities, 0.0)
-
-        actions = np.transpose(
-            [
-                np.tile(available_velocities, len(available_angles)),
-                np.repeat(available_angles, len(available_velocities)),
-            ]
-        )
-        return actions
-
     def get_discrete_space(self, space, n_sample):
         range_sizes = np.linalg.norm(space, axis=1)
         # ensure that the range sizes are not zero
@@ -567,7 +521,7 @@ class BetterEnv(BetterGym):
 
     def get_actions_discrete_vo2(self, state: State):
         config = self.gym_env.config
-        actions = self.get_discrete_actions_basic(state.x, config, config.min_speed, config.max_speed)
+        actions = self.get_actions_discrete(state)
 
         if len(state.obstacles) == 0:
             return actions
@@ -609,18 +563,13 @@ class BetterEnv(BetterGym):
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
-            # delta = 0.015
-            # if dist is not None and np.any(mask := dist - delta < r1):
-            #     velocity_space, angle_space = get_spaces_vo_special_case(circle_obs_x, x, r1, config, mask, velocity_space)
-            #     radial = True
-
         
 
         # If there are no intersection points
         if np.isnan(intersection_points).all():
             return actions
         else:
-            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change, x, None)
+            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change*dt, x, None)
             if forward_available := (safe_angles_forward is not None):
                 vspace = [config.max_speed, config.max_speed]
                 v_space_forward = [*([vspace] * len(safe_angles_forward))]

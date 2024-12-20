@@ -5,8 +5,7 @@ from matplotlib import pyplot as plt
 
 from MCTS_VO.bettergym.agents.planner import Planner
 from MCTS_VO.bettergym.better_gym import BetterGym
-
-i = 0
+from __future__ import annotations
 
 class ActionNode:
     def __init__(self, action: Any):

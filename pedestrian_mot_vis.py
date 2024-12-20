@@ -74,7 +74,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
     fig, ax = plt.subplots()
     config = EnvConfig(
-        dt=1, max_angle_change=1.9 * 1, n_angles=10, n_vel=5, num_humans=10
+        dt=1, max_angle_change=1.9, n_angles=10, n_vel=5, num_humans=10
     )
     # input [forward speed, yaw_rate]
 

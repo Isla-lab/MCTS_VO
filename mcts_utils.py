@@ -110,7 +110,6 @@ def get_tangents(robot_state, obs_r, obstacles, d):
     alphas = np.arctan2(robot_state[1] - obstacles[:, 1], robot_state[0] - obstacles[:, 0])
     # Calculate the angles for the tangent points
     phi = np.arccos(obs_r / d)
-    robot_xy = robot_state[:2]
     # Calculate the tangent points on the obstacles
     P1 = obs_r[:, None] * np.hstack((np.cos(phi)[:, None], np.sin(phi)[:, None]))
     P2 = obs_r[:, None] * np.hstack((np.cos(-phi)[:, None], np.sin(-phi)[:, None]))
@@ -121,8 +120,8 @@ def get_tangents(robot_state, obs_r, obstacles, d):
         # Create rotation matrices for each angle
         matrix = np.array([[np.cos(alpha), -np.sin(alpha)], [np.sin(alpha), np.cos(alpha)]])
         # Apply the rotation matrices and translate the points to the robot's position
-        new_P1[i] = matrix @ P1[i] + robot_xy
-        new_P2[i] = matrix @ P2[i] + robot_xy
+        new_P1[i] = matrix @ P1[i] + obstacles[i][:2]
+        new_P2[i] = matrix @ P2[i] + obstacles[i][:2]
 
     # Combine the tangent points into a single array and return them
     intersections = np.hstack((new_P1, new_P2))

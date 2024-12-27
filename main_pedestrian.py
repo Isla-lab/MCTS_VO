@@ -133,7 +133,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
-    obs = [[o for o in filter_obstacles(s0) if o.obs_type != "wall"]]
+    obs = [[o for o in s0.obstacles if o.obs_type != "wall"]]
     planner = Mcts(
         num_sim=experiment.n_sim,
         c=experiment.c,
@@ -156,7 +156,7 @@ def run_experiment(experiment: ExperimentData, arguments):
             break
         print(f"Step Number {step_n}")
         s_copy = deepcopy(s)
-        s_copy.obstacles = filter_obstacles(s_copy)
+        # s_copy.obstacles = filter_obstacles(s_copy)
         initial_time = time.time()
         u, info = planner.plan(s_copy)
         final_time = time.time() - initial_time

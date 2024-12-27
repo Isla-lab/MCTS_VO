@@ -388,8 +388,7 @@ def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
     velocity_space = [*([vspace] * len(safe_angles))]
     angle_space = [*safe_angles]
 
-    return (angle_space,
-            velocity_space)
+    return angle_space, velocity_space
 
 def uniform_random_vo(node, planner):
     config = planner.environment.gym_env.config

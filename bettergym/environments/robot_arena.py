@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from bettergym.agents.utils.vo import get_unsafe_angles_wall, new_get_spaces
+from bettergym.agents.utils.vo import get_unsafe_angles_wall, new_get_spaces, get_radii
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_jit
 from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
@@ -405,8 +405,7 @@ class BetterRobotArena(BetterGym):
 
         if len(circle_obs_x) != 0:
             # Calculate radii
-            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
-            r0 = np.full_like(r1, VMAX * dt)
+            r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX)
 
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)

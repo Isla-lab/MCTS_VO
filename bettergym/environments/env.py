@@ -9,7 +9,7 @@ import numpy as np
 from numba import jit
 
 from bettergym.agents.utils.vo import get_unsafe_angles_wall, compute_safe_angle_space, \
-    vo_negative_speed
+    vo_negative_speed, get_radii
 from bettergym.better_gym import BetterGym
 from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
 from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
@@ -79,7 +79,7 @@ def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     deltas = deltas * dt
     new_x[:3] = state_x[:3] + deltas[:, 0]
     new_x[3] = u[0] # v
-
+    new_x[2] = (new_x[2] + np.pi) % (2 * np.pi) - np.pi
     return new_x
 
 class State:
@@ -545,8 +545,7 @@ class BetterEnv(BetterGym):
 
         if len(circle_obs_x) != 0:
             # Calculate radii
-            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
-            r0 = np.full_like(r1, VMAX * dt)
+            r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX)
 
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)

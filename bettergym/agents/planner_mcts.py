@@ -5,9 +5,12 @@ from typing import Union, Any, Dict, Callable
 import numpy as np
 from matplotlib import pyplot as plt
 
-from MCTS_VO.bettergym.agents.planner import Planner
-from MCTS_VO.bettergym.better_gym import BetterGym
-from __future__ import annotations
+try:
+    from MCTS_VO.bettergym.agents.planner import Planner
+    from MCTS_VO.bettergym.better_gym import BetterGym
+except ModuleNotFoundError:
+    from bettergym.agents.planner import Planner
+    from bettergym.better_gym import BetterGym
 
 class ActionNode:
     def __init__(self, action: Any):

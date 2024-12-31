@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from MCTS_VO.bettergym.better_gym import BetterGym
+try:
+    from MCTS_VO.bettergym.better_gym import BetterGym
+except ModuleNotFoundError:
+    from bettergym.better_gym import BetterGym
 
 
 class Planner(ABC):

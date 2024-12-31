@@ -5,11 +5,15 @@ from typing import Any
 import numpy as np
 from intervaltree import IntervalTree
 
-from MCTS_VO.bettergym.agents.planner import Planner
-from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
-from MCTS_VO.mcts_utils import uniform_random, get_intersections_vectorized, check_circle_segment_intersect, angle_distance_vector
-from intervaltree import IntervalTree
-
+try:
+    from MCTS_VO.bettergym.agents.planner import Planner
+    from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
+    from MCTS_VO.mcts_utils import uniform_random, get_intersections_vectorized, angle_distance_vector
+except ModuleNotFoundError:
+    from bettergym.agents.planner import Planner
+    from bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
+    from mcts_utils import uniform_random, get_intersections_vectorized, angle_distance_vector
+    
 # def print_to_file(param):
 #     # with open("OUTPUT.txt", "a") as f:
 #     #     f.write(str(param))

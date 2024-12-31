@@ -7,12 +7,39 @@ from typing import Any, Tuple
 
 import numpy as np
 from numba import jit
+try:
+    from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
+    from MCTS_VO.bettergym.better_gym import BetterGym
+    from MCTS_VO.bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
+    from MCTS_VO.mcts_utils import get_intersections_vectorized
+except ModuleNotFoundError:
+    from bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
+    from bettergym.better_gym import BetterGym
+    from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
+    from mcts_utils import get_intersections_vectorized
 
-from MCTS_VO.bettergym.agents.utils.vo import get_unsafe_angles_wall, compute_safe_angle_space, vo_negative_speed, get_radii
-from MCTS_VO.bettergym.better_gym import BetterGym
-from MCTS_VO.bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
-from MCTS_VO.mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
-
+@jit(nopython=True, cache=True)
+def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
+    """
+    Computes the new state of the robot given the current state, control inputs, and time step.
+    Parameters:
+    x (np.ndarray): The current state of the robot, represented as a numpy array.
+    u (np.ndarray): The control inputs, represented as a numpy array.
+    dt (float): The time step for the motion prediction.
+    Returns:
+    np.ndarray: The new state of the robot after applying the control inputs for the given time step.
+    """
+    x, y, theta, v = state_x
+    new_x = np.empty(state_x.shape[0], dtype=np.float64)
+    omega = (((u[1] - theta)/dt) + np.pi) % (2 * np.pi) - np.pi
+    matrix = np.array([[np.cos(theta), 0.0],
+                       [np.sin(theta), 0.0],
+                       [0.0          , 1.0]])
+    deltas = matrix @ np.array([[u[0]],[omega]])
+    deltas = deltas * dt
+    new_x[:3] = state_x[:3] + deltas[:, 0]
+    new_x[3] = u[0] # v
+    return new_x
 
 @dataclass(frozen=True)
 class EnvConfig:
@@ -276,7 +303,7 @@ class Env:
         :return:
         """
         self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
-        self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
+        self.dist_goal_t1 = dist_to_goal(self.state.goal, self.state.x[:2])
         collision = False
         goal = self.dist_goal_t1 <= self.config.robot_radius
         out_boundaries = self.check_out_boundaries(self.state)
@@ -466,6 +493,61 @@ class BetterEnv(BetterGym):
         else:
             self.gym_env.move_humans = self.gym_env.move_humans_nofixed
 
+    def get_actions_discrete(self, state: State):
+        config = self.gym_env.config
+        max_angle_change = config.max_angle_change * config.dt
+        available_angles = np.linspace(
+            start=state.x[2] - max_angle_change,
+            stop=state.x[2] + max_angle_change,
+            num=config.n_angles,
+        )
+        if (curr_angle := state.x[2]) not in available_angles:
+            available_angles = np.append(available_angles, curr_angle)
+        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
+        available_velocities = np.linspace(
+            start=config.min_speed, 
+            stop=config.max_speed, 
+            num=config.n_vel
+        )
+        if 0.0 not in available_velocities:
+            available_velocities = np.append(available_velocities, 0.0)
+
+        actions = np.transpose(
+            [
+                np.tile(available_velocities, len(available_angles)),
+                np.repeat(available_angles, len(available_velocities)),
+            ]
+        )
+        return actions
+
+    def get_discrete_space(self, space, n_sample):
+        range_sizes = np.linalg.norm(space, axis=1)
+        # ensure that the range sizes are not zero
+        range_sizes += 1e-6
+        proportion = range_sizes / np.sum(range_sizes)
+        div = proportion * n_sample
+        #  floor all odd indices and ceil all even indices
+        div[::2] = np.floor(div[::2])
+        div[1::2] = np.ceil(div[1::2])
+        div = div.astype(int)
+        return [
+            np.linspace(start=space[i][0], stop=space[i][1], num=div[i]+1, endpoint=False)[1:]
+            for i in range(len(space))
+        ]
+
+    def get_discrete_actions_multi_range(self, aspace, vspace, config):
+        available_angles = self.get_discrete_space(aspace, config.n_angles)
+        available_velocities = self.get_discrete_space(vspace, config.n_vel)
+        actions = np.concatenate(
+            [
+                np.transpose([
+                    np.tile(available_velocities[i], len(available_angles[i])),
+                    np.repeat(available_angles[i], len(available_velocities[i])),
+                ])
+                for i in range(len(aspace))
+            ]
+        )
+        return actions
 
     def get_actions_discrete_vo2(self, state: State):
         config = self.gym_env.config

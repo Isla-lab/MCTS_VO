@@ -37,7 +37,7 @@ from experiment_utils import (
 )
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = False
+DEBUG_ANIMATION = True
 ANIMATION = True
 
 @dataclass(frozen=True)
@@ -122,10 +122,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     # X UNITY = -Y PYTHON
     # Z UNITY = X PYTHON
     obstacles = [
-        [-1.82, -0.306, 0.0, 0.0],
-        [-0.92, -1.651, 0.0, 0.0],
         [-1.127, -0.833, 0.0, 0.0],
-        [-1.724, -1.647, 0.0, 0.0]
     ]
 
     obstacles = [
@@ -138,7 +135,8 @@ def run_experiment(experiment: ExperimentData, arguments):
         )
         for i in range(len(obstacles))
     ]
-    initial_state = np.array([0.22631004, -0.98857212,  -3.1395514971795864,  0. ])
+    
+    initial_state = np.array([0.22631, -0.9885721, -3.14, 0.0])
     s0.obstacles = obstacles
     s0.x = initial_state
     s0.goal = np.array([-2.783, -0.993])
@@ -149,7 +147,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
-    obs = [[o for o in s0.obstacles if o.obs_type != "wall"]]
+    obs = [[o for o in filter_obstacles(s0) if o.obs_type != "wall"]]
     planner = Mcts(
         num_sim=experiment.n_sim,
         c=experiment.c,

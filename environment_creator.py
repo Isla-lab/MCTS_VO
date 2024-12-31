@@ -1,6 +1,7 @@
-
-
-from MCTS_VO.bettergym.environments.env import BetterEnv, EnvConfig
+try:
+    from MCTS_VO.bettergym.environments.env import BetterEnv, EnvConfig
+except ModuleNotFoundError:
+    from bettergym.environments.env import BetterEnv, EnvConfig
 
 
 def create_pedestrian_env(

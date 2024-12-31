@@ -15,10 +15,10 @@ count = 0
 def plot_robot(x, y, yaw, config, ax, color="b"):
     circle = plt.Circle((x, y), config.robot_radius, color=color)
     ax.add_artist(circle)
-    # out_x, out_y = (
-    #         np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
-    # )
-    # ax.plot([x, out_x], [y, out_y], "-k")
+    out_x, out_y = (
+            np.array([x, y]) + np.array([np.cos(yaw), np.sin(yaw)]) * config.robot_radius
+    )
+    ax.plot([x, out_x], [y, out_y], "-k")
 
 
 def plot_frame(i, goal, config, obs, traj, ax):
@@ -61,7 +61,7 @@ def plot_frame2(i, goal, config, obs, traj, ax):
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
         ax.add_artist(circle)
     # BOX AROUND ROBOT
-    plot_robot(x[0], x[1], None, config, ax)
+    plot_robot(x[0], x[1], x[2], config, ax)
     # TRAJECTORY
     sub_traj = traj[:i]
     ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")

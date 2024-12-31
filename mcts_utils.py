@@ -62,6 +62,22 @@ def check_circle_segment_intersect(robot_pos, robot_radius, segments):
 
 
 def find_circle_segment_intersections(discriminant, valid_discriminant, b, a, segments, A, B):
+    """
+    Find the intersection points between circle segments and lines.
+    Parameters:
+    discriminant (np.ndarray): Array of discriminant values for the quadratic equation.
+    valid_discriminant (np.ndarray): Boolean array indicating which discriminant values are valid.
+    b (np.ndarray): Array of b coefficients for the quadratic equation.
+    a (np.ndarray): Array of a coefficients for the quadratic equation.
+    segments (np.ndarray): Array of segment start points.
+    A (np.ndarray): Array of x-direction vectors for the segments.
+    B (np.ndarray): Array of y-direction vectors for the segments.
+    Returns:
+    np.ndarray: Array of intersection points. Each row contains four values: 
+                [xi_t1, yi_t1, xi_t2, yi_t2], where (xi_t1, yi_t1) and (xi_t2, yi_t2) 
+                are the intersection points.
+    """
+    
     sqrt_discriminant = np.sqrt(discriminant[valid_discriminant])
     t1 = (-b[valid_discriminant] + sqrt_discriminant) / (2 * a[valid_discriminant])
     t2 = (-b[valid_discriminant] - sqrt_discriminant) / (2 * a[valid_discriminant])
@@ -127,6 +143,7 @@ def get_tangents(robot_state, obs_r, obstacles, d):
     intersections = np.hstack((new_P1, new_P2))
     return intersections
 
+
 def get_intersections_vectorized(x, obs_x, r0, r1):
     x_exp = np.expand_dims(x, 1)
     d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1] - x_exp[1, :])
@@ -143,15 +160,6 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     intersecting = np.logical_not(np.logical_or.reduce((no_intersection, one_within_other, coincident)))
     # Compute intersection points
     if np.any(intersecting):
-        # intersection_points = compute_int_vectorized(
-        #     r0[intersecting],
-        #     r1[intersecting],
-        #     d[intersecting],
-        #     x_exp[0, :],
-        #     obs_x[intersecting, 0],
-        #     x_exp[1, :],
-        #     obs_x[intersecting, 1],
-        # )
         intersection_points = get_tangents(x, r0[intersecting]+r1[intersecting], obs_x[intersecting], d[intersecting])
     else:
         intersection_points = None

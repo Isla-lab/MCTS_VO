@@ -8,11 +8,10 @@ from typing import Any, Tuple
 import numpy as np
 from numba import jit
 
-from bettergym.agents.utils.vo import get_unsafe_angles_wall, compute_safe_angle_space, \
-    vo_negative_speed, get_radii
-from bettergym.better_gym import BetterGym
-from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
-from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
+from MCTS_VO.bettergym.agents.utils.vo import get_unsafe_angles_wall, compute_safe_angle_space, vo_negative_speed, get_radii
+from MCTS_VO.bettergym.better_gym import BetterGym
+from MCTS_VO.bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
+from MCTS_VO.mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
 
 @dataclass(frozen=True)
@@ -27,7 +26,7 @@ class EnvConfig:
     # Min U[0]
     min_speed: float = -0.1  # [m/s]
     # Max and Min U[1]
-    max_angle_change: float = None  # [rad/s]
+    max_angle_change: float = 1.9  # [rad/s]
 
     max_speed_person: float = 0.2  # [m/s]
 
@@ -35,11 +34,11 @@ class EnvConfig:
     robot_radius: float = 0.3  # [m] for collision check
     obs_size: float = 0.2
 
-    bottom_limit: float = 0.0
-    upper_limit: float = 10.0
+    bottom_limit: float = -5.16911307
+    upper_limit: float = 4.83088693
 
-    right_limit: float = 10.0
-    left_limit: float = 0.0
+    right_limit: float = 4.09
+    left_limit: float = -5.91
 
     n_vel: int = None
     n_angles: int = None
@@ -175,8 +174,7 @@ class Env:
                 obs_pos.append(ob.x[:2])
                 obs_rad.append(ob.radius)
 
-        return check_coll_vectorized(x=state.x[:2], obs=np.array(obs_pos), robot_radius=self.config.robot_radius,
-                                     obs_size=np.array(obs_rad))
+        return check_coll_vectorized(x=state.x[:2], obs=np.array(obs_pos), robot_radius=self.config.robot_radius, obs_size=np.array(obs_rad))
 
     def generate_humans(self, robot_state):
         g1 = [self.config.bottom_limit, self.config.left_limit]
@@ -232,7 +230,7 @@ class Env:
         if out_boundaries:
             return self.WALL_REWARD
 
-        return - self.dist_goal_t1 / self.max_eudist
+        return -self.dist_goal_t1 / self.max_eudist
 
     def check_out_boundaries(self, state: State) -> bool:
         """
@@ -242,48 +240,10 @@ class Env:
         """
         x_pos, y_pos = state.x[:2]
         c = self.config
-        # Right and Left Map Limit
-        if (
-                x_pos + c.robot_radius > c.right_limit
-                or x_pos - c.robot_radius < c.left_limit
-        ):
-            return True
-        # Upper and Bottom Map Limit
-        if (
-                y_pos + c.robot_radius > c.upper_limit
-                or y_pos - c.robot_radius < c.bottom_limit
-        ):
-            return True
-
-        return False
-
-    def robot_motion(self, x: np.ndarray, u: np.ndarray) -> np.ndarray:
-        """
-        Describes how the robot moves
-        :param x: current robot state
-        :param u: action performed by the robot
-        :return: the new robot state
-        """
-        dt = self.config.dt
-        new_x = np.array(x, copy=True)
-        u = np.array(u, copy=True)
-        theta = x[2]
-        omega = ((u[1] - theta) + np.pi) % (2 * np.pi) - np.pi
-        matrix = np.array([[np.cos(theta), 0.0],
-                           [np.sin(theta), 0.0],
-                           [0.0          , 1.0]])
-        dx, dy, dtheta = matrix * np.array([[u[0]],[omega]])
-
-        # print(new_x)
-        new_x[0] += dx * dt
-        # y
-        new_x[1] += dy * dt
-        # angle
-        new_x[2] = theta + dtheta * dt
-        # vel lineare
-        new_x[3] = u[0]
-
-        return new_x
+        return x_pos + c.robot_radius > c.right_limit or \
+               x_pos - c.robot_radius < c.left_limit or \
+               y_pos + c.robot_radius > c.upper_limit or \
+               y_pos - c.robot_radius < c.bottom_limit
 
     def step_check_coll(self, action: np.ndarray) -> Tuple[State, float, bool, Any, Any]:
         """
@@ -291,13 +251,13 @@ class Env:
         :param action: action performed by the agent
         :return:
         """
-        self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
         collision = self.check_collision(self.state)
         robot_collision = collision and action[0] != 0
         goal = self.dist_goal_t1 <= self.config.robot_radius
         out_boundaries = self.check_out_boundaries(self.state)
+        # out_boundaries = False
         reward = self.reward(collision, goal, out_boundaries)
         # observation, reward, terminal, truncated, info
         return (
@@ -315,7 +275,6 @@ class Env:
         :param action: action performed by the agent
         :return:
         """
-        self.dist_goal_t = dist_to_goal(self.state.x[:2], self.state.goal)
         self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
         self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
         collision = False
@@ -463,8 +422,8 @@ class Env:
             obstacles=None,
             radius=self.config.robot_radius,
         )
-        state.obstacles = self.generate_humans(state)
-        self.add_walls(state)
+        # state.obstacles = self.generate_humans(state)
+        # self.add_walls(state)
         return state, None
 
 
@@ -507,6 +466,7 @@ class BetterEnv(BetterGym):
         else:
             self.gym_env.move_humans = self.gym_env.move_humans_nofixed
 
+
     def get_actions_discrete_vo2(self, state: State):
         config = self.gym_env.config
         actions = self.get_actions_discrete(state)
@@ -519,7 +479,6 @@ class BetterEnv(BetterGym):
         dt = config.dt
         ROBOT_RADIUS = config.robot_radius
         VMAX = config.max_speed
-        wall_int = None
 
         # Extract obstacle information
         obstacles = state.obstacles
@@ -550,20 +509,11 @@ class BetterEnv(BetterGym):
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
-        # WALL OBSTACLES
-        intersection_data = check_circle_segment_intersect(x[:2], ROBOT_RADIUS + VMAX * dt, np.array(wall_obs[0]))
-        valid_discriminant = intersection_data[0]
-        if valid_discriminant.any():
-            wall_int = np.array(wall_obs[0])[valid_discriminant]
-            unsafe_wall_angles = get_unsafe_angles_wall(wall_int, x)
-        else:
-            unsafe_wall_angles = None
-
         # If there are no intersection points
-        if np.isnan(intersection_points).all() and wall_int is None:
+        if np.isnan(intersection_points).all():
             return actions
         else:
-            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change*dt, x, unsafe_wall_angles)
+            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change*dt, x, None)
             if forward_available := (safe_angles_forward is not None):
                 vspace = [config.max_speed, config.max_speed]
                 v_space_forward = [*([vspace] * len(safe_angles_forward))]

@@ -3,53 +3,14 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Tuple
 
 import numpy as np
 
-from bettergym.agents.utils.vo import get_unsafe_angles_wall, new_get_spaces, get_radii
-from bettergym.better_gym import BetterGym
-from bettergym.environments.env_utils import dist_to_goal, check_coll_jit
-from mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
-
-
-@dataclass(frozen=True)
-class Config:
-    """
-    simulation parameter class
-    """
-
-    # robot parameter
-    # Max U[0]
-    max_speed: float = 0.3  # [m/s]
-    # Min U[0]
-    min_speed: float = -0.1  # [m/s]
-    # Max and Min U[1]
-    max_angle_change: float = None  # [rad/s]
-
-    dt: float = 1.0  # [s] Time tick for motion prediction
-    robot_radius: float = 0.3  # [m] for collision check
-    obs_size: float = 0.6
-
-    bottom_limit: float = -0.5
-    upper_limit: float = 11.5
-
-    right_limit: float = 11.5
-    left_limit: float = -0.5
-
-    n_vel: int = None
-    n_angles: int = None
-    max_yaw_rate = 1.9  # [rad/s]
-    max_accel = 6  # [m/ss]
-    max_delta_yaw_rate = 40 * math.pi / 180.0  # [rad/ss]
-    v_resolution = 0.1  # [m/s]
-    yaw_rate_resolution = max_yaw_rate / 11.0  # [rad/s]
-    # predict_time = 15.0 * dt  # [s]
-    predict_time = 100.0 * dt  # [s]
-    to_goal_cost_gain = 1.
-    speed_cost_gain = 0.0
-    obstacle_cost_gain = 100.
-    robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
+from MCTS_VO.bettergym.agents.utils.vo import get_unsafe_angles_wall, new_get_spaces
+from MCTS_VO.bettergym.better_gym import BetterGym
+from MCTS_VO.bettergym.environments.env_utils import check_coll_vectorized, dist_to_goal
+from MCTS_VO.mcts_utils import get_intersections_vectorized, check_circle_segment_intersect
 
 
 class RobotArenaState:
@@ -85,7 +46,7 @@ class RobotArena:
     def __init__(
             self,
             initial_state: RobotArenaState,
-            config: Config = Config(),
+            config = None,
             gradient: bool = True,
             collision_rwrd: bool = False,
             multiagent: bool = False
@@ -100,7 +61,6 @@ class RobotArena:
         self.dist_goal_t1 = None
         self.dist_goal_t = None
         self.WALL_REWARD: float = -100.0
-
         self.reward = self.reward_grad
 
         if collision_rwrd:
@@ -108,9 +68,7 @@ class RobotArena:
         else:
             self.step = self.step_no_check_coll
 
-    def reset(
-            self, *, seed: int | None = None, options: dict[str, Any] | None = None
-    ) -> tuple[RobotArenaState, Any]:
+    def reset(self, *, seed = None, options = None) -> Tuple[RobotArenaState, Any]:
         return self.state.copy(), None
 
     def check_out_boundaries(self, state: RobotArenaState) -> bool:
@@ -148,7 +106,7 @@ class RobotArena:
         for ob in state.obstacles:
             obs_pos.append(ob.x[:2])
             obs_rad.append(ob.radius)
-        return check_coll_jit(
+        return check_coll_vectorized(
             state.x, np.array(obs_pos), state.radius, np.array(obs_rad)
         )
 
@@ -163,9 +121,6 @@ class RobotArena:
         new_x = np.array(x, copy=True)
         u = np.array(u, copy=True)
         # lin velocity
-        # u[0] = max(-0.1, min(u[0], 0.3))
-        # u[1] = max(x[2] - self.config.max_angle_change, min(u[1], x[2] + self.config.max_angle_change))
-
         # x
         new_x[0] += u[0] * math.cos(u[1]) * dt
         # y
@@ -177,27 +132,9 @@ class RobotArena:
 
         return new_x
 
-    # def multiagent_step_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
-    #     s1, r1, terminal1, truncated1, env_info1 = self.step_check_coll(action)
-    #     dynamic_obs = self.state.obstacles[-1]
-    #     action_dynamic_obs = dynamic_obs.x[-2:][::-1]
-    #     self.state = dynamic_obs
-    #     s2, _, _, _, _ = self.step_check_coll(action_dynamic_obs)
-    #     s1.obstacles[-1] = s2
-    #     return s1, r1, terminal1, truncated1, env_info1
-    #
-    # def multiagent_step_no_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
-    #     s1, r1, terminal1, truncated1, env_info1 = self.step_no_check_coll(action)
-    #     dynamic_obs = self.state.obstacles[-1]
-    #     action_dynamic_obs = dynamic_obs.x[-2:][::-1]
-    #     self.state = dynamic_obs
-    #     s2, _, _, _, _ = self.step_no_check_coll(action_dynamic_obs)
-    #     s1.obstacles[-1] = s2
-    #     return s1, r1, terminal1, truncated1, env_info1
-
     def step_check_coll(
             self, action: np.ndarray
-    ) -> tuple[RobotArenaState, float, bool, Any, Any]:
+    ) -> Tuple[RobotArenaState, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -221,7 +158,7 @@ class RobotArena:
 
     def step_no_check_coll(
             self, action: np.ndarray
-    ) -> tuple[RobotArenaState, float, bool, Any, Any]:
+    ) -> Tuple[RobotArenaState, float, bool, Any, Any]:
         """
         Functions that computes all the things derived from a step
         :param action: action performed by the agent
@@ -257,15 +194,15 @@ class RobotArena:
 
         GOAL_REWARD: float = 100.0
         COLLISION_REWARD: float = -100.0
-
+        rwrd = 0
         if is_goal:
-            return GOAL_REWARD
+            rwrd += GOAL_REWARD
 
         if is_collision:
-            return COLLISION_REWARD
+            rwrd += COLLISION_REWARD
 
         if out_boundaries:
-            return self.WALL_REWARD
+            rwrd += self.WALL_REWARD
 
         return - self.dist_goal_t1 / self.max_eudist
 

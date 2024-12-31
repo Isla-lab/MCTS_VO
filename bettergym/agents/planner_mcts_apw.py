@@ -130,7 +130,8 @@ class MctsApw(Planner):
             or len(node.actions) == 0
         ):
             new_action: np.ndarray = self.action_expansion_function(
-                node=node, planner=self
+                node=node,
+                planner=self,
             )
 
             # add child

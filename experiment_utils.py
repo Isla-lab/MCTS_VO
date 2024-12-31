@@ -156,10 +156,7 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
     ax.set_ylim([config.bottom_limit, config.upper_limit])
     ax.grid(True)
 
-    # ROBOT POSITION
-    ax.plot(x0[0], x0[1], "xr")
-    # GOAL POSITION
-    ax.plot(goal[0], goal[1], "xb")
+
     # OBSTACLES
     for ob in obs[i]:
         circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
@@ -169,6 +166,10 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
         # last_points_trj = trj[:-1][:, :2]
         ax.plot(trj[:, 0], trj[:, 1], "r--", alpha=0.5)
     cmap = ax.scatter(last_points[:, 0], last_points[:, 1], c=val_points, marker="x")
+    # ROBOT POSITION
+    ax.plot(x0[0], x0[1], "xk")
+    # GOAL POSITION
+    ax.plot(goal[0], goal[1], "xb")
     plt.colorbar(cmap)
     # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 

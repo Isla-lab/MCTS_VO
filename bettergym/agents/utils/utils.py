@@ -5,15 +5,14 @@ from typing import Any, Callable
 
 # import graphviz
 import numpy as np
-from numba import njit, jit
+from numba import jit
 from scipy.spatial.distance import cdist
 
-from bettergym.agents.planner import Planner
-from mcts_utils import uniform_random
+from MCTS_VO.bettergym.agents.planner import Planner
+from MCTS_VO.mcts_utils import uniform_random
 
 def get_robot_angles(x, max_angle_change):
-    robot_angles = [x[2] - max_angle_change, x[2] + max_angle_change]
-    robot_angles = np.array(robot_angles)
+    robot_angles = np.array([x[2] - max_angle_change, x[2] + max_angle_change])
     # Make sure angle is within range of -π to π
     robot_angles = (robot_angles + np.pi) % (2 * np.pi) - np.pi
     if type(robot_angles[0]) is np.float64:
@@ -39,7 +38,7 @@ def uniform_discrete(node: Any, planner: Planner):
     return random.choice(actions)
 
 
-@njit
+@jit(nopython=True, cache=True)
 def compute_towards_goal_jit(
         x: np.ndarray,
         goal: np.ndarray,
@@ -70,9 +69,7 @@ def towards_goal(node: Any, planner: Planner, std_angle_rollout: float):
     )
 
 
-def epsilon_normal_uniform(
-        node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
-):
+def epsilon_normal_uniform(node: Any, planner: Planner, std_angle_rollout: float, eps=0.1):
     config = planner.environment.config
     prob = random.random()
     if prob <= 1 - eps:
@@ -221,7 +218,7 @@ def voronoi(actions: np.ndarray, q_vals: np.ndarray, sample_centered: Callable):
         )
 
 
-@njit
+@jit(nopython=True)
 def clip_act(
         chosen: np.ndarray, max_angle_change: float, x: np.ndarray, allow_negative: bool
 ):

@@ -44,7 +44,7 @@ def compute_int_vectorized(r0, r1, d, x0, x1, y0, y1):
 
     return np.column_stack((np.column_stack((x3, y3)), np.column_stack((x4, y4))))
 
-
+@jit(cache=True, nopython=True)
 def check_circle_segment_intersect(robot_pos, robot_radius, segments):
     r2 = robot_radius ** 2
     A = segments[:, 2] - segments[:, 0]
@@ -58,6 +58,7 @@ def check_circle_segment_intersect(robot_pos, robot_radius, segments):
 
     valid_discriminant = discriminant >= 0
     return valid_discriminant, discriminant, b, a, segments, A, B
+
 
 
 def find_circle_segment_intersections(discriminant, valid_discriminant, b, a, segments, A, B):
@@ -109,24 +110,22 @@ def angle_distance_vector(a1, angles):
 
     return diff
 
+
 @jit(cache=True, nopython=True)
 def get_tangents(robot_state, obs_r, obstacles, d):
     """
-    Calculate the tangent points from a robot to a set of circular obstacles.
-    Parameters:
-    robot_state (array-like): The state of the robot, where the first two elements are the x and y coordinates.
-    obs_r (array-like): Radii of the obstacles.
-    obstacles (array-like): Coordinates of the obstacles, where each row is an (x, y) pair.
-    d (float): Distance from the robot to the obstacles.
-    Returns:
-    numpy.ndarray: An array of shape (n, 4) where n is the number of obstacles. Each row contains the coordinates 
-                   of the two tangent points (x1, y1, x2, y2) for each obstacle.
-    """    
+    Calculate the tangent points from the robot to each obstacle.
+
+    :param robot_state: The state of the robot, typically containing its position.
+    :param obs_r: Radii of the obstacles.
+    :param obstacles: Array of obstacle positions.
+    :param d: Distance from the robot to each obstacle.
+    :return: Array of tangent points.
+    """
     # Calculate angles from the robot to each obstacle
     alphas = np.arctan2(robot_state[1] - obstacles[:, 1], robot_state[0] - obstacles[:, 0])
     # Calculate the angles for the tangent points
     phi = np.arccos(obs_r / d)
-    robot_xy = robot_state[:2]
     # Calculate the tangent points on the obstacles
     P1 = obs_r[:, None] * np.hstack((np.cos(phi)[:, None], np.sin(phi)[:, None]))
     P2 = obs_r[:, None] * np.hstack((np.cos(-phi)[:, None], np.sin(-phi)[:, None]))
@@ -137,8 +136,8 @@ def get_tangents(robot_state, obs_r, obstacles, d):
         # Create rotation matrices for each angle
         matrix = np.array([[np.cos(alpha), -np.sin(alpha)], [np.sin(alpha), np.cos(alpha)]])
         # Apply the rotation matrices and translate the points to the robot's position
-        new_P1[i] = matrix @ P1[i] + robot_xy
-        new_P2[i] = matrix @ P2[i] + robot_xy
+        new_P1[i] = matrix @ P1[i] + obstacles[i][:2]
+        new_P2[i] = matrix @ P2[i] + obstacles[i][:2]
 
     # Combine the tangent points into a single array and return them
     intersections = np.hstack((new_P1, new_P2))

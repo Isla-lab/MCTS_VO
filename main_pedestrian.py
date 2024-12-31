@@ -37,9 +37,8 @@ from experiment_utils import (
 )
 
 DEBUG_DATA = False
-DEBUG_ANIMATION = False 
+DEBUG_ANIMATION = False
 ANIMATION = True
-
 
 @dataclass(frozen=True)
 class ExperimentData:
@@ -107,13 +106,6 @@ def get_max_depth(planner, u):
 
 def run_experiment(experiment: ExperimentData, arguments):
     global exp_num
-    # input [forward speed, yaw_rate]
-    # if arguments.fixed_obs:
-    #     behaviour = "intention"
-    #     with open(f"./bettergym/environments/fixed_obs/{behaviour}/{arguments.n_obs}/obs_{exp_num}.pkl", "rb") as f:
-    #         obstacles = pickle.load(f)
-    # else:
-    #     obstacles = None
 
     real_env, sim_env = create_pedestrian_env(
         discrete=True,
@@ -157,7 +149,7 @@ def run_experiment(experiment: ExperimentData, arguments):
     goal = s0.goal
 
     s = s0
-    obs = [[o for o in filter_obstacles(s0) if o.obs_type != "wall"]]
+    obs = [[o for o in s0.obstacles if o.obs_type != "wall"]]
     planner = Mcts(
         num_sim=experiment.n_sim,
         c=experiment.c,
@@ -198,7 +190,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         rewards.append(r)
         trajectory = np.vstack((trajectory, s.x))  # store state history
         obs.append([o for o in s_copy.obstacles if o.obs_type != "wall"])
-        gc.collect()
+        # gc.collect()
 
     exp_name = "_".join([k + ":" + str(v) for k, v in arguments.__dict__.items()])
     print_and_notify(
@@ -234,7 +226,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         "meanDepth": np.mean(depth),
         **env_info
     }
-    data = data.update(arguments.__dict__)
+    data.update(arguments.__dict__)
     df = pd.Series(data)
     df.to_csv(f"{exp_name}_{exp_num}.csv")
 

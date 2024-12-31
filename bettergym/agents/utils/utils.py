@@ -11,7 +11,6 @@ from scipy.spatial.distance import cdist
 from MCTS_VO.bettergym.agents.planner import Planner
 from MCTS_VO.mcts_utils import uniform_random
 
-
 def get_robot_angles(x, max_angle_change):
     robot_angles = np.array([x[2] - max_angle_change, x[2] + max_angle_change])
     # Make sure angle is within range of -π to π

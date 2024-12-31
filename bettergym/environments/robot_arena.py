@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import math
 import random
 from dataclasses import dataclass
 from typing import Any, Tuple
 
 import numpy as np
-
 
 from MCTS_VO.bettergym.agents.utils.vo import get_unsafe_angles_wall, new_get_spaces
 from MCTS_VO.bettergym.better_gym import BetterGym
@@ -130,24 +131,6 @@ class RobotArena:
         new_x[3] = u[0]
 
         return new_x
-
-    # def multiagent_step_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
-    #     s1, r1, terminal1, truncated1, env_info1 = self.step_check_coll(action)
-    #     dynamic_obs = self.state.obstacles[-1]
-    #     action_dynamic_obs = dynamic_obs.x[-2:][::-1]
-    #     self.state = dynamic_obs
-    #     s2, _, _, _, _ = self.step_check_coll(action_dynamic_obs)
-    #     s1.obstacles[-1] = s2
-    #     return s1, r1, terminal1, truncated1, env_info1
-    #
-    # def multiagent_step_no_check_coll(self, action: np.ndarray) -> tuple[RobotArenaState, float, bool, Any, Any]:
-    #     s1, r1, terminal1, truncated1, env_info1 = self.step_no_check_coll(action)
-    #     dynamic_obs = self.state.obstacles[-1]
-    #     action_dynamic_obs = dynamic_obs.x[-2:][::-1]
-    #     self.state = dynamic_obs
-    #     s2, _, _, _, _ = self.step_no_check_coll(action_dynamic_obs)
-    #     s1.obstacles[-1] = s2
-    #     return s1, r1, terminal1, truncated1, env_info1
 
     def step_check_coll(
             self, action: np.ndarray
@@ -359,8 +342,7 @@ class BetterRobotArena(BetterGym):
 
         if len(circle_obs_x) != 0:
             # Calculate radii
-            r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + ROBOT_RADIUS
-            r0 = np.full_like(r1, VMAX * dt)
+            r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX)
 
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)

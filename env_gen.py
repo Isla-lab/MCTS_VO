@@ -34,6 +34,7 @@ for exp_n in range(100):
         n_angles=5,
         vo=False,
         n_obs=n_obs,
+        dt_real=0.2
     )
     s0, _ = real_env.reset()
     s = s0

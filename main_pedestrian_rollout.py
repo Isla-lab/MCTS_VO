@@ -101,6 +101,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         vo=experiment.vo,
         obs_pos=obstacles,
         n_obs=arguments.n_obs,
+        dt_real=0.2,
     )
 
     s0, _ = real_env.reset()
@@ -180,7 +181,7 @@ def run_experiment(experiment: ExperimentData, arguments):
         "stdSmoothAngle": np.abs(np.diff(trajectory[:, 2])).std(),
         **env_info
     }
-    data = data | arguments.__dict__
+    data.update(arguments.__dict__)
     df = pd.Series(data)
     df.to_csv(f"{exp_name}_{exp_num}.csv")
 

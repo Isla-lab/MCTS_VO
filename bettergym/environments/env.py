@@ -7,39 +7,23 @@ from typing import Any, Tuple
 
 import numpy as np
 from numba import jit
+
+
 try:
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from MCTS_VO.bettergym.better_gym import BetterGym
     from MCTS_VO.bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
     from MCTS_VO.mcts_utils import get_intersections_vectorized
+    from MCTS_VO.bettergym.agents.utils.vo import get_radii
+    from MCTS_VO.bettergym.compiled_utils import robot_dynamics
 except ModuleNotFoundError:
     from bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from bettergym.better_gym import BetterGym
     from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
     from mcts_utils import get_intersections_vectorized
+    from bettergym.agents.utils.vo import get_radii
+    from bettergym.compiled_utils import robot_dynamics
 
-@jit(nopython=True, cache=True)
-def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
-    """
-    Computes the new state of the robot given the current state, control inputs, and time step.
-    Parameters:
-    x (np.ndarray): The current state of the robot, represented as a numpy array.
-    u (np.ndarray): The control inputs, represented as a numpy array.
-    dt (float): The time step for the motion prediction.
-    Returns:
-    np.ndarray: The new state of the robot after applying the control inputs for the given time step.
-    """
-    x, y, theta, v = state_x
-    new_x = np.empty(state_x.shape[0], dtype=np.float64)
-    omega = (((u[1] - theta)/dt) + np.pi) % (2 * np.pi) - np.pi
-    matrix = np.array([[np.cos(theta), 0.0],
-                       [np.sin(theta), 0.0],
-                       [0.0          , 1.0]])
-    deltas = matrix @ np.array([[u[0]],[omega]])
-    deltas = deltas * dt
-    new_x[:3] = state_x[:3] + deltas[:, 0]
-    new_x[3] = u[0] # v
-    return new_x
 
 @dataclass(frozen=True)
 class EnvConfig:
@@ -81,32 +65,6 @@ class EnvConfig:
     obstacle_cost_gain = 100.
     robot_stuck_flag_cons = 0.0  # constant to prevent robot stucked
     num_humans: int = 40
-
-@jit(nopython=True, cache=True)
-def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
-    """
-    Computes the new state of the robot given the current state, control inputs, and time step.
-
-    Parameters:
-    x (np.ndarray): The current state of the robot, represented as a numpy array.
-    u (np.ndarray): The control inputs, represented as a numpy array.
-    dt (float): The time step for the motion prediction.
-
-    Returns:
-    np.ndarray: The new state of the robot after applying the control inputs for the given time step.
-    """
-    x, y, theta, v = state_x
-    new_x = np.empty(state_x.shape[0], dtype=np.float64)
-    omega = (((u[1] - theta)/dt) + np.pi) % (2 * np.pi) - np.pi
-    matrix = np.array([[np.cos(theta), 0.0],
-                       [np.sin(theta), 0.0],
-                       [0.0          , 1.0]])
-    deltas = matrix @ np.array([[u[0]],[omega]])
-    deltas = deltas * dt
-    new_x[:3] = state_x[:3] + deltas[:, 0]
-    new_x[3] = u[0] # v
-    new_x[2] = (new_x[2] + np.pi) % (2 * np.pi) - np.pi
-    return new_x
 
 class State:
     def __init__(self, x: np.ndarray, goal: np.ndarray, obstacles: list, radius: float, obs_type: str = None):
@@ -197,9 +155,8 @@ class Env:
         obs_pos = []
         obs_rad = []
         for ob in state.obstacles:
-            if ob.obs_type == 'circle':
-                obs_pos.append(ob.x[:2])
-                obs_rad.append(ob.radius)
+            obs_pos.append(ob.x[:2])
+            obs_rad.append(ob.radius)
 
         return check_coll_vectorized(x=state.x[:2], obs=np.array(obs_pos), robot_radius=self.config.robot_radius, obs_size=np.array(obs_rad))
 
@@ -283,8 +240,7 @@ class Env:
         collision = self.check_collision(self.state)
         robot_collision = collision and action[0] != 0
         goal = self.dist_goal_t1 <= self.config.robot_radius
-        out_boundaries = self.check_out_boundaries(self.state)
-        # out_boundaries = False
+        out_boundaries = False
         reward = self.reward(collision, goal, out_boundaries)
         # observation, reward, terminal, truncated, info
         return (
@@ -306,7 +262,7 @@ class Env:
         self.dist_goal_t1 = dist_to_goal(self.state.goal, self.state.x[:2])
         collision = False
         goal = self.dist_goal_t1 <= self.config.robot_radius
-        out_boundaries = self.check_out_boundaries(self.state)
+        out_boundaries = False
         reward = self.reward(collision, goal, out_boundaries)
         # observation, reward, terminal, truncated, info
         return (
@@ -565,20 +521,11 @@ class BetterEnv(BetterGym):
         # Extract obstacle information
         obstacles = state.obstacles
         # obs_x, obs_rad
-        square_obs = [[], []]
         circle_obs = [[], []]
-        wall_obs = [[], []]
         intersection_points = np.empty((0, 4), dtype=np.float64)
         for ob in obstacles:
-            if ob.obs_type == "square":
-                square_obs[0].append(ob.x)
-                square_obs[1].append(ob.radius)
-            elif ob.obs_type == "circle":
-                circle_obs[0].append(ob.x)
-                circle_obs[1].append(ob.radius)
-            else:
-                wall_obs[0].append(ob.x)
-                wall_obs[1].append(ob.radius)
+            circle_obs[0].append(ob.x)
+            circle_obs[1].append(ob.radius)
 
         # CIRCULAR OBSTACLES
         circle_obs_x = np.array(circle_obs[0])
@@ -603,7 +550,7 @@ class BetterEnv(BetterGym):
             else:
                 actions_forward = np.empty((0, 2))
 
-            safe_angles_backward = vo_negative_speed([square_obs, circle_obs, wall_obs], x, config)
+            safe_angles_backward = vo_negative_speed([None, circle_obs, None], x, config)
             if retro_available := (safe_angles_backward is not None):
                 vspace = [config.min_speed, config.min_speed]
                 v_space_backward = [*([vspace] * len(safe_angles_backward))]

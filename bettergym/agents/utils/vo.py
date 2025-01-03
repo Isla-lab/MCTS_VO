@@ -1,7 +1,6 @@
 import math
 import random
 from typing import Any
-
 import numpy as np
 from intervaltree import IntervalTree
 
@@ -19,72 +18,6 @@ except ModuleNotFoundError:
 #     #     f.write(str(param))
 #     pass
 
-def join_intersections(int_points, radius, x):
-    """
-    Joins intersection points that are within a specified radius.
-
-    Parameters:
-    int_points (np.ndarray): An array of intersection points with shape (N, 4),
-                             where each row represents two points (x1, y1, x2, y2).
-    radius (float): The radius within which intersection points should be joined.
-
-    Returns:
-    np.ndarray: An array of joined intersection points.
-    """
-    # Split the intersection points into two sets of points
-    p1 = int_points[:, :2]
-    p2 = int_points[:, 2:]
-
-    vec_p1 = np.array([p1[:, 0] - x[0], p1[:, 1] - x[1]])
-    vec_p2 = np.array([p2[:, 0] - x[0], p2[:, 1] - x[1]])
-    angle1 = np.arctan2(vec_p1[1], vec_p1[0])
-    angle2 = np.arctan2(vec_p2[1], vec_p2[0])
-
-
-    # Create a mask to determine which points to keep
-    mask_ang1_smaller = angle1 < angle2
-    points = np.vstack((
-        np.hstack((p2[~mask_ang1_smaller], p1[~mask_ang1_smaller])),
-        int_points[mask_ang1_smaller]
-    ))
-    new_angles = np.vstack((
-        np.hstack((np.expand_dims(angle2[~mask_ang1_smaller], 1), np.expand_dims(angle1[~mask_ang1_smaller], 1))),
-        np.hstack((np.expand_dims(angle1[mask_ang1_smaller], 1), np.expand_dims(angle2[mask_ang1_smaller], 1))),
-    ))
-
-
-    # Sort the points based on the x-coordinate
-    points = points[np.argsort(new_angles[:, 0])]
-
-
-    p1 = points[:, :2]
-    p2 = points[:, 2:]
-
-    # Calculate the distance between consecutive points
-    first_int = p2[:-1, :]
-    second_int = p1[1:, :]
-    distance = np.linalg.norm(first_int - second_int, axis=1)
-
-    # Create a mask for points that need to be joined
-    to_join_mask = distance < 2 * radius
-    if np.any(to_join_mask):
-        to_join_start_idx = np.where(to_join_mask)[0]
-        to_join_end_idx = to_join_start_idx + 1
-
-        # Remove the points that are being joined
-        remaining_points = np.delete(points, np.hstack((to_join_start_idx, to_join_end_idx)), axis=0)
-
-        # Add the joined points to the remaining points
-        final_points = np.vstack((
-            remaining_points,
-            np.hstack((p1[to_join_start_idx], p2[to_join_end_idx]))
-        ))
-    else:
-        final_points = int_points
-
-    return final_points
-
-
 def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax):
     r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + robot_radius
     r0 = np.full_like(r1, vmax * dt)
@@ -99,7 +32,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
         return compute_uniform_towards_goal_jit(
             x=x,
             goal=node.state.goal,
-            max_angle_change=config.max_angle_change,
+            max_angle_change=config.max_angle_change*config.dt,
             amplitude=std_angle_rollout,
             min_speed=0.0,
             max_speed=config.max_speed,
@@ -113,20 +46,11 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # Extract obstacle information
     obstacles = node.state.obstacles
     # obs_x, obs_rad
-    square_obs = [[], []]
     circle_obs = [[], []]
-    wall_obs = [[], []]
     intersection_points = np.empty((0, 4), dtype=np.float64)
     for ob in obstacles:
-        if ob.obs_type == "square":
-            square_obs[0].append(ob.x)
-            square_obs[1].append(ob.radius)
-        elif ob.obs_type == "circle":
-            circle_obs[0].append(ob.x)
-            circle_obs[1].append(ob.radius)
-        else:
-            wall_obs[0].append(ob.x)
-            wall_obs[1].append(ob.radius)
+        circle_obs[0].append(ob.x)
+        circle_obs[1].append(ob.radius)
 
     # CIRCULAR OBSTACLES
     circle_obs_x = np.array(circle_obs[0])
@@ -153,7 +77,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # CASE 3 only obs intersection
     # CASE 4 both wall and obs intersection
     else:
-        angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points, wall_angles=None)
+        angle_space, velocity_space = new_get_spaces([None, circle_obs, None], x, config, intersection_points, wall_angles=None)
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
         angle_space = np.array(angle_space)
         angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
@@ -212,28 +136,6 @@ def angle_distance(angle1, angle2):
     diff = min(diff, 2 * math.pi - diff)
 
     return diff
-
-
-# def get_spaces_vo_special_case(obs, x, r1, config, mask, curr_velocity_space):
-#     alpha = np.arctan2(obs[mask, 1] - x[1], obs[mask, 0] - x[0])
-#     P = obs[mask, :2] - (r1[mask][:, np.newaxis] * np.column_stack((np.cos(alpha), np.sin(alpha))))
-#     vmin = np.sum(np.abs(P - x[:2]), axis=1) / config.dt
-#     idx_vmin = np.argmax(vmin)
-#     alpha = alpha[idx_vmin]
-#     # if the robot is looking toward the obstacle center then negative speed
-#
-#     # vspaces = [negative_vel, positive_vel]
-#     vspaces = [[-0.1, max(-vmin[idx_vmin], config.min_speed)],
-#                [min(vmin[idx_vmin], curr_velocity_space[1]), config.max_speed]]
-#     # if negative speed use opposite of alpha, if speed is positive then use alpha
-#     alphas = (np.array([alpha, alpha + np.pi]) + math.pi) % (2 * math.pi) - math.pi
-#     angle_dist = [angle_distance(x[2], alphas[0]), angle_distance(x[2], alphas[1])]
-#     idx = np.argmin(angle_dist)
-#     velocity_space = vspaces[idx]
-#     alpha = alphas[idx]
-#
-#     angle_space = [[alpha, alpha]]
-#     return angle_space, velocity_space
 
 
 def compute_ranges_difference(robot_angles, forbidden_ranges):
@@ -318,8 +220,6 @@ def compute_safe_angle_space(intersection_points, max_angle_change, x, wall_angl
 
     # convert points into angles and define the forbidden angles space
     forbidden_ranges = get_unsafe_angles(intersection_points, robot_angles, x)
-    if wall_angles is not None:
-        forbidden_ranges.extend(wall_angles)
 
     new_robot_angles = compute_ranges_difference(robot_angles, forbidden_ranges)
     if len(new_robot_angles) == 0:
@@ -333,7 +233,7 @@ def vo_negative_speed(obstacles, x, config):
     ROBOT_RADIUS = config.robot_radius
     intersection_points = np.empty((0, 4), dtype=np.float64)
     max_angle_change = config.max_angle_change * config.dt
-    square_obs, circle_obs, wall_obs = obstacles
+    _, circle_obs, _ = obstacles
 
     # CIRCULAR OBSTACLES
     circle_obs_x = np.array(circle_obs[0])
@@ -359,7 +259,7 @@ def vo_negative_speed(obstacles, x, config):
 
 
 def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
-    safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x, wall_angles)
+    safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change*config.dt, x, wall_angles)
     if safe_angles is None:
         safe_angles = vo_negative_speed(obstacles, x, config)
         if safe_angles is None:
@@ -389,20 +289,11 @@ def uniform_random_vo(node, planner):
     # Extract obstacle information
     obstacles = node.state.obstacles
     # obs_x, obs_rad
-    square_obs = [[], []]
     circle_obs = [[], []]
-    wall_obs =   [[], []]
     intersection_points = np.empty((0, 4), dtype=np.float64)
     for ob in obstacles:
-        if ob.obs_type == "square":
-            square_obs[0].append(ob.x)
-            square_obs[1].append(ob.radius)
-        elif ob.obs_type == "circle":
-            circle_obs[0].append(ob.x)
-            circle_obs[1].append(ob.radius)
-        else:
-            wall_obs[0].append(ob.x)
-            wall_obs[1].append(ob.radius)
+        circle_obs[0].append(ob.x)
+        circle_obs[1].append(ob.radius)
 
     # CIRCULAR OBSTACLES
     circle_obs_x = np.array(circle_obs[0])
@@ -420,7 +311,7 @@ def uniform_random_vo(node, planner):
     if np.isnan(intersection_points).all():
         return uniform_random(node, planner)
     else:
-        angle_space, velocity_space = new_get_spaces([square_obs, circle_obs, wall_obs], x, config, intersection_points,  wall_angles=None)
+        angle_space, velocity_space = new_get_spaces([None, circle_obs, None], x, config, intersection_points,  wall_angles=None)
         return sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
 
 

@@ -47,55 +47,55 @@ class RolloutStateNode:
     def __init__(self, state):
         self.state = state
 
-def plot_vo(state, config):
-    x = state.x
-    obstacles = state.obstacles
-    square_obs = [[], []]
-    circle_obs = [[], []]
-    wall_obs = [[], []]
-    for ob in obstacles:
-        if ob.obs_type == "square":
-            square_obs[0].append(ob.x)
-            square_obs[1].append(ob.radius)
-        elif ob.obs_type == "circle":
-            circle_obs[0].append(ob.x)
-            circle_obs[1].append(ob.radius)
-        else:
-            wall_obs[0].append(ob.x)
-            wall_obs[1].append(ob.radius)
+# def plot_vo(state, config):
+#     x = state.x
+#     obstacles = state.obstacles
+#     square_obs = [[], []]
+#     circle_obs = [[], []]
+#     wall_obs = [[], []]
+#     for ob in obstacles:
+#         if ob.obs_type == "square":
+#             square_obs[0].append(ob.x)
+#             square_obs[1].append(ob.radius)
+#         elif ob.obs_type == "circle":
+#             circle_obs[0].append(ob.x)
+#             circle_obs[1].append(ob.radius)
+#         else:
+#             wall_obs[0].append(ob.x)
+#             wall_obs[1].append(ob.radius)
 
-    # CIRCULAR OBSTACLES
-    circle_obs_x = np.array(circle_obs[0])
-    circle_obs_rad = np.array(circle_obs[1])
+#     # CIRCULAR OBSTACLES
+#     circle_obs_x = np.array(circle_obs[0])
+#     circle_obs_rad = np.array(circle_obs[1])
 
-    # Example usage
-    fig, ax = plt.subplots()
-    r = config.robot_radius
-    # robot_angles = get_robot_angles(x, config.max_angle_change * config.dt)
-    # intersections = get_tangents(x, circle_obs_rad, obstacles, np.hypot(obstacles[:, 0] - circle_obs_x[0, :], obstacles[:, 1] - circle_obs_x[1, :]))
-    # vmax_o * dt + r_obs + r_robot + vmax_robot * dt
-    if len(circle_obs_x) > 0:
-        obs_r = (circle_obs_x[:, -1] * 0.2) + 0.2 + 0.3
-        for o, radius in zip(circle_obs_x, obs_r):
-            # plot the obstacle
-            circle = plt.Circle((o[0], o[1]), radius, color='k', fill=False)
-            ax.add_artist(circle)
-            circle2 = plt.Circle((o[0], o[1]), 0.2, color='b', fill=False)
-            ax.add_artist(circle2)
+#     # Example usage
+#     fig, ax = plt.subplots()
+#     r = config.robot_radius
+#     # robot_angles = get_robot_angles(x, config.max_angle_change * config.dt)
+#     # intersections = get_tangents(x, circle_obs_rad, obstacles, np.hypot(obstacles[:, 0] - circle_obs_x[0, :], obstacles[:, 1] - circle_obs_x[1, :]))
+#     # vmax_o * dt + r_obs + r_robot + vmax_robot * dt
+#     if len(circle_obs_x) > 0:
+#         obs_r = (circle_obs_x[:, -1] * 0.2) + 0.2 + 0.3
+#         for o, radius in zip(circle_obs_x, obs_r):
+#             # plot the obstacle
+#             circle = plt.Circle((o[0], o[1]), radius, color='k', fill=False)
+#             ax.add_artist(circle)
+#             circle2 = plt.Circle((o[0], o[1]), 0.2, color='b', fill=False)
+#             ax.add_artist(circle2)
 
-    circle = plt.Circle((x[0], x[1]), r * config.dt, color='b', fill=False)
-    ax.add_artist(circle)
-    plt.plot(x[0], x[1], 'bx')
+#     circle = plt.Circle((x[0], x[1]), r * config.dt, color='b', fill=False)
+#     ax.add_artist(circle)
+#     plt.plot(x[0], x[1], 'bx')
 
-    ax.set_aspect('equal', adjustable='box')
-    plt.xlim([0.0, 10.0])
-    plt.ylim([0.0, 10.0])
+#     ax.set_aspect('equal', adjustable='box')
+#     plt.xlim([0.0, 10.0])
+#     plt.ylim([0.0, 10.0])
 
-    plt.grid(False)
-    global i
-    plt.savefig(f'vo_{i}.png', dpi=500, facecolor='white', edgecolor='none')
-    plt.close(fig)
-    i+=1
+#     plt.grid(False)
+#     global i
+#     plt.savefig(f'vo_{i}.png', dpi=500, facecolor='white', edgecolor='none')
+#     plt.close(fig)
+#     i+=1
 
 class Mcts(Planner):
     def __init__(
@@ -253,7 +253,7 @@ class Mcts(Planner):
                 current_state, chosen_action
             )
             total_reward += r * pow(self.discount, starting_depth)
-            trajectory.append(current_state.x)  # store state history
+            # trajectory.append(current_state.x)  # store state history
             starting_depth += 1
 
         # self.info["trajectories"][-1] = np.vstack(

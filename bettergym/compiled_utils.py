@@ -1,9 +1,8 @@
 import math
 import numpy as np
 from numba import jit
-import numba
 
-@jit('f8[:, :](f8[:], f8[:], f8[:, :], f8[:])', nopython=True, cache=True)
+@jit('f8[:, :](f8[:], f8[:], f8[:, :], f8[:])', nopython=True, cache=True, fastmath=True)
 def get_tangents(robot_state, obs_r, obstacles, d):
     """
     Calculate the tangent points from the robot to each obstacle.
@@ -35,7 +34,7 @@ def get_tangents(robot_state, obs_r, obstacles, d):
     intersections = np.hstack((new_P1, new_P2))
     return intersections
 
-@jit('f8[:](f8[:], f8[:], f8, f8, f8, f8)', nopython=True, cache=True)
+@jit('f8[:](f8[:], f8[:], f8, f8, f8, f8)', nopython=True, cache=True, fastmath=True)
 def compute_uniform_towards_goal_jit(
         x: np.ndarray,
         goal: np.ndarray,
@@ -57,7 +56,7 @@ def compute_uniform_towards_goal_jit(
 
 
 
-@jit('f8[:](f8[:], f8[:], f8)', nopython=True, cache=True)
+@jit('f8[:](f8[:], f8[:], f8)', nopython=True, cache=True, fastmath=True)
 def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     """
     Computes the new state of the robot given the current state, control inputs, and time step.
@@ -80,14 +79,16 @@ def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     new_x[3] = u[0] # v
     return new_x
 
-@jit('b1(f8[:], f8[:], f8[:], f8[:])', cache=True, nopython=True)
+@jit('b1(f8[:], f8[:, :], f8, f8[:])', cache=True, nopython=True, fastmath=False)
 # @cc.export('check_coll_compiled', )
 def check_coll_vectorized(x, obs, robot_radius, obs_size):
     n = obs.shape[0]
     distances = np.empty(n)
     for i in range(n):
         distances[i] = np.sqrt(np.sum((obs[i] - x)**2))
-    return np.any(distances <= robot_radius + obs_size)
+    
+    result = np.any(distances <= robot_radius + obs_size)
+    return result
 
 
 @jit('f8(f8[:], f8[:])', cache=True, nopython=True)
@@ -95,7 +96,7 @@ def check_coll_vectorized(x, obs, robot_radius, obs_size):
 def dist_to_goal(goal: np.ndarray, x: np.ndarray):
     return np.sqrt(np.sum((x-goal)**2))
 
-@jit('f8[:, :](f8[:], f8[:])', nopython=True, cache=True)
+@jit('f8[:, :](f8[:], f8[:])', nopython=True, cache=True, fastmath=True)
 def get_points_from_lidar(dist, angles):
     points = dist[:, None] * np.vstack((np.cos(angles), np.sin(angles))).transpose()
     points_copy = np.empty_like(points)

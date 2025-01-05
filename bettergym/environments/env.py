@@ -6,23 +6,20 @@ from math import atan2, cos, sin
 from typing import Any, Tuple
 
 import numpy as np
-from numba import jit
 
 
 try:
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from MCTS_VO.bettergym.better_gym import BetterGym
-    from MCTS_VO.bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
     from MCTS_VO.mcts_utils import get_intersections_vectorized
     from MCTS_VO.bettergym.agents.utils.vo import get_radii
-    from MCTS_VO.bettergym.compiled_utils import robot_dynamics
+    from MCTS_VO.bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal
 except ModuleNotFoundError:
     from bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from bettergym.better_gym import BetterGym
-    from bettergym.environments.env_utils import dist_to_goal, check_coll_vectorized
     from mcts_utils import get_intersections_vectorized
     from bettergym.agents.utils.vo import get_radii
-    from bettergym.compiled_utils import robot_dynamics
+    from bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal
 
 
 @dataclass(frozen=True)
@@ -78,7 +75,7 @@ class State:
 
     def __hash__(self):
         return hash(
-            tuple(self.x.tobytes()) + tuple(o.x.tobytes() for o in self.obstacles)
+            tuple(self.x.tobytes()) + tuple(o.tobytes() for o in self.obstacles)
         )
 
     def __eq__(self, other):
@@ -91,7 +88,7 @@ class State:
 
     def copy(self):
         return State(
-            np.array(self.x, copy=True), self.goal, self.obstacles, self.radius, self.obs_type
+            self.x.copy(), self.goal, self.obstacles, self.radius, self.obs_type
         )
 
     def to_cartesian(self):
@@ -144,21 +141,6 @@ class Env:
     def is_within_range_check_with_points(self, p1_x, p1_y, p2_x, p2_y, threshold_distance):
         euclidean_distance = np.linalg.norm(np.array([p1_x, p1_y]) - np.array([p2_x, p2_y]))
         return euclidean_distance <= threshold_distance
-
-    def check_collision(self, state: State) -> bool:
-        """
-        Check if the robot is colliding with some obstacle
-        :param state: state of the robot
-        :return:
-        """
-        # config = self.config
-        obs_pos = []
-        obs_rad = []
-        for ob in state.obstacles:
-            obs_pos.append(ob.x[:2])
-            obs_rad.append(ob.radius)
-
-        return check_coll_vectorized(x=state.x[:2], obs=np.array(obs_pos), robot_radius=self.config.robot_radius, obs_size=np.array(obs_rad))
 
     def generate_humans(self, robot_state):
         g1 = [self.config.bottom_limit, self.config.left_limit]
@@ -236,8 +218,14 @@ class Env:
         :return:
         """
         self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
-        self.dist_goal_t1 = dist_to_goal(self.state.x[:2], self.state.goal)
-        collision = self.check_collision(self.state)
+        self.dist_goal_t1 = dist_to_goal(self.state.goal, self.state.x[:2])
+        
+        collision = check_coll_vectorized(
+            x=self.state.x[:2], 
+            obs=self.state.obstacles[0][:, :2], 
+            robot_radius=self.config.robot_radius, 
+            obs_size=self.state.obstacles[1]
+        )
         robot_collision = collision and action[0] != 0
         goal = self.dist_goal_t1 <= self.config.robot_radius
         out_boundaries = False
@@ -248,7 +236,8 @@ class Env:
             reward,
             collision or goal or out_boundaries,
             None,
-            {"collision": int(robot_collision), "out_boundaries": int(out_boundaries),
+            {"collision": int(robot_collision), 
+             "out_boundaries": int(out_boundaries),
              "colision_pedestrians": int(collision)},
         )
 
@@ -518,18 +507,11 @@ class BetterEnv(BetterGym):
         ROBOT_RADIUS = config.robot_radius
         VMAX = config.max_speed
 
-        # Extract obstacle information
-        obstacles = state.obstacles
-        # obs_x, obs_rad
-        circle_obs = [[], []]
         intersection_points = np.empty((0, 4), dtype=np.float64)
-        for ob in obstacles:
-            circle_obs[0].append(ob.x)
-            circle_obs[1].append(ob.radius)
 
         # CIRCULAR OBSTACLES
-        circle_obs_x = np.array(circle_obs[0])
-        circle_obs_rad = np.array(circle_obs[1])
+        circle_obs_x = state.obstacles[0]
+        circle_obs_rad = state.obstacles[1]
 
         if len(circle_obs_x) != 0:
             # Calculate radii
@@ -550,7 +532,7 @@ class BetterEnv(BetterGym):
             else:
                 actions_forward = np.empty((0, 2))
 
-            safe_angles_backward = vo_negative_speed([None, circle_obs, None], x, config)
+            safe_angles_backward = vo_negative_speed([None, (circle_obs_x, circle_obs_rad), None], x, config)
             if retro_available := (safe_angles_backward is not None):
                 vspace = [config.min_speed, config.min_speed]
                 v_space_backward = [*([vspace] * len(safe_angles_backward))]

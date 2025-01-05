@@ -236,8 +236,8 @@ def vo_negative_speed(obstacles, x, config):
     _, circle_obs, _ = obstacles
 
     # CIRCULAR OBSTACLES
-    circle_obs_x = np.array(circle_obs[0])
-    circle_obs_rad = np.array(circle_obs[1])
+    circle_obs_x = circle_obs[0]
+    circle_obs_rad = circle_obs[1]
 
     if len(circle_obs_x) != 0:
         # Calculate radii
@@ -249,7 +249,7 @@ def vo_negative_speed(obstacles, x, config):
         # all robot angles are safe
         return get_robot_angles(x, config.max_angle_change*config.dt)
     else:
-        x_copy = np.array(x, copy=True)
+        x_copy = x.copy()
         val = x_copy[2] + np.pi
         x_copy[2] = val
         x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi

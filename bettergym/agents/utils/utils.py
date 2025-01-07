@@ -78,7 +78,7 @@ def epsilon_uniform_uniform(node: Any, planner: Planner, std_angle_rollout: floa
         return compute_uniform_towards_goal_jit(
             x=node.state.x,
             goal=node.state.goal,
-            max_angle_change=config.max_angle_change*config.dt,
+            max_angle_change=config.max_angle_change,
             amplitude=std_angle_rollout,
             min_speed=config.min_speed,
             max_speed=config.max_speed,

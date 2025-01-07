@@ -146,10 +146,10 @@ class Mcts(Planner):
 
         self.id_to_state_node[root_id] = root_node
         for sn in range(self.num_sim):
-            # self.info["trajectories"].append(np.array([initial_state.x]))
+            self.info["trajectories"].append(np.array([initial_state.x]))
             # root should be at depth 0
             total_reward = self.simulate(state_id=root_id, depth=0)
-            # self.info["rollout_values"].append(total_reward)
+            self.info["rollout_values"].append(total_reward)
 
         q_vals = np.divide(
             root_node.a_values,
@@ -203,12 +203,12 @@ class Mcts(Planner):
 
         current_state, r, terminal, _, _ = self.environment.step(current_state, action)
         new_state_id = action_node.state_to_id.get(current_state, None)
-        # self.info["trajectories"][-1] = np.vstack(
-        #     (
-        #         self.info["trajectories"][-1],
-        #         current_state.x,
-        #     )
-        # )
+        self.info["trajectories"][-1] = np.vstack(
+            (
+                self.info["trajectories"][-1],
+                current_state.x,
+            )
+        )
 
         prev_node = node
         if (
@@ -232,7 +232,7 @@ class Mcts(Planner):
             # Node in the tree
             state_id = new_state_id
             if terminal or depth + 1 >= self.computational_budget:
-                # self.info["rollout_values"].append(r)
+                self.info["rollout_values"].append(r)
                 prev_node.a_values[action_idx] += r
                 return r
             else:
@@ -253,10 +253,10 @@ class Mcts(Planner):
                 current_state, chosen_action
             )
             total_reward += r * pow(self.discount, starting_depth)
-            # trajectory.append(current_state.x)  # store state history
+            trajectory.append(current_state.x)  # store state history
             starting_depth += 1
 
-        # self.info["trajectories"][-1] = np.vstack(
-        #     (self.info["trajectories"][-1], np.array(trajectory))
-        # )
+        self.info["trajectories"][-1] = np.vstack(
+            (self.info["trajectories"][-1], np.array(trajectory))
+        )
         return total_reward

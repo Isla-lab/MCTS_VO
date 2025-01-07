@@ -158,8 +158,11 @@ def plot_frame_tree_traj(i, goal, config, obs, trajectories, values, fig):
 
 
     # OBSTACLES
-    for ob in obs[i]:
-        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+    obs_x, obs_rad = obs[i]
+    for idx in range(len(obs_x)):
+        ob_x = obs_x[idx]
+        ob_rad = obs_rad[idx]
+        circle = plt.Circle((ob_x[0], ob_x[1]), ob_rad, color="k")
         ax.add_artist(circle)
 
     for trj in step:

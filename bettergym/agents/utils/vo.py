@@ -32,7 +32,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
         return compute_uniform_towards_goal_jit(
             x=x,
             goal=node.state.goal,
-            max_angle_change=config.max_angle_change*config.dt,
+            max_angle_change=config.max_angle_change,
             amplitude=std_angle_rollout,
             min_speed=0.0,
             max_speed=config.max_speed,
@@ -77,14 +77,18 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # CASE 3 only obs intersection
     # CASE 4 both wall and obs intersection
     else:
-        angle_space, velocity_space = new_get_spaces([None, circle_obs, None], x, config, intersection_points, wall_angles=None)
+        angle_space, velocity_space, flip = new_get_spaces([None, circle_obs, None], x, config, intersection_points, wall_angles=None)
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
         angle_space = np.array(angle_space)
         angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
-        in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
+        if flip:
+            angles_copy = (angles + math.pi + math.pi) % (2 * math.pi) - math.pi
+            in_range = (angle_space[:, 0] <= angles_copy[:, np.newaxis]) & (angle_space[:, 1] >= angles_copy[:, np.newaxis])
+        else:
+            in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
         if not np.any(in_range):
             action = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
-            if action[0] < 0:
+            if action[0] < 0 and flip:
                 action[1] = action[1] + math.pi
                 action[1] = (action[1] + math.pi) % (2 * math.pi) - math.pi
             return action
@@ -93,9 +97,6 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
             idx = random.randint(0, len(idx_angles) - 1)
             angle = angles[idx_angles[idx]]
             velocity = np.random.uniform(low=velocity_space[idx_ranges[idx]][0], high=velocity_space[idx_ranges[idx]][1])
-            if velocity < 0:
-                angle = angle + math.pi
-                angle = (angle + math.pi) % (2 * math.pi) - math.pi
         return [velocity, angle]
 
 
@@ -232,7 +233,7 @@ def vo_negative_speed(obstacles, x, config):
     VELOCITY = np.abs(config.min_speed)
     ROBOT_RADIUS = config.robot_radius
     intersection_points = np.empty((0, 4), dtype=np.float64)
-    max_angle_change = config.max_angle_change * config.dt
+    max_angle_change = config.max_angle_change
     _, circle_obs, _ = obstacles
 
     # CIRCULAR OBSTACLES
@@ -247,33 +248,38 @@ def vo_negative_speed(obstacles, x, config):
 
     if np.isnan(intersection_points).all():
         # all robot angles are safe
-        return get_robot_angles(x, config.max_angle_change*config.dt)
+        return get_robot_angles(x, config.max_angle_change), False
     else:
         x_copy = x.copy()
-        val = x_copy[2] + np.pi
-        x_copy[2] = val
+        x_copy[2] = x_copy[2] + np.pi
         x_copy[2] = (x_copy[2] + math.pi) % (2 * math.pi) - math.pi
         safe_angles, robot_span = compute_safe_angle_space(intersection_points, max_angle_change, x_copy, None)
 
-        return safe_angles
+        return safe_angles, True
 
 
 def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
-    safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change*config.dt, x, wall_angles)
+    safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x, wall_angles)
     if safe_angles is None:
-        safe_angles = vo_negative_speed(obstacles, x, config)
+        safe_angles, flip = vo_negative_speed(obstacles, x, config)
         if safe_angles is None:
             vspace = [0.0, 0.0]
             safe_angles = [[-math.pi, math.pi]]
         else:
             vspace = [config.min_speed, config.min_speed]
+            # if flip:
+            #     actions_backward[:, 1] = actions_backward[:, 1] + np.pi
+            #         actions_backward[:, 1] = (actions_backward[:, 1] + np.pi) % (2 * np.pi) - np.pi
+            pass
+                
     else:
         vspace = [config.max_speed, config.max_speed]
 
     velocity_space = [*([vspace] * len(safe_angles))]
+        
     angle_space = [*safe_angles]
 
-    return angle_space, velocity_space
+    return angle_space, velocity_space, flip
 
 def uniform_random_vo(node, planner):
     config = planner.environment.gym_env.config
@@ -311,8 +317,13 @@ def uniform_random_vo(node, planner):
     if np.isnan(intersection_points).all():
         return uniform_random(node, planner)
     else:
-        angle_space, velocity_space = new_get_spaces([None, circle_obs, None], x, config, intersection_points,  wall_angles=None)
-        return sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+        angle_space, velocity_space, flip = new_get_spaces([None, circle_obs, None], x, config, intersection_points,  wall_angles=None)
+        sample = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+        if flip:
+            sample[1] = sample[1] + np.pi
+            sample[1] = (sample[1] + np.pi) % (2 * np.pi) - np.pi
+        return sample
+            
 
 
 def epsilon_uniform_uniform_vo(

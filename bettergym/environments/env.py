@@ -440,10 +440,9 @@ class BetterEnv(BetterGym):
 
     def get_actions_discrete(self, state: State):
         config = self.gym_env.config
-        max_angle_change = config.max_angle_change * config.dt
         available_angles = np.linspace(
-            start=state.x[2] - max_angle_change,
-            stop=state.x[2] + max_angle_change,
+            start=state.x[2] - config.max_angle_change,
+            stop=state.x[2] + config.max_angle_change,
             num=config.n_angles,
         )
         if (curr_angle := state.x[2]) not in available_angles:
@@ -524,7 +523,7 @@ class BetterEnv(BetterGym):
         if np.isnan(intersection_points).all():
             return actions
         else:
-            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change*dt, x, None)
+            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change, x, None)
             if forward_available := (safe_angles_forward is not None):
                 vspace = [config.max_speed, config.max_speed]
                 v_space_forward = [*([vspace] * len(safe_angles_forward))]
@@ -532,13 +531,14 @@ class BetterEnv(BetterGym):
             else:
                 actions_forward = np.empty((0, 2))
 
-            safe_angles_backward = vo_negative_speed([None, (circle_obs_x, circle_obs_rad), None], x, config)
+            safe_angles_backward, flip = vo_negative_speed([None, (circle_obs_x, circle_obs_rad), None], x, config)
             if retro_available := (safe_angles_backward is not None):
                 vspace = [config.min_speed, config.min_speed]
                 v_space_backward = [*([vspace] * len(safe_angles_backward))]
                 actions_backward = self.get_discrete_actions_multi_range(safe_angles_backward, v_space_backward, config)
-                actions_backward[:, 1] = actions_backward[:, 1] + np.pi
-                actions_backward[:, 1] = (actions_backward[:, 1] + np.pi) % (2 * np.pi) - np.pi
+                if flip:
+                    actions_backward[:, 1] = actions_backward[:, 1] + np.pi
+                    actions_backward[:, 1] = (actions_backward[:, 1] + np.pi) % (2 * np.pi) - np.pi
             else:
                 actions_backward = np.empty((0, 2))
 
@@ -556,10 +556,9 @@ class BetterEnv(BetterGym):
 
     def get_actions_discrete(self, state: State):
         config = self.gym_env.config
-        max_angle_change = config.max_angle_change * config.dt
         available_angles = np.linspace(
-            start=state.x[2] - max_angle_change,
-            stop=state.x[2] + max_angle_change,
+            start=state.x[2] - config.max_angle_change,
+            stop=state.x[2] + config.max_angle_change,
             num=config.n_angles,
         )
         if (curr_angle := state.x[2]) not in available_angles:
@@ -594,20 +593,6 @@ class BetterEnv(BetterGym):
             np.linspace(start=space[i][0], stop=space[i][1], num=div[i])
             for i in range(len(space))
         ]
-
-    def get_discrete_actions_multi_range(self, aspace, vspace, config):
-        available_angles = self.get_discrete_space(aspace, config.n_angles)
-        available_velocities = self.get_discrete_space(vspace, config.n_vel)
-        actions = np.concatenate(
-            [
-                np.transpose([
-                    np.tile(available_velocities[i], len(available_angles[i])),
-                    np.repeat(available_angles[i], len(available_velocities[i])),
-                ])
-                for i in range(len(aspace))
-            ]
-        )
-        return actions
 
     def set_state_sim(self, state: State) -> None:
         self.gym_env.state = state.copy()

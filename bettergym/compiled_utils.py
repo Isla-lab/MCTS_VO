@@ -3,7 +3,7 @@ import numpy as np
 from numba import jit
 FASTMATH = False
 
-# @jit('f8[:, :](f8[:], f8[:], f8[:, :], f8[:])', nopython=True, cache=True, fastmath=FASTMATH)
+@jit('f8[:, :](f8[:], f8[:], f8[:, :], f8[:])', nopython=True, cache=True, fastmath=FASTMATH)
 def get_tangents(robot_state, obs_r, obstacles, d):
     """
     Calculate the tangent points from the robot to each obstacle.
@@ -35,7 +35,7 @@ def get_tangents(robot_state, obs_r, obstacles, d):
     intersections = np.hstack((new_P1, new_P2))
     return intersections
 
-# @jit('f8[:](f8[:], f8[:], f8, f8, f8, f8)', nopython=True, cache=True, fastmath=FASTMATH)
+@jit('f8[:](f8[:], f8[:], f8, f8, f8, f8)', nopython=True, cache=True, fastmath=FASTMATH)
 def compute_uniform_towards_goal_jit(
         x: np.ndarray,
         goal: np.ndarray,
@@ -57,7 +57,7 @@ def compute_uniform_towards_goal_jit(
 
 
 
-# @jit('f8[:](f8[:], f8[:], f8)', nopython=True, cache=True, fastmath=FASTMATH)
+@jit('f8[:](f8[:], f8[:], f8)', nopython=True, cache=True, fastmath=FASTMATH)
 def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     """
     Computes the new state of the robot given the current state, control inputs, and time step.
@@ -82,8 +82,7 @@ def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     new_x[3] = u[0] # v
     return new_x
 
-# @jit('b1(f8[:], f8[:, :], f8, f8[:])', cache=True, nopython=True, fastmath=FASTMATH)
-# @cc.export('check_coll_compiled', )
+@jit('b1(f8[:], f8[:, :], f8, f8[:])', cache=True, nopython=True, fastmath=FASTMATH)
 def check_coll_vectorized(x, obs, robot_radius, obs_size):
     n = obs.shape[0]
     distances = np.empty(n)
@@ -94,15 +93,23 @@ def check_coll_vectorized(x, obs, robot_radius, obs_size):
     return result
 
 
-# @jit('f8(f8[:], f8[:])', cache=True, nopython=True, fastmath=FASTMATH)
+@jit('f8(f8[:], f8[:])', cache=True, nopython=True, fastmath=FASTMATH)
 # @cc.export('dist_to_goal', 'f8[2](f8[:], f8[:], f8[:])')
 def dist_to_goal(goal: np.ndarray, x: np.ndarray):
     return np.sqrt(np.sum((x-goal)**2))
 
-# @jit('f8[:, :](f8[:], f8[:])', nopython=True, cache=True, fastmath=FASTMATH)
+@jit('f8[:, :](f8[:], f8[:])', nopython=True, cache=True, fastmath=FASTMATH)
 def get_points_from_lidar(dist, angles):
     points = dist[:, None] * np.vstack((np.cos(angles), np.sin(angles))).transpose()
     points_copy = np.empty_like(points)
     points_copy[:, 0] = points[:, 1]
     points_copy[:, 1] = -points[:, 0]
     return np.hstack((points_copy, np.zeros(points.shape[0])[:, None]))
+
+@jit('f8[:](f8, f8, f8, f8)', nopython=True, cache=True, fastmath=FASTMATH)
+def uniform_random(min_speed, max_speed, curr_angle, max_angle_change):
+    speed = np.random.uniform(min_speed, max_speed)
+    angle = np.random.uniform(curr_angle - max_angle_change, curr_angle + max_angle_change)
+    angle = (angle + np.pi) % (2 * np.pi) - np.pi  # Normalize angle to [-π, π]
+    action = np.array([speed, angle], dtype=np.float64)
+    return action

@@ -57,8 +57,11 @@ def plot_frame2(i, goal, config, obs, traj, ax):
     # GOAL POSITION
     ax.plot(goal[0], goal[1], "xb")
     # OBSTACLES
-    for ob in obs[i]:
-        circle = plt.Circle((ob.x[0], ob.x[1]), ob.radius, color="k")
+    obs_x, obs_rad = obs[i]
+    for idx in range(len(obs_x)):
+        ob_x = obs_x[idx]
+        ob_rad = obs_rad[idx]
+        circle = plt.Circle((ob_x[0], ob_x[1]), ob_rad, color="k")
         ax.add_artist(circle)
     # BOX AROUND ROBOT
     plot_robot(x[0], x[1], x[2], config, ax)

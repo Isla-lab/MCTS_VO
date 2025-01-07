@@ -1,26 +1,11 @@
 import math
 
 import numpy as np
-
+from numba import jit
 try:
     from MCTS_VO.bettergym.compiled_utils import get_tangents
 except ModuleNotFoundError:
     from bettergym.compiled_utils import get_tangents
-
-def uniform_random(node, planner):
-    state = node.state
-    config = planner.environment.gym_env.config
-    max_angle_change = config.max_angle_change * config.dt
-    action = np.random.uniform(
-        low=np.array(
-            [config.min_speed, state.x[2] - max_angle_change], dtype=np.float64
-        ),
-        high=np.array(
-            [config.max_speed, state.x[2] + max_angle_change], dtype=np.float64
-        ),
-    )
-    action[1] = (action[1] + math.pi) % (2 * math.pi) - math.pi
-    return action
 
 
 def compute_int_vectorized(r0, r1, d, x0, x1, y0, y1):

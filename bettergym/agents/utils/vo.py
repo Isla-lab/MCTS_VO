@@ -7,11 +7,13 @@ from intervaltree import IntervalTree
 try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
-    from MCTS_VO.mcts_utils import uniform_random, get_intersections_vectorized, angle_distance_vector
+    from MCTS_VO.mcts_utils import get_intersections_vectorized, angle_distance_vector
+    from MCTS_VO.bettergym.compiled_utils import uniform_random
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
-    from mcts_utils import uniform_random, get_intersections_vectorized, angle_distance_vector
+    from mcts_utils import get_intersections_vectorized, angle_distance_vector
+    from bettergym.compiled_utils import uniform_random
     
 # def print_to_file(param):
 #     # with open("OUTPUT.txt", "a") as f:
@@ -284,7 +286,12 @@ def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
 def uniform_random_vo(node, planner):
     config = planner.environment.gym_env.config
     if len(node.state.obstacles) == 0:
-        return uniform_random(node, planner)
+        return uniform_random(
+            min_speed=config.min_speed, 
+            max_speed=config.max_speed, 
+            curr_angle=node.state.x[2],
+            max_angle_change=config.max_angle_change
+        )
 
     # Extract robot information
     x = node.state.x
@@ -315,7 +322,12 @@ def uniform_random_vo(node, planner):
 
     # If there are no intersection points
     if np.isnan(intersection_points).all():
-        return uniform_random(node, planner)
+        return uniform_random(
+            min_speed=config.min_speed, 
+            max_speed=config.max_speed, 
+            curr_angle=node.state.x[2],
+            max_angle_change=config.max_angle_change
+        )
     else:
         angle_space, velocity_space, flip = new_get_spaces([None, circle_obs, None], x, config, intersection_points,  wall_angles=None)
         sample = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]

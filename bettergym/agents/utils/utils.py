@@ -8,12 +8,10 @@ import numpy as np
 
 try:
     from MCTS_VO.bettergym.agents.planner import Planner
-    from MCTS_VO.mcts_utils import uniform_random
-    from MCTS_VO.bettergym.compiled_utils import compute_uniform_towards_goal_jit
+    from MCTS_VO.bettergym.compiled_utils import compute_uniform_towards_goal_jit, uniform_random
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
-    from mcts_utils import uniform_random
-    from bettergym.compiled_utils import compute_uniform_towards_goal_jit
+    from bettergym.compiled_utils import compute_uniform_towards_goal_jit, uniform_random
 
 
 def get_robot_angles(x, max_angle_change):
@@ -68,7 +66,12 @@ def epsilon_normal_uniform(node: Any, planner: Planner, std_angle_rollout: float
             max_speed=config.max_speed,
         )
     else:
-        return uniform_random(node, planner)
+        return uniform_random(
+            min_speed=config.min_speed, 
+            max_speed=config.max_speed, 
+            curr_angle=node.state.x[2],
+            max_angle_change=config.max_angle_change
+        )
 
 
 def epsilon_uniform_uniform(node: Any, planner: Planner, std_angle_rollout: float, eps=0.1):
@@ -84,7 +87,12 @@ def epsilon_uniform_uniform(node: Any, planner: Planner, std_angle_rollout: floa
             max_speed=config.max_speed,
         )
     else:
-        return uniform_random(node, planner)
+        return uniform_random(
+            min_speed=config.min_speed, 
+            max_speed=config.max_speed, 
+            curr_angle=node.state.x[2],
+            max_angle_change=config.max_angle_change
+        )
 
 
 

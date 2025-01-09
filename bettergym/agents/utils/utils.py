@@ -83,12 +83,12 @@ def epsilon_uniform_uniform(node: Any, planner: Planner, std_angle_rollout: floa
             goal=node.state.goal,
             max_angle_change=config.max_angle_change,
             amplitude=std_angle_rollout,
-            min_speed=config.min_speed,
+            min_speed=0.0,
             max_speed=config.max_speed,
         )
     else:
         return uniform_random(
-            min_speed=config.min_speed, 
+            min_speed=0.0, 
             max_speed=config.max_speed, 
             curr_angle=node.state.x[2],
             max_angle_change=config.max_angle_change

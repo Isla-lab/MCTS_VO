@@ -219,13 +219,15 @@ class Env:
         """
         self.state.x = robot_dynamics(self.state.x, action, self.config.dt)
         self.dist_goal_t1 = dist_to_goal(self.state.goal, self.state.x[:2])
-        
-        collision = check_coll_vectorized(
-            x=self.state.x[:2], 
-            obs=self.state.obstacles[0][:, :2], 
-            robot_radius=self.config.robot_radius, 
-            obs_size=self.state.obstacles[1]
-        )
+        if len(self.state.obstacles[0]) != 0:
+            collision = check_coll_vectorized(
+                x=self.state.x[:2], 
+                obs=self.state.obstacles[0][:, :2], 
+                robot_radius=self.config.robot_radius, 
+                obs_size=self.state.obstacles[1]
+            )  
+        else:
+            collision = False
         robot_collision = collision and action[0] != 0
         goal = self.dist_goal_t1 <= self.config.robot_radius
         out_boundaries = False
@@ -358,11 +360,11 @@ class Env:
         self.step_idx += 1
         return self.step_check_coll(action)
 
-    def step_sim_check_coll(self, action: np.ndarray):
-        return self.step_check_coll(action)
+    # def step_sim_check_coll(self, action: np.ndarray):
+    #     return self.step_check_coll(action)
 
-    def step_sim_no_check_coll(self, action: np.ndarray):
-        return self.step_no_check_coll(action)
+    # def step_sim_no_check_coll(self, action: np.ndarray):
+    #     return self.step_no_check_coll(action)
 
     def add_walls(self, state: State):
         walls = [
@@ -424,9 +426,9 @@ class BetterEnv(BetterGym):
 
         if sim_env:
             if collision_rwrd:
-                self.gym_env.step = self.gym_env.step_sim_check_coll
+                self.gym_env.step = self.gym_env.step_check_coll
             else:
-                self.gym_env.step = self.gym_env.step_sim_no_check_coll
+                self.gym_env.step = self.gym_env.step_no_check_coll
             self.set_state = self.set_state_sim
         else:
             self.gym_env.step = self.gym_env.step_real

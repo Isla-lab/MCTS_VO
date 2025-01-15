@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
@@ -106,6 +107,7 @@ class Mcts(Planner):
             computational_budget: int,
             rollout_policy: Callable,
             discount: float = 1.0,
+            logger=None,
     ):
         super().__init__(environment)
         self.num_sim: int = num_sim
@@ -121,6 +123,7 @@ class Mcts(Planner):
         self.state_actions = None
         self.last_id = None
         self.info = None
+        self.logger = logger
 
     def initialize_variables(self):
         self.id_to_state_node: dict[int, StateNode] = {}
@@ -139,17 +142,24 @@ class Mcts(Planner):
         return self.last_id
 
     def plan(self, initial_state: Any):
+        initial_time = time.time()
+
         self.initialize_variables()
         root_id = self.get_id()
         root_node = StateNode(self.environment, initial_state, root_id)
         # self.plot_robot(initial_state)
 
         self.id_to_state_node[root_id] = root_node
-        for sn in range(self.num_sim):
+        simulate = True
+        while simulate:
+            sim_time = time.time()
             self.info["trajectories"].append(np.array([initial_state.x]))
             # root should be at depth 0
             total_reward = self.simulate(state_id=root_id, depth=0)
             self.info["rollout_values"].append(total_reward)
+            final_time = time.time() - initial_time
+            # self.logger.info(f"Sim Time: {time.time() - sim_time}")
+            simulate = final_time < 0.28
 
         q_vals = np.divide(
             root_node.a_values,

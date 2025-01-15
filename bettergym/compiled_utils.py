@@ -99,11 +99,12 @@ def dist_to_goal(goal: np.ndarray, x: np.ndarray):
     return np.sqrt(np.sum((x-goal)**2))
 
 @jit('f8[:, :](f4[:], f8[:], f8[:])', nopython=True, cache=True, fastmath=FASTMATH)
-def get_points_from_lidar(dist, angles, robot_position):
+def get_points_from_lidar(dist, angles, robot_pos):
     points = dist[:, None] * np.vstack((np.cos(angles), np.sin(angles))).transpose()
     points_copy = np.empty_like(points)
-    points_copy[:, 0] = points[:, 1]
-    points_copy[:, 1] = -points[:, 0]
+    points_copy[:, 0] = -points[:, 0]
+    points_copy[:, 1] = points[:, 1]
+    points_copy = robot_pos + points_copy
     return np.hstack((points_copy, np.zeros(points.shape[0])[:, None]))
 
 @jit('f8[:](f8, f8, f8, f8)', nopython=True, cache=True, fastmath=FASTMATH)

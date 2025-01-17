@@ -151,6 +151,7 @@ class Mcts(Planner):
 
         self.id_to_state_node[root_id] = root_node
         simulate = True
+        sn = 1
         while simulate:
             sim_time = time.time()
             self.info["trajectories"].append(np.array([initial_state.x]))
@@ -159,6 +160,8 @@ class Mcts(Planner):
             self.info["rollout_values"].append(total_reward)
             final_time = time.time() - initial_time
             # self.logger.info(f"Sim Time: {time.time() - sim_time}")
+            sn += 1
+            # simulate = final_time < 0.28 and sn < self.num_sim
             simulate = final_time < 0.28
 
         q_vals = np.divide(

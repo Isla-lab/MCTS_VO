@@ -440,32 +440,6 @@ class BetterEnv(BetterGym):
         else:
             self.gym_env.move_humans = self.gym_env.move_humans_nofixed
 
-    def get_actions_discrete(self, state: State):
-        config = self.gym_env.config
-        available_angles = np.linspace(
-            start=state.x[2] - config.max_angle_change,
-            stop=state.x[2] + config.max_angle_change,
-            num=config.n_angles,
-        )
-        if (curr_angle := state.x[2]) not in available_angles:
-            available_angles = np.append(available_angles, curr_angle)
-        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
-        available_velocities = np.linspace(
-            start=config.min_speed, 
-            stop=config.max_speed, 
-            num=config.n_vel
-        )
-        if 0.0 not in available_velocities:
-            available_velocities = np.append(available_velocities, 0.0)
-
-        actions = np.transpose(
-            [
-                np.tile(available_velocities, len(available_angles)),
-                np.repeat(available_angles, len(available_velocities)),
-            ]
-        )
-        return actions
-
     def get_discrete_space(self, space, n_sample):
         range_sizes = np.linalg.norm(space, axis=1)
         # ensure that the range sizes are not zero

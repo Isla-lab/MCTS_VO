@@ -1,7 +1,6 @@
 import math
 
 import numpy as np
-from numba import jit
 try:
     from MCTS_VO.bettergym.compiled_utils import get_tangents
 except ModuleNotFoundError:
@@ -108,7 +107,7 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     no_intersection = d > 1.6*(r0 + r1)
 
     # One circle within the other
-    one_within_other = d < r0 + r1
+    one_within_other = d < np.max((r0, r1), axis=0)
 
     # Coincident circles
     coincident = d == 0

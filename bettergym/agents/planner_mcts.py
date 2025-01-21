@@ -141,7 +141,7 @@ class Mcts(Planner):
         self.last_id += 1
         return self.last_id
 
-    def plan(self, initial_state: Any):
+    def plan(self, initial_state: Any, available_time: float):
         initial_time = time.time()
 
         self.initialize_variables()
@@ -161,8 +161,7 @@ class Mcts(Planner):
             final_time = time.time() - initial_time
             # self.logger.info(f"Sim Time: {time.time() - sim_time}")
             sn += 1
-            # simulate = final_time < 0.28 and sn < self.num_sim
-            simulate = final_time < 0.28
+            simulate = final_time < available_time
 
         q_vals = np.divide(
             root_node.a_values,

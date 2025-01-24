@@ -48,7 +48,7 @@ def plot_frame(i, goal, config, obs, traj, ax):
     # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")
 
 
-def plot_frame2(i, goal, config, obs, traj, ax):
+def plot_frame2(i, goal, config, obs, traj, ax, gt_obs, points_list):
     x = traj[i, :]
     # ob = config.ob
     ax.clear()
@@ -63,6 +63,16 @@ def plot_frame2(i, goal, config, obs, traj, ax):
         ob_rad = obs_rad[idx]
         circle = plt.Circle((ob_x[0], ob_x[1]), ob_rad, color="k")
         ax.add_artist(circle)
+    
+    for idx in range(len(gt_obs[0])):
+        ob_x = gt_obs[0][idx]
+        ob_rad = gt_obs[1][idx]
+        circle = plt.Circle((ob_x[0], ob_x[1]), ob_rad, color="r", linestyle='dashed')
+        ax.add_artist(circle)
+        
+    for point in points_list[i]:
+        ax.plot(point[0], point[1], 'go', label='Point')
+        
     # BOX AROUND ROBOT
     plot_robot(x[0], x[1], x[2], config, ax)
     # TRAJECTORY
@@ -70,9 +80,9 @@ def plot_frame2(i, goal, config, obs, traj, ax):
     ax.plot(sub_traj[:, 0], sub_traj[:, 1], "--r")
 
     # ax.plot([70, 70], [100, 250], 'k-', lw=2)
-
-    ax.set_xlim([config.left_limit - 0.5, config.right_limit + 0.5])
-    ax.set_ylim([config.bottom_limit - 0.5, config.upper_limit + 0.5])
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_xlim([-4, 2])
+    ax.set_ylim([-4, 2])
     # ax.axis("equal")
     # ax.grid(True)
     # plt.savefig(f"debug/{i}.png", dpi=500, facecolor="white", edgecolor="none")

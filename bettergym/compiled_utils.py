@@ -98,12 +98,19 @@ def check_coll_vectorized(x, obs, robot_radius, obs_size):
 def dist_to_goal(goal: np.ndarray, x: np.ndarray):
     return np.sqrt(np.sum((x-goal)**2))
 
+# @jit('f8[:, :](f4[:], f8[:], f8[:], f8)', nopython=True, cache=True, fastmath=FASTMATH)
+# def get_points_from_lidar(dist, angles, robot_pos, heading):
+#     angles = angles + heading
+#     angles = (angles + np.pi) % (2 * np.pi) - np.pi
+#     points = dist[:, None] * np.vstack((np.cos(angles), np.sin(angles))).transpose()
+#     return robot_pos + points
+
 @jit('f8[:, :](f4[:], f8[:], f8[:], f8)', nopython=True, cache=True, fastmath=FASTMATH)
 def get_points_from_lidar(dist, angles, robot_pos, heading):
-    angles = angles + heading
-    angles = (angles + np.pi) % (2 * np.pi) - np.pi
+    # angles = angles
+    # angles = (angles + np.pi) % (2 * np.pi) - np.pi
     points = dist[:, None] * np.vstack((np.cos(angles), np.sin(angles))).transpose()
-    return robot_pos + points
+    return points
 
 @jit('f8[:](f8, f8, f8, f8)', nopython=True, cache=True, fastmath=FASTMATH)
 def uniform_random(min_speed, max_speed, curr_angle, max_angle_change):

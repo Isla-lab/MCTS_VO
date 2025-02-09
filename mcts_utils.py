@@ -115,7 +115,12 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     intersecting = np.logical_not(np.logical_or.reduce((no_intersection, one_within_other, coincident)))
     # Compute intersection points
     if np.any(intersecting):
-        intersection_points = get_tangents(x, r0[intersecting]+r1[intersecting], obs_x[intersecting], d[intersecting])
+        intersection_points = get_tangents(
+            robot_state=x, 
+            obs_r=r0[intersecting]+r1[intersecting],
+            obstacles=obs_x[intersecting],
+            d=d[intersecting]
+        )
     else:
         intersection_points = None
 

@@ -174,7 +174,8 @@ class Mcts(Planner):
         self.info["q_values"] = q_vals
         self.info["actions"] = root_node.actions
         self.info["visits"] = root_node.num_visits_actions
-
+        self.info["simulations"] = sn
+        
         # randomly choose between actions which have the maximum q value
         action_idx = np.random.choice(np.flatnonzero(q_vals == np.max(q_vals)))
         action = root_node.actions[action_idx].action

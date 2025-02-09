@@ -490,7 +490,13 @@ class BetterEnv(BetterGym):
 
         if len(circle_obs_x) != 0:
             # Calculate radii
-            r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX)
+            r1, r0 = get_radii(
+                circle_obs_x=circle_obs_x,
+                circle_obs_rad=circle_obs_rad,
+                dt=dt,
+                robot_radius=ROBOT_RADIUS,
+                vmax=VMAX
+            )
 
             # Calculate intersection points
             intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)

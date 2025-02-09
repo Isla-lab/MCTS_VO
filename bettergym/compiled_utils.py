@@ -49,8 +49,8 @@ def compute_uniform_towards_goal_jit(
     # Make sure angle is within range of -π to π
     min_angle = x[2] - max_angle_change
     max_angle = x[2] + max_angle_change
-    angle = np.random.uniform(low=mean_angle - amplitude, high=mean_angle + amplitude)
-
+    # angle = np.random.uniform(low=mean_angle - amplitude, high=mean_angle + amplitude)
+    angle = mean_angle
     angle = max(min(angle, max_angle), min_angle)
     angle = (angle + math.pi) % (2 * math.pi) - math.pi
     return np.array([linear_velocity, angle])
@@ -82,6 +82,25 @@ def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     new_x[3] = u[0] # v
     return new_x
 
+# @jit('f8[:](f8[:], f8[:], f8)', nopython=True, cache=True, fastmath=FASTMATH)
+# def robot_dynamics(state_x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
+#     """
+#     Computes the new state of the robot given the current state, control inputs, and time step.
+#     Parameters:
+#     x (np.ndarray): The current state of the robot, represented as a numpy array.
+#     u (np.ndarray): The control inputs, represented as a numpy array.
+#     dt (float): The time step for the motion prediction.
+#     Returns:
+#     np.ndarray: The new state of the robot after applying the control inputs for the given time step.
+#     """
+#     x, y, theta, v = state_x
+#     new_x = np.empty(state_x.shape[0], dtype=np.float64)
+#     new_x[0] = x + (u[0] * np.cos(u[1])) * dt
+#     new_x[1] = y + (u[0] * np.sin(u[1])) * dt
+#     new_x[2] = u[1]
+#     new_x[3] = u[0] # v
+#     return new_x
+
 @jit('b1(f8[:], f8[:, :], f8, f8[:])', cache=True, nopython=True, fastmath=FASTMATH)
 def check_coll_vectorized(x, obs, robot_radius, obs_size):
     n = obs.shape[0]
@@ -89,7 +108,7 @@ def check_coll_vectorized(x, obs, robot_radius, obs_size):
     for i in range(n):
         distances[i] = np.sqrt(np.sum((obs[i] - x)**2))
     
-    result = np.any(distances <= robot_radius + obs_size)
+    result = np.any(distances <= robot_radius)
     return result
 
 
@@ -107,9 +126,10 @@ def dist_to_goal(goal: np.ndarray, x: np.ndarray):
 
 @jit('f8[:, :](f4[:], f8[:], f8[:], f8)', nopython=True, cache=True, fastmath=FASTMATH)
 def get_points_from_lidar(dist, angles, robot_pos, heading):
-    # angles = angles
-    # angles = (angles + np.pi) % (2 * np.pi) - np.pi
+    angles = angles + heading
+    angles = (angles + np.pi) % (2 * np.pi) - np.pi
     points = dist[:, None] * np.vstack((np.cos(angles), np.sin(angles))).transpose()
+    points = points + robot_pos
     return points
 
 @jit('f8[:](f8, f8, f8, f8)', nopython=True, cache=True, fastmath=FASTMATH)
@@ -119,3 +139,14 @@ def uniform_random(min_speed, max_speed, curr_angle, max_angle_change):
     angle = (angle + np.pi) % (2 * np.pi) - np.pi  # Normalize angle to [-π, π]
     action = np.array([speed, angle], dtype=np.float64)
     return action
+
+@jit('f8[:, :](f8[:], f8[:, :], f8)', nopython=True, cache=True, fastmath=FASTMATH)
+def predict_obstacles(robot_position, obstacles, dt):
+    v = obstacles[:, 3]
+    angle = np.arctan2(obstacles[:, 1] - robot_position[1], obstacles[:, 0] - robot_position[0])
+    new_obstacles = np.empty_like(obstacles)
+    new_obstacles[:, 0] = obstacles[:, 0] + v * np.cos(angle) * dt
+    new_obstacles[:, 1] = obstacles[:, 1] + v * np.sin(angle) * dt
+    new_obstacles[:, 2] = obstacles[:, 2]
+    new_obstacles[:, 3] = obstacles[:, 3]
+    return new_obstacles

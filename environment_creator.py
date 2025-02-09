@@ -21,7 +21,7 @@ def create_pedestrian_env(
         n_angles=n_angles, 
         n_vel=n_vel, 
         num_humans=n_obs,
-        robot_radius=0.105,
+        robot_radius=0.15,
         max_speed=0.22
     )
 

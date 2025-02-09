@@ -21,7 +21,7 @@ except ModuleNotFoundError:
 #     pass
 
 def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax):
-    r1 = circle_obs_x[:, 3] * dt + circle_obs_rad + robot_radius
+    r1 = circle_obs_x[:, 3] * (dt+0.1) + circle_obs_rad + robot_radius
     r0 = np.full_like(r1, vmax * dt)
     return r1, r0
 
@@ -46,17 +46,8 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     VMAX = config.max_speed
 
     # Extract obstacle information
-    obstacles = node.state.obstacles
-    # obs_x, obs_rad
-    circle_obs = [[], []]
+    circle_obs_x, circle_obs_rad = node.state.obstacles
     intersection_points = np.empty((0, 4), dtype=np.float64)
-    for ob in obstacles:
-        circle_obs[0].append(ob.x)
-        circle_obs[1].append(ob.radius)
-
-    # CIRCULAR OBSTACLES
-    circle_obs_x = np.array(circle_obs[0])
-    circle_obs_rad = np.array(circle_obs[1])
 
     if len(circle_obs_x) != 0:
         # Calculate radii
@@ -79,26 +70,37 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
     # CASE 3 only obs intersection
     # CASE 4 both wall and obs intersection
     else:
-        angle_space, velocity_space, flip = new_get_spaces([None, circle_obs, None], x, config, intersection_points, wall_angles=None)
+        angle_space, velocity_space, flip = new_get_spaces([None, (circle_obs_x, circle_obs_rad), None], x, config, intersection_points, wall_angles=None)
         mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
-        angle_space = np.array(angle_space)
-        angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
-        if flip:
-            angles_copy = (angles + math.pi + math.pi) % (2 * math.pi) - math.pi
-            in_range = (angle_space[:, 0] <= angles_copy[:, np.newaxis]) & (angle_space[:, 1] >= angles_copy[:, np.newaxis])
+        in_space = False
+        for a_space in angle_space:
+            if a_space[0] <= mean_angle <= a_space[1]:
+                in_space = True
+                break
+        
+        if not in_space:
+            angle_space = np.array(angle_space)
+            angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
+            if flip:
+                angles_copy = (angles + math.pi + math.pi) % (2 * math.pi) - math.pi
+                in_range = (angle_space[:, 0] <= angles_copy[:, np.newaxis]) & (angle_space[:, 1] >= angles_copy[:, np.newaxis])
+            else:
+                in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
+            if not np.any(in_range):
+                action = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+                if action[0] < 0 and flip:
+                    action[1] = action[1] + math.pi
+                    action[1] = (action[1] + math.pi) % (2 * math.pi) - math.pi
+                return action
+            else:
+                idx_angles, idx_ranges = np.where(in_range)
+                idx = random.randint(0, len(idx_angles) - 1)
+                angle = angles[idx_angles[idx]]
+                velocity = np.random.uniform(low=velocity_space[idx_ranges[idx]][0], high=velocity_space[idx_ranges[idx]][1])
         else:
-            in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
-        if not np.any(in_range):
-            action = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
-            if action[0] < 0 and flip:
-                action[1] = action[1] + math.pi
-                action[1] = (action[1] + math.pi) % (2 * math.pi) - math.pi
-            return action
-        else:
-            idx_angles, idx_ranges = np.where(in_range)
-            idx = random.randint(0, len(idx_angles) - 1)
-            angle = angles[idx_angles[idx]]
-            velocity = np.random.uniform(low=velocity_space[idx_ranges[idx]][0], high=velocity_space[idx_ranges[idx]][1])
+            velocity = np.random.uniform(low=velocity_space[0][0], high=velocity_space[0][1])
+            angle = mean_angle
+            
         return [velocity, angle]
 
 
@@ -244,7 +246,13 @@ def vo_negative_speed(obstacles, x, config):
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1, r0 = get_radii(circle_obs_x, circle_obs_rad, config.dt, ROBOT_RADIUS, VELOCITY)
+        r1, r0 = get_radii(
+                circle_obs_x=circle_obs_x,
+                circle_obs_rad=circle_obs_rad,
+                dt=config.dt,
+                robot_radius=ROBOT_RADIUS,
+                vmax=VELOCITY
+            )
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
     
 
@@ -262,6 +270,7 @@ def vo_negative_speed(obstacles, x, config):
 
 def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
     safe_angles, robot_span = compute_safe_angle_space(intersection_points, config.max_angle_change, x, wall_angles)
+    flip = False
     if safe_angles is None:
         safe_angles, flip = vo_negative_speed(obstacles, x, config)
         if safe_angles is None:
@@ -300,17 +309,9 @@ def uniform_random_vo(node, planner):
     VMAX = 0.3
 
     # Extract obstacle information
-    obstacles = node.state.obstacles
-    # obs_x, obs_rad
-    circle_obs = [[], []]
     intersection_points = np.empty((0, 4), dtype=np.float64)
-    for ob in obstacles:
-        circle_obs[0].append(ob.x)
-        circle_obs[1].append(ob.radius)
+    circle_obs_x, circle_obs_rad = node.state.obstacles
 
-    # CIRCULAR OBSTACLES
-    circle_obs_x = np.array(circle_obs[0])
-    circle_obs_rad = np.array(circle_obs[1])
 
     if len(circle_obs_x) != 0:
         # Calculate radii
@@ -329,7 +330,7 @@ def uniform_random_vo(node, planner):
             max_angle_change=config.max_angle_change
         )
     else:
-        angle_space, velocity_space, flip = new_get_spaces([None, circle_obs, None], x, config, intersection_points,  wall_angles=None)
+        angle_space, velocity_space, flip = new_get_spaces([None, (circle_obs_x, circle_obs_rad), None], x, config, intersection_points,  wall_angles=None)
         sample = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
         if flip:
             sample[1] = sample[1] + np.pi
@@ -341,8 +342,6 @@ def uniform_random_vo(node, planner):
 def epsilon_uniform_uniform_vo(
         node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
 ):
-    # print(settings.FLAG)
-    # planner.c.obstacles = [o.x for o in node.state.obstacles]
     prob = random.random()
     if prob <= 1 - eps:
         return uniform_towards_goal_vo(node, planner, std_angle_rollout)

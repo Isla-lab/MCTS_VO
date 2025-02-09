@@ -64,11 +64,11 @@ def plot_frame2(i, goal, config, obs, traj, ax, gt_obs, points_list):
         circle = plt.Circle((ob_x[0], ob_x[1]), ob_rad, color="k")
         ax.add_artist(circle)
     
-    for idx in range(len(gt_obs[0])):
-        ob_x = gt_obs[0][idx]
-        ob_rad = gt_obs[1][idx]
-        circle = plt.Circle((ob_x[0], ob_x[1]), ob_rad, color="r", linestyle='dashed')
-        ax.add_artist(circle)
+    # for idx in range(len(gt_obs[0])):
+    #     ob_x = gt_obs[0][idx]
+    #     ob_rad = gt_obs[1][idx]
+    #     circle = plt.Circle((ob_x[0], ob_x[1]), ob_rad, color="r", linestyle='dashed')
+    #     ax.add_artist(circle)
         
     for point in points_list[i]:
         ax.plot(point[0], point[1], 'go', label='Point')
@@ -236,7 +236,7 @@ def create_animation_tree_trajectory(
         save_count=None,
         cache_frame_data=False,
     )
-    ani.save(f"./debug/tree_trajectory_{exp_name}_{exp_num}.mp4", fps=5, dpi=300)
+    ani.save(f"./debug/rollout_{exp_name}.mp4", dpi=300)
     plt.close(fig)
 
 

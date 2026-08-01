@@ -84,8 +84,20 @@ class Mcts(Planner):
             "actions": [],
             "visits": [],
             "rollout_values": [],
-            "max_depth": 0,
         }
+        # Depth statistics. These are plain int attributes rather than entries of
+        # self.info: they are updated only where the tree actually grows (node
+        # creation) and at the end of a rollout, never inside simulate()'s per
+        # visit path, so they cost a single integer comparison on events that are
+        # orders of magnitude rarer than node visits.
+        # - max_tree_depth: depth of the deepest node of the search tree
+        #   (the root is at depth 0)
+        # - max_rollout_depth: length in steps of the longest rollout
+        # - max_total_depth: deepest state ever reached, i.e. the depth at which
+        #   a rollout started plus its length
+        self.max_tree_depth = 0
+        self.max_rollout_depth = 0
+        self.max_total_depth = 0
 
     def get_id(self):
         self.last_id += 1
@@ -123,6 +135,9 @@ class Mcts(Planner):
         self.info["actions"] = root_node.actions
         self.info["visits"] = root_node.num_visits_actions
         self.info["simulations"] = sn
+        self.info["max_tree_depth"] = self.max_tree_depth
+        self.info["max_rollout_depth"] = self.max_rollout_depth
+        self.info["max_total_depth"] = self.max_total_depth
         
         # randomly choose between actions which have the maximum q value
         action_idx = np.random.choice(np.flatnonzero(q_vals == np.max(q_vals)))
@@ -130,7 +145,6 @@ class Mcts(Planner):
         return action, self.info
 
     def simulate(self, state_id: int, depth: int):
-        # self.info["max_depth"] = max(depth, self.info["max_depth"])
         node = self.id_to_state_node[state_id]
         node.num_visits += 1
         current_state = node.state
@@ -178,6 +192,12 @@ class Mcts(Planner):
                 and not terminal
         ):
             # Leaf Node
+            # The tree grows exactly here, so the deepest node is tracked at node
+            # creation instead of at every visit: this runs once per new node,
+            # next to a StateNode construction that already enumerates actions
+            # and allocates two arrays.
+            if depth + 1 > self.max_tree_depth:
+                self.max_tree_depth = depth + 1
             state_id = self.get_id()
             # Initialize State Data
             node = StateNode(self.environment, current_state, state_id)
@@ -215,6 +235,14 @@ class Mcts(Planner):
             total_reward += r * pow(self.discount, starting_depth)
             trajectory.append(current_state.x)  # store state history
             starting_depth += 1
+
+        # starting_depth is already maintained by the loop above, so the rollout
+        # length costs nothing extra: it is only read here, once per rollout.
+        if starting_depth > self.max_rollout_depth:
+            self.max_rollout_depth = starting_depth
+        total_depth = curr_depth + starting_depth
+        if total_depth > self.max_total_depth:
+            self.max_total_depth = total_depth
 
         self.info["trajectories"][-1] = np.vstack(
             (self.info["trajectories"][-1], np.array(trajectory))

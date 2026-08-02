@@ -101,7 +101,7 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
             velocity = np.random.uniform(low=velocity_space[0][0], high=velocity_space[0][1])
             angle = mean_angle
             
-        return [velocity, angle]
+        return np.array([velocity, angle])
 
 
 def sample_multiple_spaces(center, a_space, number, v_space):

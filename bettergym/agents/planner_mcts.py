@@ -65,6 +65,7 @@ class Mcts(Planner):
             logger=None,
             rollout_eps: float = None,
             rollout_collision_check: bool = True,
+            collect_trajectories: bool = False,
     ):
         super().__init__(environment)
         self.num_sim: int = num_sim
@@ -79,6 +80,11 @@ class Mcts(Planner):
         # and if it is not given, the compiled path is simply not used.
         self.rollout_eps = rollout_eps
         self.rollout_collision_check = rollout_collision_check
+        # Recording every simulated state is only useful for the tree animation
+        # in debug_utils, and it is not cheap: see initialize_variables. Off by
+        # default, and it also forces the Python rollout, which is what produces
+        # the per-step trajectory in the first place.
+        self.collect_trajectories = collect_trajectories
 
         self.id_to_state_node = None
         self.num_visits_actions = None
@@ -91,6 +97,13 @@ class Mcts(Planner):
     def initialize_variables(self):
         self.id_to_state_node: dict[int, StateNode] = {}
         self.last_id = -1
+        # "trajectories" and "rollout_values" are only read by
+        # create_tree_animation in debug_utils. Maintaining them is not free:
+        # the trajectory of the current simulation is rebuilt with np.vstack on
+        # a growing array at every simulate() visit and again at the end of
+        # every rollout, which is O(depth^2) copying in the hot path and grows
+        # without bound over a 350 step episode. Gated on collect_trajectories;
+        # the lists stay present so consumers can tell empty from absent.
         self.info = {
             "trajectories": [],
             "q_values": [],
@@ -128,10 +141,12 @@ class Mcts(Planner):
         sn = 1
         while simulate:
             sim_time = time.time()
-            self.info["trajectories"].append(np.array([initial_state.x]))
+            if self.collect_trajectories:
+                self.info["trajectories"].append(np.array([initial_state.x]))
             # root should be at depth 0
             total_reward = self.simulate(state_id=root_id, depth=0)
-            self.info["rollout_values"].append(total_reward)
+            if self.collect_trajectories:
+                self.info["rollout_values"].append(total_reward)
             final_time = time.time() - initial_time
             # self.logger.info(f"Sim Time: {time.time() - sim_time}")
             sn += 1
@@ -191,12 +206,13 @@ class Mcts(Planner):
 
         current_state, r, terminal, _, _ = self.environment.step(current_state, action)
         new_state_id = action_node.state_to_id.get(current_state, None)
-        self.info["trajectories"][-1] = np.vstack(
-            (
-                self.info["trajectories"][-1],
-                current_state.x,
+        if self.collect_trajectories:
+            self.info["trajectories"][-1] = np.vstack(
+                (
+                    self.info["trajectories"][-1],
+                    current_state.x,
+                )
             )
-        )
 
         prev_node = node
         if (
@@ -243,13 +259,13 @@ class Mcts(Planner):
         whenever the eps of the rollout policy was declared - and to the Python
         implementation otherwise. `rollout_python` is kept as the readable
         reference the compiled version is checked against, and as the path that
-        still records the per-step trajectory.
+        records the per-step trajectory - so asking for trajectories forces it.
 
         The two agree distributionally rather than bit for bit: the Python
         version draws its epsilon coin from Python's `random` and its speeds
         from numba's generator, while the fused one draws both from numba's.
         """
-        if self.rollout_eps is None:
+        if self.rollout_eps is None or self.collect_trajectories:
             return self.rollout_python(current_state, curr_depth)
 
         depth = self.computational_budget - curr_depth
@@ -300,7 +316,8 @@ class Mcts(Planner):
                 current_state, chosen_action
             )
             total_reward += r * pow(self.discount, starting_depth)
-            trajectory.append(current_state.x)  # store state history
+            if self.collect_trajectories:
+                trajectory.append(current_state.x)  # store state history
             starting_depth += 1
 
         # starting_depth is already maintained by the loop above, so the rollout
@@ -311,7 +328,8 @@ class Mcts(Planner):
         if total_depth > self.max_total_depth:
             self.max_total_depth = total_depth
 
-        self.info["trajectories"][-1] = np.vstack(
-            (self.info["trajectories"][-1], np.array(trajectory))
-        )
+        if self.collect_trajectories:
+            self.info["trajectories"][-1] = np.vstack(
+                (self.info["trajectories"][-1], np.array(trajectory))
+            )
         return total_reward

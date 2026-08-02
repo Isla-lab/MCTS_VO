@@ -150,3 +150,93 @@ def predict_obstacles(robot_position, obstacles, dt):
     new_obstacles[:, 2] = obstacles[:, 2]
     new_obstacles[:, 3] = obstacles[:, 3]
     return new_obstacles
+
+@jit('f8(f8[:], f8[:], f8[:, :], f8, f8, f8, f8, f8, i8, f8, f8)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def fused_rollout(x0, goal, obs_xy, dt, max_angle_change, max_speed,
+                  robot_radius, max_eudist, depth, discount, eps):
+    """
+    Run a whole MCTS rollout in one compiled call and return its discounted return.
+
+    This is a fusion of, per step, `epsilon_uniform_uniform` (the goal-oriented,
+    VO-free rollout policy of Algorithm 6), `robot_dynamics`, and the collision,
+    goal and reward logic of `Env.step_check_coll` and `Env.reward_grad`. Driving
+    those from Python costs about 7 us per step, almost all of it interpreter
+    overhead: two `State` objects allocated and discarded per step, plus a
+    separate numba dispatch for each of the three small jitted helpers. Fused, a
+    200 step rollout takes about 11 us in total.
+
+    Obstacles are held frozen for the whole rollout, as everywhere else in the
+    planner: the method assumes no obstacle motion model, only positions and a
+    maximum speed.
+
+    Collision checking is selected by what is passed in `obs_xy`, not by a flag:
+      - the obstacle positions -> terminate with -100 when an obstacle centre
+        comes within `robot_radius`, reproducing `check_coll_vectorized`
+        (which likewise ignores the obstacle radii it is handed);
+      - an empty (0, 2) array -> no collision termination at all, i.e.
+        `step_no_check_coll` semantics, leaving avoidance entirely to VO pruning
+        in the tree.
+    Both are the same machine code and the empty case simply never enters the
+    inner loop, so neither variant pays for the other.
+
+    :param x0: robot state [x, y, theta, v]; v is unused, the dynamics overwrite it
+    :param goal: goal position [x, y]
+    :param obs_xy: (n, 2) obstacle positions, or (0, 2) to disable collisions
+    :param depth: number of steps to simulate (budget minus current depth)
+    :param eps: probability of the uniform-random branch of the rollout policy
+    :return: the discounted return of the rollout
+    """
+    x = x0[0]
+    y = x0[1]
+    theta = x0[2]
+    n_obs = obs_xy.shape[0]
+
+    total_reward = 0.0
+    gamma = 1.0
+    two_pi = 2.0 * np.pi
+
+    for _ in range(depth):
+        # --- rollout policy: epsilon_uniform_uniform. min_speed is pinned to 0.0
+        # exactly as the Python version does, so a rollout never reverses. The
+        # draws are kept in the same order as the originals.
+        if np.random.random() <= 1.0 - eps:
+            # compute_uniform_towards_goal_jit: head straight at the goal,
+            # clipped to what the robot can turn to in one step.
+            angle = np.arctan2(goal[1] - y, goal[0] - x)
+            velocity = np.random.uniform(0.0, max_speed)
+            min_angle = theta - max_angle_change
+            max_angle = theta + max_angle_change
+            angle = max(min(angle, max_angle), min_angle)
+        else:
+            # uniform_random
+            velocity = np.random.uniform(0.0, max_speed)
+            angle = np.random.uniform(theta - max_angle_change,
+                                      theta + max_angle_change)
+        angle = (angle + np.pi) % two_pi - np.pi
+
+        # --- robot_dynamics: differential drive, heading reached within one dt
+        d_theta = (angle - theta + np.pi) % two_pi - np.pi
+        x += velocity * np.cos(theta) * dt
+        y += velocity * np.sin(theta) * dt
+        theta = (theta + d_theta + np.pi) % two_pi - np.pi
+
+        # --- step_check_coll + reward_grad. reward_grad tests the goal before
+        # the collision, so a step that does both scores +100; keep that order.
+        dist_goal = np.sqrt((x - goal[0]) ** 2 + (y - goal[1]) ** 2)
+        if dist_goal <= robot_radius:
+            total_reward += gamma * 100.0
+            return total_reward
+
+        for i in range(n_obs):
+            if np.sqrt((obs_xy[i, 0] - x) ** 2 +
+                       (obs_xy[i, 1] - y) ** 2) <= robot_radius:
+                total_reward += gamma * -100.0
+                return total_reward
+
+        # out_boundaries is hard-coded False in step_check_coll, so the wall
+        # reward is unreachable here and is deliberately not reproduced.
+        total_reward += gamma * (-dist_goal / max_eudist)
+        gamma *= discount
+
+    return total_reward

@@ -4,14 +4,19 @@ import time
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.better_gym import BetterGym
+    from MCTS_VO.bettergym.compiled_utils import fused_rollout
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.better_gym import BetterGym
+    from bettergym.compiled_utils import fused_rollout
+
+# Passed to fused_rollout to switch collision checking off: it loops over the
+# obstacles it is given, so an empty set is step_no_check_coll semantics.
+_NO_OBSTACLES = np.empty((0, 2), dtype=np.float64)
 
 class ActionNode:
     def __init__(self, action: Any):
@@ -58,6 +63,8 @@ class Mcts(Planner):
             rollout_policy: Callable,
             discount: float = 1.0,
             logger=None,
+            rollout_eps: float = None,
+            rollout_collision_check: bool = True,
     ):
         super().__init__(environment)
         self.num_sim: int = num_sim
@@ -66,6 +73,12 @@ class Mcts(Planner):
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
         self.rollout_policy = rollout_policy
+        # `fused_rollout` inlines the epsilon_uniform_uniform policy, so it needs
+        # the same eps that rollout_policy was built with. Passing it explicitly
+        # rather than digging it out of the partial keeps the two in one place -
+        # and if it is not given, the compiled path is simply not used.
+        self.rollout_eps = rollout_eps
+        self.rollout_collision_check = rollout_collision_check
 
         self.id_to_state_node = None
         self.num_visits_actions = None
@@ -223,6 +236,60 @@ class Mcts(Planner):
                 return total_rwrd
 
     def rollout(self, current_state, curr_depth) -> Union[int, float]:
+        """
+        Roll out to the computational budget and return the discounted return.
+
+        Dispatches to the compiled `fused_rollout` when it can - which is
+        whenever the eps of the rollout policy was declared - and to the Python
+        implementation otherwise. `rollout_python` is kept as the readable
+        reference the compiled version is checked against, and as the path that
+        still records the per-step trajectory.
+
+        The two agree distributionally rather than bit for bit: the Python
+        version draws its epsilon coin from Python's `random` and its speeds
+        from numba's generator, while the fused one draws both from numba's.
+        """
+        if self.rollout_eps is None:
+            return self.rollout_python(current_state, curr_depth)
+
+        depth = self.computational_budget - curr_depth
+        if depth <= 0:
+            return 0.0
+
+        env = self.environment.gym_env
+        config = env.config
+        obstacles = current_state.obstacles
+        if self.rollout_collision_check and len(obstacles[0]) != 0:
+            obs_xy = np.ascontiguousarray(obstacles[0][:, :2], dtype=np.float64)
+        else:
+            obs_xy = _NO_OBSTACLES
+
+        total_reward = fused_rollout(
+            current_state.x,
+            current_state.goal,
+            obs_xy,
+            config.dt,
+            config.max_angle_change,
+            config.max_speed,
+            config.robot_radius,
+            env.max_eudist,
+            depth,
+            self.discount,
+            self.rollout_eps,
+        )
+
+        # The depth statistics cannot see inside the compiled call, so they
+        # record the budget the rollout was given. It is an upper bound: a
+        # rollout that reaches the goal or hits an obstacle stops early.
+        if depth > self.max_rollout_depth:
+            self.max_rollout_depth = depth
+        total_depth = curr_depth + depth
+        if total_depth > self.max_total_depth:
+            self.max_total_depth = total_depth
+
+        return total_reward
+
+    def rollout_python(self, current_state, curr_depth) -> Union[int, float]:
         terminal = False
         trajectory = []
         total_reward = 0

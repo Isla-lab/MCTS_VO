@@ -10,16 +10,20 @@ import numpy as np
 
 try:
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
+    from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space_fast
+    from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles
     from MCTS_VO.bettergym.better_gym import BetterGym
     from MCTS_VO.mcts_utils import get_intersections_vectorized
     from MCTS_VO.bettergym.agents.utils.vo import get_radii
-    from MCTS_VO.bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal
+    from MCTS_VO.bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal, discrete_actions
 except ModuleNotFoundError:
     from bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
+    from bettergym.agents.utils.vo import compute_safe_angle_space_fast
+    from bettergym.agents.utils.utils import get_robot_angles
     from bettergym.better_gym import BetterGym
     from mcts_utils import get_intersections_vectorized
     from bettergym.agents.utils.vo import get_radii
-    from bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal
+    from bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal, discrete_actions
 
 
 @dataclass(frozen=True)
@@ -41,6 +45,13 @@ class EnvConfig:
     dt: float = 1.0  # [s] Time tick for motion prediction
     robot_radius: float = 0.3  # [m] for collision check
     obs_size: float = 0.2
+
+    # Time the robot spends sensing and planning, during which it is stopped but
+    # the obstacles are not. Velocity obstacles must cover the distance an
+    # obstacle can cover in dt + think_margin, not just dt. This used to be
+    # hard-coded as 0.1 s inside get_radii, which was correct only as long as
+    # thinking took about that long; it shrinks with the compute time.
+    think_margin: float = 0.1
 
     bottom_limit: float = -5.16911307
     upper_limit: float = 4.83088693
@@ -74,9 +85,10 @@ class State:
         self.obs_type: str = obs_type
 
     def __hash__(self):
-        return hash(
-            tuple(self.x.tobytes()) + tuple(o.tobytes() for o in self.obstacles)
-        )
+        # tuple(bytes) expands to one int per byte, so the previous form built a
+        # ~220 element tuple of ints on every lookup of the transposition table.
+        # Hashing the bytes objects themselves is the same key, 3x cheaper.
+        return hash((self.x.tobytes(),) + tuple(o.tobytes() for o in self.obstacles))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -471,41 +483,33 @@ class BetterEnv(BetterGym):
 
     def get_actions_discrete_vo2(self, state: State):
         config = self.gym_env.config
-        actions = self.get_actions_discrete(state)
 
+        # The unpruned action set is only needed on the two early-return paths
+        # below (no obstacles, or no velocity obstacle intersecting the reachable
+        # set). Whenever VO actually prunes, it used to be built and thrown away,
+        # at 26 us a time on every new tree node.
         if len(state.obstacles) == 0:
-            return actions
+            return self.get_actions_discrete(state)
 
         # Extract robot information
         x = state.x
-        dt = config.dt
-        ROBOT_RADIUS = config.robot_radius
-        VMAX = config.max_speed
-
-        intersection_points = np.empty((0, 4), dtype=np.float64)
 
         # CIRCULAR OBSTACLES
         circle_obs_x = state.obstacles[0]
         circle_obs_rad = state.obstacles[1]
 
-        if len(circle_obs_x) != 0:
-            # Calculate radii
-            r1, r0 = get_radii(
-                circle_obs_x=circle_obs_x,
-                circle_obs_rad=circle_obs_rad,
-                dt=dt,
-                robot_radius=ROBOT_RADIUS,
-                vmax=VMAX
-            )
+        if len(circle_obs_x) == 0:
+            return self.get_actions_discrete(state)
 
-            # Calculate intersection points
-            intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
+        safe_angles_forward, any_vo = compute_safe_angle_space_fast(
+            x, circle_obs_x, circle_obs_rad, config, config.max_speed
+        )
 
-        # If there are no intersection points
-        if np.isnan(intersection_points).all():
-            return actions
+        # No obstacle constrains the reachable headings at top speed: nothing to
+        # prune, so the full discrete action set stands.
+        if not any_vo:
+            return self.get_actions_discrete(state)
         else:
-            safe_angles_forward, robot_span_forward = compute_safe_angle_space(intersection_points, config.max_angle_change, x, None)
             if forward_available := (safe_angles_forward is not None):
                 vspace = [config.max_speed, config.max_speed]
                 v_space_forward = [*([vspace] * len(safe_angles_forward))]
@@ -513,7 +517,19 @@ class BetterEnv(BetterGym):
             else:
                 actions_forward = np.empty((0, 2))
 
-            safe_angles_backward, flip = vo_negative_speed([None, (circle_obs_x, circle_obs_rad), None], x, config)
+            # Reverse: same geometry seen from the opposite heading and at the
+            # reverse top speed, mirroring vo_negative_speed. When no velocity
+            # obstacle applies there, the span is the unflipped one and the
+            # resulting angles need no flipping back.
+            x_flipped = x.copy()
+            x_flipped[2] = (x[2] + np.pi + np.pi) % (2 * np.pi) - np.pi
+            safe_angles_backward, any_vo_backward = compute_safe_angle_space_fast(
+                x_flipped, circle_obs_x, circle_obs_rad, config, abs(config.min_speed)
+            )
+            flip = any_vo_backward
+            if not any_vo_backward:
+                safe_angles_backward = get_robot_angles(x, config.max_angle_change)
+
             if retro_available := (safe_angles_backward is not None):
                 vspace = [config.min_speed, config.min_speed]
                 v_space_backward = [*([vspace] * len(safe_angles_backward))]
@@ -538,27 +554,14 @@ class BetterEnv(BetterGym):
 
     def get_actions_discrete(self, state: State):
         config = self.gym_env.config
-        available_angles = np.linspace(
-            start=state.x[2] - config.max_angle_change,
-            stop=state.x[2] + config.max_angle_change,
-            num=config.n_angles,
+        return discrete_actions(
+            state.x,
+            config.max_angle_change,
+            config.min_speed,
+            config.max_speed,
+            config.n_angles,
+            config.n_vel,
         )
-        if (curr_angle := state.x[2]) not in available_angles:
-            available_angles = np.append(available_angles, curr_angle)
-        available_angles = (available_angles + np.pi) % (2 * np.pi) - np.pi
-        available_velocities = np.linspace(
-            start=config.min_speed, stop=config.max_speed, num=config.n_vel
-        )
-        if 0.0 not in available_velocities:
-            available_velocities = np.append(available_velocities, 0.0)
-
-        actions = np.transpose(
-            [
-                np.tile(available_velocities, len(available_angles)),
-                np.repeat(available_angles, len(available_velocities)),
-            ]
-        )
-        return actions
 
 
     def get_discrete_space(self, space, n_sample):

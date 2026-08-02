@@ -13,16 +13,18 @@ def create_pedestrian_env(
         vo: bool,
         n_obs: int,
         obs_pos: list = None,
-        dt_real = 1.0
+        dt_real = 1.0,
+        think_margin: float = 0.1
 ):
     real_c = EnvConfig(
-        dt=dt_real, 
-        max_angle_change=2.84*dt_real, 
-        n_angles=n_angles, 
-        n_vel=n_vel, 
+        dt=dt_real,
+        max_angle_change=2.84*dt_real,
+        n_angles=n_angles,
+        n_vel=n_vel,
         num_humans=n_obs,
         robot_radius=0.15,
-        max_speed=0.22
+        max_speed=0.22,
+        think_margin=think_margin
     )
 
     real_env = BetterEnv(discrete_env=discrete, vo=vo, config=real_c, collision_rwrd=rwrd_in_sim, sim_env=True,

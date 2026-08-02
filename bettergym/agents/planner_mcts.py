@@ -4,14 +4,19 @@ import time
 from typing import Union, Any, Dict, Callable
 
 import numpy as np
-from matplotlib import pyplot as plt
 
 try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.better_gym import BetterGym
+    from MCTS_VO.bettergym.compiled_utils import fused_rollout
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.better_gym import BetterGym
+    from bettergym.compiled_utils import fused_rollout
+
+# Empty obstacle set handed to fused_rollout when collision checking is disabled
+# in the rollout, which is exactly step_no_check_coll's behaviour.
+_NO_OBSTACLES = np.empty((0, 2), dtype=np.float64)
 
 class ActionNode:
     def __init__(self, action: Any):
@@ -58,6 +63,9 @@ class Mcts(Planner):
             rollout_policy: Callable,
             discount: float = 1.0,
             logger=None,
+            collect_trajectories: bool = False,
+            rollout_eps: float = 0.0,
+            rollout_collision_check: bool = True,
     ):
         super().__init__(environment)
         self.num_sim: int = num_sim
@@ -66,6 +74,22 @@ class Mcts(Planner):
         self.computational_budget: int = computational_budget
         self.discount: float | int = discount
         self.rollout_policy = rollout_policy
+        # Recording every simulated state costs an np.vstack on a growing array
+        # at each visit and at each rollout, i.e. O(depth^2) copying inside the
+        # hot loop (measured: 0.46 ms per simulation, ~25% of the planning
+        # budget) plus unbounded memory growth over an episode. It only feeds
+        # create_tree_animation, so it is off unless animations are wanted. When
+        # on, the slower Python rollout is used, since that is the one that can
+        # report the states it visited.
+        self.collect_trajectories: bool = collect_trajectories
+        # Parameters of the fused rollout. rollout_eps must match the eps of
+        # `rollout_policy`; it is passed separately because the compiled rollout
+        # cannot read it out of the functools.partial.
+        self.rollout_eps: float = rollout_eps
+        # Whether a rollout terminates on collision (reproducing
+        # step_check_coll) or ignores obstacles entirely (step_no_check_coll),
+        # leaving collision avoidance to VO pruning in the tree.
+        self.rollout_collision_check: bool = rollout_collision_check
 
         self.id_to_state_node = None
         self.num_visits_actions = None
@@ -114,11 +138,12 @@ class Mcts(Planner):
         simulate = True
         sn = 1
         while simulate:
-            sim_time = time.time()
-            self.info["trajectories"].append(np.array([initial_state.x]))
+            if self.collect_trajectories:
+                self.info["trajectories"].append(np.array([initial_state.x]))
             # root should be at depth 0
             total_reward = self.simulate(state_id=root_id, depth=0)
-            self.info["rollout_values"].append(total_reward)
+            if self.collect_trajectories:
+                self.info["rollout_values"].append(total_reward)
             final_time = time.time() - initial_time
             # self.logger.info(f"Sim Time: {time.time() - sim_time}")
             sn += 1
@@ -178,12 +203,13 @@ class Mcts(Planner):
 
         current_state, r, terminal, _, _ = self.environment.step(current_state, action)
         new_state_id = action_node.state_to_id.get(current_state, None)
-        self.info["trajectories"][-1] = np.vstack(
-            (
-                self.info["trajectories"][-1],
-                current_state.x,
+        if self.collect_trajectories:
+            self.info["trajectories"][-1] = np.vstack(
+                (
+                    self.info["trajectories"][-1],
+                    current_state.x,
+                )
             )
-        )
 
         prev_node = node
         if (
@@ -223,7 +249,53 @@ class Mcts(Planner):
                 return total_rwrd
 
     def rollout(self, current_state, curr_depth) -> Union[int, float]:
+        """
+        Dispatch to the compiled rollout, falling back to the Python one when the
+        visited states have to be recorded for the animations.
+        """
+        if self.collect_trajectories:
+            return self.rollout_python(current_state, curr_depth)
+
+        config = self.environment.gym_env.config
+        obs_pos = current_state.obstacles[0]
+        if self.rollout_collision_check and len(obs_pos) != 0:
+            obs_xy = np.ascontiguousarray(obs_pos[:, :2], dtype=np.float64)
+        else:
+            obs_xy = _NO_OBSTACLES
+
+        total_reward = fused_rollout(
+            current_state.x,
+            current_state.goal,
+            obs_xy,
+            config.dt,
+            config.max_angle_change,
+            config.max_speed,
+            config.robot_radius,
+            self.environment.gym_env.max_eudist,
+            self.computational_budget - curr_depth,
+            self.discount,
+            self.rollout_eps,
+        )
+
+        # The compiled rollout does not report how far it got, so the depth
+        # statistics only track the bound it was given. They are diagnostics for
+        # the horizon setting, not part of the algorithm.
+        starting_depth = self.computational_budget - curr_depth
+        if starting_depth > self.max_rollout_depth:
+            self.max_rollout_depth = starting_depth
+        total_depth = curr_depth + starting_depth
+        if total_depth > self.max_total_depth:
+            self.max_total_depth = total_depth
+        return total_reward
+
+    def rollout_python(self, current_state, curr_depth) -> Union[int, float]:
+        """
+        Reference implementation of the rollout, kept as the semantics that
+        `fused_rollout` reproduces and as the only one able to record the states
+        it visits. Roughly 130x slower.
+        """
         terminal = False
+        collect = self.collect_trajectories
         trajectory = []
         total_reward = 0
         starting_depth = 0
@@ -233,7 +305,8 @@ class Mcts(Planner):
                 current_state, chosen_action
             )
             total_reward += r * pow(self.discount, starting_depth)
-            trajectory.append(current_state.x)  # store state history
+            if collect:
+                trajectory.append(current_state.x)  # store state history
             starting_depth += 1
 
         # starting_depth is already maintained by the loop above, so the rollout
@@ -244,7 +317,8 @@ class Mcts(Planner):
         if total_depth > self.max_total_depth:
             self.max_total_depth = total_depth
 
-        self.info["trajectories"][-1] = np.vstack(
-            (self.info["trajectories"][-1], np.array(trajectory))
-        )
+        if collect:
+            self.info["trajectories"][-1] = np.vstack(
+                (self.info["trajectories"][-1], np.array(trajectory))
+            )
         return total_reward

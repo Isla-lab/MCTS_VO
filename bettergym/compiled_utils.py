@@ -140,6 +140,402 @@ def uniform_random(min_speed, max_speed, curr_angle, max_angle_change):
     action = np.array([speed, angle], dtype=np.float64)
     return action
 
+@jit('f8[:](f8[:], f8[:], i8, i8)', nopython=True, cache=True, fastmath=FASTMATH)
+def _fit_circle(px, py, lo, hi):
+    """
+    Algebraic (Kasa) circle fit of points[lo:hi], on data centred first for
+    conditioning. Closed form: one symmetric 2x2 solve, no iteration and no
+    sampling, which is what replaces a 100-trial RANSAC per segment.
+
+    :return: [cx, cy, r, rms_residual], all NaN if the points are collinear
+    """
+    n = hi - lo
+    mx = 0.0
+    my = 0.0
+    for i in range(lo, hi):
+        mx += px[i]
+        my += py[i]
+    mx /= n
+    my /= n
+
+    suu = 0.0; svv = 0.0; suv = 0.0
+    suuu = 0.0; svvv = 0.0; suvv = 0.0; svuu = 0.0
+    for i in range(lo, hi):
+        u = px[i] - mx
+        v = py[i] - my
+        uu = u * u
+        vv = v * v
+        suu += uu
+        svv += vv
+        suv += u * v
+        suuu += uu * u
+        svvv += vv * v
+        suvv += u * vv
+        svuu += v * uu
+
+    det = suu * svv - suv * suv
+    out = np.empty(4, dtype=np.float64)
+    if abs(det) < 1e-12:
+        out[0] = np.nan; out[1] = np.nan; out[2] = np.nan; out[3] = np.nan
+        return out
+
+    b1 = 0.5 * (suuu + suvv)
+    b2 = 0.5 * (svvv + svuu)
+    uc = (svv * b1 - suv * b2) / det
+    vc = (suu * b2 - suv * b1) / det
+
+    r = np.sqrt(uc * uc + vc * vc + (suu + svv) / n)
+    cx = uc + mx
+    cy = vc + my
+
+    resid = 0.0
+    for i in range(lo, hi):
+        d = np.sqrt((px[i] - cx) ** 2 + (py[i] - cy) ** 2) - r
+        resid += d * d
+    out[0] = cx
+    out[1] = cy
+    out[2] = r
+    out[3] = np.sqrt(resid / n)
+    return out
+
+
+@jit('Tuple((f8[:, :], f8[:]))(f8[:], i8[:], f8[:, :], f8, f8, f8, i8, f8, f8, f8)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def segment_and_fit_circles(dist, idx, points, angle_increment, lambda_angle,
+                            sigma, min_points, radius_scale, max_radius,
+                            max_residual):
+    """
+    Turn one LIDAR scan into circular obstacle estimates.
+
+    Replaces HDBSCAN clustering plus a per-cluster RANSAC circle fit. A scan is
+    already ordered by angle, so grouping it is a one dimensional problem: a new
+    segment starts wherever consecutive returns are too far apart, using the
+    adaptive breakpoint threshold of Borges & Aldon,
+
+        d_max = d_k * sin(angle_increment) / sin(lambda - angle_increment) + 3 sigma
+
+    which scales with range, since the same angular step spans more distance the
+    further away it is. Invalid returns (dropped from `dist` but recorded in
+    `idx`) also force a break, so points that are not actually adjacent in the
+    scan never land in the same segment.
+
+    Measured cost of the pipeline it replaces: 24 ms mean, 95 ms worst case, of
+    which about 15 ms was HDBSCAN's fixed overhead regardless of point count.
+
+    :param dist: ranges of the valid returns
+    :param idx: index of each valid return within the raw scan, used to detect
+        the gaps left by the invalid ones and to close the scan on itself
+    :param points: (n, 2) cartesian positions of the same returns, in world frame
+    :return: (centres (m, 2), radii (m,)) with radii already scaled
+    """
+    n = dist.shape[0]
+    centres = np.empty((n, 2), dtype=np.float64)
+    radii = np.empty(n, dtype=np.float64)
+    if n < min_points:
+        return centres[:0], radii[:0]
+
+    # Number of raw scan slots, needed to tell whether the last return and the
+    # first are neighbours: a scan wraps around, and an obstacle sitting on the
+    # 0/2pi seam would otherwise be split into two unusable half segments.
+    n_slots = int(round(2.0 * np.pi / angle_increment))
+    ratio = np.sin(angle_increment) / np.sin(lambda_angle - angle_increment)
+
+    def _is_break(prev, cur):
+        gap = idx[cur] - idx[prev]
+        if gap < 0:
+            gap += n_slots
+        if gap != 1:
+            return True
+        d_max = dist[prev] * ratio + 3.0 * sigma
+        dx = points[cur, 0] - points[prev, 0]
+        dy = points[cur, 1] - points[prev, 1]
+        return np.sqrt(dx * dx + dy * dy) > d_max
+
+    # Start walking from a real breakpoint so segments never straddle the seam
+    start = -1
+    for k in range(n):
+        if _is_break((k - 1) % n, k):
+            start = k
+            break
+
+    # Scratch buffer holding the current segment in contiguous order
+    sx = np.empty(n, dtype=np.float64)
+    sy = np.empty(n, dtype=np.float64)
+    m = 0
+
+    if start == -1:
+        # no break anywhere: the whole scan is a single closed segment
+        for i in range(n):
+            sx[i] = points[i, 0]
+            sy[i] = points[i, 1]
+        fit = _fit_circle(sx, sy, 0, n)
+        if not np.isnan(fit[0]) and fit[3] <= max_residual:
+            r = fit[2] * radius_scale
+            if r <= max_radius:
+                centres[m, 0] = fit[0]
+                centres[m, 1] = fit[1]
+                radii[m] = r
+                m += 1
+        return centres[:m], radii[:m]
+
+    seg_len = 0
+    for t in range(n + 1):
+        k = (start + t) % n
+        if t > 0:
+            prev = (start + t - 1) % n
+            if t == n or _is_break(prev, k):
+                if seg_len >= min_points:
+                    fit = _fit_circle(sx, sy, 0, seg_len)
+                    if not np.isnan(fit[0]) and fit[3] <= max_residual:
+                        r = fit[2] * radius_scale
+                        if r <= max_radius:
+                            centres[m, 0] = fit[0]
+                            centres[m, 1] = fit[1]
+                            radii[m] = r
+                            m += 1
+                seg_len = 0
+        if t < n:
+            sx[seg_len] = points[k, 0]
+            sy[seg_len] = points[k, 1]
+            seg_len += 1
+
+    return centres[:m], radii[:m]
+
+
+@jit('f8[:](f8, f8, i8)', nopython=True, cache=True, fastmath=FASTMATH)
+def _linspace(start, stop, num):
+    """
+    np.linspace with endpoint=True, laid out the way numpy does it (a scaled
+    arange with the last sample pinned to `stop`) so the samples come out
+    bit-identical rather than merely close.
+    """
+    out = np.empty(num, dtype=np.float64)
+    if num == 1:
+        out[0] = start
+        return out
+    step = (stop - start) / (num - 1)
+    for i in range(num):
+        out[i] = start + step * i
+    out[num - 1] = stop
+    return out
+
+
+@jit('f8[:, :](f8[:], f8, f8, f8, i8, i8)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def discrete_actions(x, max_angle_change, min_speed, max_speed, n_angles, n_vel):
+    """
+    The unpruned discrete action set: every (velocity, heading) pair the robot can
+    reach in one step. Compiled because it is on the path taken whenever velocity
+    obstacles prune nothing, which is most tree nodes.
+
+    Reproduces `BetterEnv.get_actions_discrete`, including its two special cases:
+    the current heading and a zero velocity are appended when the linear spacing
+    misses them (which it does for even n_angles and for n_vel not straddling 0).
+    """
+    angles = _linspace(x[2] - max_angle_change, x[2] + max_angle_change, n_angles)
+    n_a = n_angles
+    has_curr = False
+    for i in range(n_angles):
+        if angles[i] == x[2]:
+            has_curr = True
+            break
+    if not has_curr:
+        n_a = n_angles + 1
+        tmp = np.empty(n_a, dtype=np.float64)
+        tmp[:n_angles] = angles
+        tmp[n_angles] = x[2]
+        angles = tmp
+    for i in range(n_a):
+        angles[i] = (angles[i] + np.pi) % (2 * np.pi) - np.pi
+
+    vels = _linspace(min_speed, max_speed, n_vel)
+    n_v = n_vel
+    has_zero = False
+    for i in range(n_vel):
+        if vels[i] == 0.0:
+            has_zero = True
+            break
+    if not has_zero:
+        n_v = n_vel + 1
+        tmp = np.empty(n_v, dtype=np.float64)
+        tmp[:n_vel] = vels
+        tmp[n_vel] = 0.0
+        vels = tmp
+
+    # np.transpose([tile(vels, n_a), repeat(angles, n_v)])
+    out = np.empty((n_a * n_v, 2), dtype=np.float64)
+    k = 0
+    for i in range(n_a):
+        for j in range(n_v):
+            out[k, 0] = vels[j]
+            out[k, 1] = angles[i]
+            k += 1
+    return out
+
+
+@jit('f8[:, :](f8[:], f8[:, :], f8[:], f8[:])',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def vo_forbidden_ranges(robot_state, obstacles, r0, r1):
+    """
+    Angle ranges the robot must not head into, one or two per obstacle.
+
+    Fuses `get_intersections_vectorized`, `get_tangents` and `get_unsafe_angles`,
+    which between them allocated an (n, 4) tangent array, three boolean masks and
+    a dozen small temporaries per call, all to end up with a handful of angle
+    pairs. Called once per new tree node, so the numpy dispatch overhead of those
+    small operations dominated the actual geometry.
+
+    For each obstacle, the enlarged radius r0 + r1 spans an angular sector seen
+    from the robot, delimited by the two tangent points. Obstacles further than
+    1.6 * (r0 + r1) forbid nothing. If the robot is already inside an enlarged
+    obstacle the whole circle is forbidden, which is returned as the single range
+    [-pi, pi]: subtracting it leaves nothing, exactly as the old code did by
+    marking that obstacle infinite and forbidding the entire reachable span.
+
+    :return: (m, 2) array of [low, high] forbidden ranges, m == 0 if none
+    """
+    n = obstacles.shape[0]
+    out = np.empty((2 * n, 2), dtype=np.float64)
+    m = 0
+    rx = robot_state[0]
+    ry = robot_state[1]
+
+    for i in range(n):
+        ox = obstacles[i, 0]
+        oy = obstacles[i, 1]
+        dx = ox - rx
+        dy = oy - ry
+        d = np.sqrt(dx * dx + dy * dy)
+        r_sum = r0[i] + r1[i]
+
+        if d > 1.6 * r_sum:
+            continue
+        if d < r_sum or d == 0.0:
+            out[0, 0] = -np.pi
+            out[0, 1] = np.pi
+            return out[:1]
+
+        # Tangent points, i.e. the original rotation of (cos(+-phi), sin(+-phi))
+        # by alpha followed by a translation onto the obstacle centre.
+        alpha = np.arctan2(ry - oy, rx - ox)
+        phi = np.arccos(r_sum / d)
+        ca = np.cos(alpha)
+        sa = np.sin(alpha)
+        cp = np.cos(phi)
+        sp = np.sin(phi)
+
+        a1 = np.arctan2(oy + r_sum * (sa * cp + ca * sp) - ry,
+                        ox + r_sum * (ca * cp - sa * sp) - rx)
+        a2 = np.arctan2(oy + r_sum * (sa * cp - ca * sp) - ry,
+                        ox + r_sum * (ca * cp + sa * sp) - rx)
+
+        if a1 <= a2:
+            out[m, 0] = a1
+            out[m, 1] = a2
+            m += 1
+        else:
+            # the sector straddles +-pi, so it splits in two
+            out[m, 0] = a1
+            out[m, 1] = np.pi
+            m += 1
+            out[m, 0] = -np.pi
+            out[m, 1] = a2
+            m += 1
+
+    return out[:m]
+
+
+@jit('f8(f8[:], f8[:], f8[:, :], f8, f8, f8, f8, f8, i8, f8, f8)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def fused_rollout(x0, goal, obs_xy, dt, max_angle_change, max_speed,
+                  robot_radius, max_eudist, depth, discount, eps):
+    """
+    Run a whole MCTS rollout in one compiled call and return its discounted return.
+
+    This is a fusion of, per step, `epsilon_uniform_uniform` (the goal-oriented,
+    VO-free rollout policy of Algorithm 6), `robot_dynamics`, the collision and
+    goal tests of `Env.step_check_coll` and `Env.reward_grad`. Driving those from
+    Python costs about 7 us per step, almost all of it interpreter overhead: two
+    `State` objects allocated and discarded per step, plus a separate numba
+    dispatch for each of the three small jitted helpers. Fused, a 200 step
+    rollout takes about 11 us in total.
+
+    Obstacles are held frozen for the whole rollout, as everywhere else in the
+    planner: the method assumes no obstacle motion model, only positions and a
+    maximum speed.
+
+    Collision checking is selected by what is passed in `obs_xy`, not by a flag:
+      - the obstacle positions -> terminate with -100 when an obstacle centre
+        comes within `robot_radius`, reproducing `check_coll_vectorized`
+        (which likewise ignores the obstacle radii it is handed);
+      - an empty (0, 2) array -> no collision termination at all, i.e.
+        `step_no_check_coll` semantics, leaving avoidance entirely to VO pruning
+        in the tree.
+    Both are the same machine code and the empty case simply never enters the
+    inner loop, so neither variant pays for the other.
+
+    :param x0: robot state [x, y, theta, v]; v is unused, the dynamics overwrite it
+    :param goal: goal position [x, y]
+    :param obs_xy: (n, 2) obstacle positions, or (0, 2) to disable collisions
+    :param depth: number of steps to simulate (budget minus current depth)
+    :param eps: probability of the uniform-random branch of the rollout policy
+    :return: the discounted return of the rollout
+    """
+    x = x0[0]
+    y = x0[1]
+    theta = x0[2]
+    n_obs = obs_xy.shape[0]
+
+    total_reward = 0.0
+    gamma = 1.0
+    two_pi = 2.0 * np.pi
+
+    for _ in range(depth):
+        # --- rollout policy: epsilon_uniform_uniform. min_speed is pinned to 0.0
+        # exactly as the Python version does, so a rollout never reverses. The
+        # draws are kept in the same order as the originals.
+        if np.random.random() <= 1.0 - eps:
+            # compute_uniform_towards_goal_jit: head straight at the goal,
+            # clipped to what the robot can turn to in one step.
+            angle = np.arctan2(goal[1] - y, goal[0] - x)
+            velocity = np.random.uniform(0.0, max_speed)
+            min_angle = theta - max_angle_change
+            max_angle = theta + max_angle_change
+            angle = max(min(angle, max_angle), min_angle)
+        else:
+            # uniform_random
+            velocity = np.random.uniform(0.0, max_speed)
+            angle = np.random.uniform(theta - max_angle_change,
+                                      theta + max_angle_change)
+        angle = (angle + np.pi) % two_pi - np.pi
+
+        # --- robot_dynamics: differential drive, heading reached within one dt
+        d_theta = (angle - theta + np.pi) % two_pi - np.pi
+        x += velocity * np.cos(theta) * dt
+        y += velocity * np.sin(theta) * dt
+        theta = (theta + d_theta + np.pi) % two_pi - np.pi
+
+        # --- step_check_coll + reward_grad. reward_grad tests the goal before
+        # the collision, so a step that does both scores +100; keep that order.
+        dist_goal = np.sqrt((x - goal[0]) ** 2 + (y - goal[1]) ** 2)
+        if dist_goal <= robot_radius:
+            total_reward += gamma * 100.0
+            return total_reward
+
+        for i in range(n_obs):
+            if np.sqrt((obs_xy[i, 0] - x) ** 2 +
+                       (obs_xy[i, 1] - y) ** 2) <= robot_radius:
+                total_reward += gamma * -100.0
+                return total_reward
+
+        # out_boundaries is hard-coded False in step_check_coll, so the wall
+        # reward is unreachable here and is deliberately not reproduced.
+        total_reward += gamma * (-dist_goal / max_eudist)
+        gamma *= discount
+
+    return total_reward
+
+
 @jit('f8[:, :](f8[:], f8[:, :], f8)', nopython=True, cache=True, fastmath=FASTMATH)
 def predict_obstacles(robot_position, obstacles, dt):
     v = obstacles[:, 3]

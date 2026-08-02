@@ -240,3 +240,147 @@ def fused_rollout(x0, goal, obs_xy, dt, max_angle_change, max_speed,
         gamma *= discount
 
     return total_reward
+
+
+@jit('f8[:](f8, f8, i8)', nopython=True, cache=True, fastmath=FASTMATH)
+def _linspace(start, stop, num):
+    """
+    np.linspace with endpoint=True, laid out the way numpy does it (a scaled
+    arange with the last sample pinned to `stop`) so the samples come out
+    bit-identical rather than merely close.
+    """
+    out = np.empty(num, dtype=np.float64)
+    if num == 1:
+        out[0] = start
+        return out
+    step = (stop - start) / (num - 1)
+    for i in range(num):
+        out[i] = start + step * i
+    out[num - 1] = stop
+    return out
+
+
+@jit('f8[:, :](f8[:], f8, f8, f8, i8, i8)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def discrete_actions(x, max_angle_change, min_speed, max_speed, n_angles, n_vel):
+    """
+    The unpruned discrete action set: every (velocity, heading) pair the robot can
+    reach in one step. Compiled because it is on the path taken whenever velocity
+    obstacles prune nothing, which is most tree nodes.
+
+    Reproduces `BetterEnv.get_actions_discrete`, including its two special cases:
+    the current heading and a zero velocity are appended when the linear spacing
+    misses them (which it does for even n_angles and for n_vel not straddling 0).
+    """
+    angles = _linspace(x[2] - max_angle_change, x[2] + max_angle_change, n_angles)
+    n_a = n_angles
+    has_curr = False
+    for i in range(n_angles):
+        if angles[i] == x[2]:
+            has_curr = True
+            break
+    if not has_curr:
+        n_a = n_angles + 1
+        tmp = np.empty(n_a, dtype=np.float64)
+        tmp[:n_angles] = angles
+        tmp[n_angles] = x[2]
+        angles = tmp
+    for i in range(n_a):
+        angles[i] = (angles[i] + np.pi) % (2 * np.pi) - np.pi
+
+    vels = _linspace(min_speed, max_speed, n_vel)
+    n_v = n_vel
+    has_zero = False
+    for i in range(n_vel):
+        if vels[i] == 0.0:
+            has_zero = True
+            break
+    if not has_zero:
+        n_v = n_vel + 1
+        tmp = np.empty(n_v, dtype=np.float64)
+        tmp[:n_vel] = vels
+        tmp[n_vel] = 0.0
+        vels = tmp
+
+    # np.transpose([tile(vels, n_a), repeat(angles, n_v)])
+    out = np.empty((n_a * n_v, 2), dtype=np.float64)
+    k = 0
+    for i in range(n_a):
+        for j in range(n_v):
+            out[k, 0] = vels[j]
+            out[k, 1] = angles[i]
+            k += 1
+    return out
+
+
+@jit('f8[:, :](f8[:], f8[:, :], f8[:], f8[:])',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def vo_forbidden_ranges(robot_state, obstacles, r0, r1):
+    """
+    Angle ranges the robot must not head into, one or two per obstacle.
+
+    Fuses `get_intersections_vectorized`, `get_tangents` and `get_unsafe_angles`,
+    which between them allocated an (n, 4) tangent array, three boolean masks and
+    a dozen small temporaries per call, all to end up with a handful of angle
+    pairs. Called once per new tree node, so the numpy dispatch overhead of those
+    small operations dominated the actual geometry.
+
+    For each obstacle, the enlarged radius r0 + r1 spans an angular sector seen
+    from the robot, delimited by the two tangent points. Obstacles further than
+    1.6 * (r0 + r1) forbid nothing. If the robot is already inside an enlarged
+    obstacle the whole circle is forbidden, which is returned as the single range
+    [-pi, pi]: subtracting it leaves nothing, exactly as the old code did by
+    marking that obstacle infinite and forbidding the entire reachable span.
+
+    :return: (m, 2) array of [low, high] forbidden ranges, m == 0 if none
+    """
+    n = obstacles.shape[0]
+    out = np.empty((2 * n, 2), dtype=np.float64)
+    m = 0
+    rx = robot_state[0]
+    ry = robot_state[1]
+
+    for i in range(n):
+        ox = obstacles[i, 0]
+        oy = obstacles[i, 1]
+        dx = ox - rx
+        dy = oy - ry
+        d = np.sqrt(dx * dx + dy * dy)
+        r_sum = r0[i] + r1[i]
+
+        if d > 1.6 * r_sum:
+            continue
+        if d < r_sum or d == 0.0:
+            out[0, 0] = -np.pi
+            out[0, 1] = np.pi
+            return out[:1]
+
+        # Tangent points, i.e. the original rotation of (cos(+-phi), sin(+-phi))
+        # by alpha followed by a translation onto the obstacle centre.
+        alpha = np.arctan2(ry - oy, rx - ox)
+        phi = np.arccos(r_sum / d)
+        ca = np.cos(alpha)
+        sa = np.sin(alpha)
+        cp = np.cos(phi)
+        sp = np.sin(phi)
+
+        a1 = np.arctan2(oy + r_sum * (sa * cp + ca * sp) - ry,
+                        ox + r_sum * (ca * cp - sa * sp) - rx)
+        a2 = np.arctan2(oy + r_sum * (sa * cp - ca * sp) - ry,
+                        ox + r_sum * (ca * cp + sa * sp) - rx)
+
+        if a1 <= a2:
+            out[m, 0] = a1
+            out[m, 1] = a2
+            m += 1
+        else:
+            # the sector straddles +-pi, so it splits in two
+            out[m, 0] = a1
+            out[m, 1] = np.pi
+            m += 1
+            out[m, 0] = -np.pi
+            out[m, 1] = a2
+            m += 1
+
+    return out[:m]
+

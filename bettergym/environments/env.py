@@ -46,6 +46,14 @@ class EnvConfig:
     robot_radius: float = 0.3  # [m] for collision check
     obs_size: float = 0.2
 
+    # Time the robot spends sensing and planning, during which it is stopped but
+    # the obstacles are not. Velocity obstacles must cover the distance an
+    # obstacle can travel in dt + think_margin, not just dt. This used to be
+    # hard-coded as 0.1 s inside get_radii, which was right only as long as
+    # thinking took about that long; as a parameter it shrinks with the compute
+    # time, which is what gives the planner back its manoeuvring room.
+    think_margin: float = 0.1
+
     bottom_limit: float = -5.16911307
     upper_limit: float = 4.83088693
 

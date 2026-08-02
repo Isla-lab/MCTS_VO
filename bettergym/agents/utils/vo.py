@@ -19,8 +19,18 @@ except ModuleNotFoundError:
 #     #     f.write(str(param))
 #     pass
 
-def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax):
-    r1 = circle_obs_x[:, 3] * (dt+0.1) + circle_obs_rad + robot_radius
+def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax, think_margin=0.1):
+    """
+    Radii of the two circles whose tangents delimit a velocity obstacle.
+
+    r1 covers how far an obstacle can travel while the robot is not moving under
+    a fresh command, i.e. the control step plus the time spent sensing and
+    planning. `think_margin` used to be the literal 0.1 here, which matched the
+    roughly 95 ms the loop then took to think; it is a parameter so that it
+    follows the compute time down instead of staying pinned to it. The default
+    preserves the old behaviour for callers that do not set it.
+    """
+    r1 = circle_obs_x[:, 3] * (dt + think_margin) + circle_obs_rad + robot_radius
     r0 = np.full_like(r1, vmax * dt)
     return r1, r0
 
@@ -50,7 +60,8 @@ def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: floa
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX)
+        r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX,
+                           think_margin=config.think_margin)
         # Calculate intersection points
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
 
@@ -313,6 +324,7 @@ def compute_safe_angle_space_fast(x, circle_obs_x, circle_obs_rad, config, vmax)
         dt=config.dt,
         robot_radius=config.robot_radius,
         vmax=vmax,
+        think_margin=config.think_margin,
     )
     forbidden = vo_forbidden_ranges(x, circle_obs_x, r0, r1)
     robot_angles = get_robot_angles(x, config.max_angle_change)
@@ -341,7 +353,8 @@ def vo_negative_speed(obstacles, x, config):
                 circle_obs_rad=circle_obs_rad,
                 dt=config.dt,
                 robot_radius=ROBOT_RADIUS,
-                vmax=VELOCITY
+                vmax=VELOCITY,
+                think_margin=config.think_margin,
             )
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
     
@@ -405,7 +418,8 @@ def uniform_random_vo(node, planner):
 
     if len(circle_obs_x) != 0:
         # Calculate radii
-        r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX)
+        r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX,
+                           think_margin=config.think_margin)
 
         # Calculate intersection points
         intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)

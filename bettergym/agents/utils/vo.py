@@ -19,6 +19,20 @@ except ModuleNotFoundError:
 #     #     f.write(str(param))
 #     pass
 
+# Set by loopHandler_copy.py's --vo-geometry, before any planning happens.
+# False is the corrected geometry: tangents to the ball of radius r1, obstacles
+# beyond r0 + r1 ignored, trapped below r1 - Algorithm 4 as written. True
+# restores the geometry used up to and including the 180-run campaign, so the
+# two can be compared on identical scenes. See get_radii for how.
+LEGACY_VO = False
+
+
+def set_legacy_vo(enabled: bool) -> None:
+    """Select the VO geometry. Must be called before the first planning step."""
+    global LEGACY_VO
+    LEGACY_VO = enabled
+
+
 def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax, think_margin=0.1):
     """
     Radii of the two circles whose tangents delimit a velocity obstacle.
@@ -32,6 +46,17 @@ def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax, think_margin
     """
     r1 = circle_obs_x[:, 3] * (dt + think_margin) + circle_obs_rad + robot_radius
     r0 = np.full_like(r1, vmax * dt)
+
+    if LEGACY_VO:
+        # Reproduce the pre-correction geometry without touching the consumers.
+        # They take tangents to a ball of radius r1 and ignore obstacles beyond
+        # r0 + r1; the old code took tangents to r0 + r1 and ignored beyond
+        # 1.6 * (r0 + r1). Both are recovered exactly by rescaling the inputs:
+        #   ball  = r1' = r0 + r1
+        #   reach = r0' + r1' = 0.6 * (r0 + r1) + (r0 + r1) = 1.6 * (r0 + r1)
+        r_sum = r0 + r1
+        return r_sum, 0.6 * r_sum
+
     return r1, r0
 
 

@@ -103,11 +103,13 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     x_exp = np.expand_dims(x, 1)
     d = np.hypot(obs_x[:, 0] - x_exp[0, :], obs_x[:, 1] - x_exp[1, :])
 
-    # Non-intersecting
-    no_intersection = d > 1.6*(r0 + r1)
+    # Too far to reach within one step: r0 is the distance the robot covers in
+    # that step, so beyond r0 + r1 no heading it can pick touches the obstacle.
+    no_intersection = d > r0 + r1
 
-    # One circle within the other
-    one_within_other = d < r0 + r1
+    # Robot centre already inside the obstacle ball, which is r1 alone - r0 is a
+    # distance travelled, not a body radius, and must not enlarge the ball.
+    one_within_other = d < r1
 
     # Coincident circles
     coincident = d == 0
@@ -116,8 +118,8 @@ def get_intersections_vectorized(x, obs_x, r0, r1):
     # Compute intersection points
     if np.any(intersecting):
         intersection_points = get_tangents(
-            robot_state=x, 
-            obs_r=r0[intersecting]+r1[intersecting],
+            robot_state=x,
+            obs_r=r1[intersecting],
             obstacles=obs_x[intersecting],
             d=d[intersecting]
         )

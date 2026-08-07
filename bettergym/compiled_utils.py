@@ -325,12 +325,24 @@ def vo_forbidden_ranges(robot_state, obstacles, r0, r1):
     pairs. Called once per new tree node, so the numpy dispatch overhead of those
     small operations dominated the actual geometry.
 
-    For each obstacle, the enlarged radius r0 + r1 spans an angular sector seen
-    from the robot, delimited by the two tangent points. Obstacles further than
-    1.6 * (r0 + r1) forbid nothing. If the robot is already inside an enlarged
-    obstacle the whole circle is forbidden, which is returned as the single range
-    [-pi, pi]: subtracting it leaves nothing, exactly as the old code did by
-    marking that obstacle infinite and forbidding the entire reachable span.
+    Three cases per obstacle, following Algorithm 4:
+
+        d > r0 + r1     the robot cannot reach the ball within one step, so
+                        nothing is forbidden
+        r1 <= d <= r0+r1  the tangents to B(p_i, r1) delimit the sector that
+                        reaches it; that sector is forbidden
+        d < r1          the robot is already inside the ball, so the whole
+                        circle is forbidden, returned as the single range
+                        [-pi, pi]: subtracting it leaves nothing, exactly as the
+                        old code did by marking that obstacle infinite and
+                        forbidding the entire reachable span
+
+    Note that r0 is a distance travelled in one step, not a body radius. It sets
+    how far out an obstacle can still matter, and so belongs in the first test
+    only; the tangents are taken to r1 alone. Building them on r0 + r1 instead
+    pushes the trapped test out to d < r0 + r1, which leaves the cone band
+    nothing but the single point d == r0 + r1 - and that degeneracy is what the
+    former 1.6 * (r0 + r1) cutoff existed to paper over.
 
     :return: (m, 2) array of [low, high] forbidden ranges, m == 0 if none
     """
@@ -346,11 +358,14 @@ def vo_forbidden_ranges(robot_state, obstacles, r0, r1):
         dx = ox - rx
         dy = oy - ry
         d = np.sqrt(dx * dx + dy * dy)
-        r_sum = r0[i] + r1[i]
+        # Reach: how far the obstacle can still matter. Radius: the ball the
+        # tangents are taken to.
+        r_reach = r0[i] + r1[i]
+        r_ball = r1[i]
 
-        if d > 1.6 * r_sum:
+        if d > r_reach:
             continue
-        if d < r_sum or d == 0.0:
+        if d < r_ball or d == 0.0:
             out[0, 0] = -np.pi
             out[0, 1] = np.pi
             return out[:1]
@@ -358,16 +373,16 @@ def vo_forbidden_ranges(robot_state, obstacles, r0, r1):
         # Tangent points, i.e. the original rotation of (cos(+-phi), sin(+-phi))
         # by alpha followed by a translation onto the obstacle centre.
         alpha = np.arctan2(ry - oy, rx - ox)
-        phi = np.arccos(r_sum / d)
+        phi = np.arccos(r_ball / d)
         ca = np.cos(alpha)
         sa = np.sin(alpha)
         cp = np.cos(phi)
         sp = np.sin(phi)
 
-        a1 = np.arctan2(oy + r_sum * (sa * cp + ca * sp) - ry,
-                        ox + r_sum * (ca * cp - sa * sp) - rx)
-        a2 = np.arctan2(oy + r_sum * (sa * cp - ca * sp) - ry,
-                        ox + r_sum * (ca * cp + sa * sp) - rx)
+        a1 = np.arctan2(oy + r_ball * (sa * cp + ca * sp) - ry,
+                        ox + r_ball * (ca * cp - sa * sp) - rx)
+        a2 = np.arctan2(oy + r_ball * (sa * cp - ca * sp) - ry,
+                        ox + r_ball * (ca * cp + sa * sp) - rx)
 
         if a1 <= a2:
             out[m, 0] = a1

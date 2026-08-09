@@ -7,6 +7,20 @@ from typing import Any, Tuple
 
 import numpy as np
 
+# How get_discrete_space measures an interval when splitting a fixed sample
+# budget across several of them. False keeps np.linalg.norm(space, axis=1),
+# i.e. sqrt(lo**2 + hi**2), which is what every result to date was produced
+# with; True uses the width hi - lo, which is what the proportional split is
+# supposed to mean. Set from loopHandler_copy.py before anything is built, the
+# same way set_legacy_vo works.
+RANGE_SIZE_WIDTH = False
+
+
+def set_range_size_metric(use_width: bool) -> None:
+    global RANGE_SIZE_WIDTH
+    RANGE_SIZE_WIDTH = use_width
+
+
 
 try:
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
@@ -453,21 +467,6 @@ class BetterEnv(BetterGym):
         else:
             self.gym_env.move_humans = self.gym_env.move_humans_nofixed
 
-    def get_discrete_space(self, space, n_sample):
-        range_sizes = np.linalg.norm(space, axis=1)
-        # ensure that the range sizes are not zero
-        range_sizes += 1e-6
-        proportion = range_sizes / np.sum(range_sizes)
-        div = proportion * n_sample
-        #  floor all odd indices and ceil all even indices
-        div[::2] = np.floor(div[::2])
-        div[1::2] = np.ceil(div[1::2])
-        div = div.astype(int)
-        return [
-            np.linspace(start=space[i][0], stop=space[i][1], num=div[i]+1, endpoint=False)[1:]
-            for i in range(len(space))
-        ]
-
     def get_discrete_actions_multi_range(self, aspace, vspace, config):
         available_angles = self.get_discrete_space(aspace, config.n_angles)
         available_velocities = self.get_discrete_space(vspace, config.n_vel)
@@ -566,7 +565,30 @@ class BetterEnv(BetterGym):
 
 
     def get_discrete_space(self, space, n_sample):
-        range_sizes = np.linalg.norm(space, axis=1)
+        """
+        Split `n_sample` samples across the intervals in `space`, in proportion
+        to how large each one is.
+
+        "Large" should mean the width, hi - lo. The original measure was
+        np.linalg.norm(space, axis=1) = sqrt(lo**2 + hi**2), the distance of the
+        pair from the origin, which tracks how far the interval sits from zero
+        far more than how wide it is: [3.0, 3.2] and [-0.1, 0.1] have the same
+        width but norms of 4.38 and 0.14, a factor of 31 in samples allocated.
+
+        It only bites with more than one interval, since a single one
+        normalises to 1 either way. get_robot_angles returns two whenever the
+        reachable span crosses +-pi, i.e. when the robot heads roughly west, so
+        the action set depended on absolute heading and not only on the local
+        geometry.
+
+        Kept switchable because every result up to and including the 2400-run
+        campaign was produced with the norm.
+        """
+        if RANGE_SIZE_WIDTH:
+            sp = np.asarray(space, dtype=np.float64).reshape(-1, 2)
+            range_sizes = sp[:, 1] - sp[:, 0]
+        else:
+            range_sizes = np.linalg.norm(space, axis=1)
         # ensure that the range sizes are not zero
         range_sizes += 1e-6
         proportion = range_sizes / np.sum(range_sizes)

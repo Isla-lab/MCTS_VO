@@ -585,8 +585,13 @@ class BetterEnv(BetterGym):
         campaign was produced with the norm.
         """
         if RANGE_SIZE_WIDTH:
+            # abs, not a bare difference: the norm this replaces was always
+            # non-negative, and a signed width would be a new failure mode -
+            # a negative size gives a negative proportion, hence a negative
+            # div, which np.linspace takes as a sample count. Callers should
+            # only ever pass lo <= hi, so this is a guard rather than a fix.
             sp = np.asarray(space, dtype=np.float64).reshape(-1, 2)
-            range_sizes = sp[:, 1] - sp[:, 0]
+            range_sizes = np.abs(sp[:, 1] - sp[:, 0])
         else:
             range_sizes = np.linalg.norm(space, axis=1)
         # ensure that the range sizes are not zero

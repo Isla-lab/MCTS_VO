@@ -124,6 +124,22 @@ class Mcts(Planner):
         self.max_tree_depth = 0
         self.max_rollout_depth = 0
         self.max_total_depth = 0
+        # Running sum and count, so the MEAN rollout length is available and not
+        # only the maximum. The maximum alone is uninformative here: every
+        # plan() call rolls out from a depth-1 node, so it pins to the budget
+        # whenever any rollout runs to the end.
+        self.rollout_depth_sum = 0
+        self.rollout_depth_n = 0
+
+    def _record_rollout(self, curr_depth, steps):
+        """Record one finished rollout of `steps` steps started at `curr_depth`."""
+        if steps > self.max_rollout_depth:
+            self.max_rollout_depth = steps
+        total_depth = curr_depth + steps
+        if total_depth > self.max_total_depth:
+            self.max_total_depth = total_depth
+        self.rollout_depth_sum += steps
+        self.rollout_depth_n += 1
 
     def get_id(self):
         self.last_id += 1
@@ -166,6 +182,10 @@ class Mcts(Planner):
         self.info["max_tree_depth"] = self.max_tree_depth
         self.info["max_rollout_depth"] = self.max_rollout_depth
         self.info["max_total_depth"] = self.max_total_depth
+        self.info["mean_rollout_depth"] = (
+            self.rollout_depth_sum / self.rollout_depth_n
+            if self.rollout_depth_n else 0.0
+        )
         
         # randomly choose between actions which have the maximum q value
         action_idx = np.random.choice(np.flatnonzero(q_vals == np.max(q_vals)))
@@ -280,7 +300,7 @@ class Mcts(Planner):
         else:
             obs_xy = _NO_OBSTACLES
 
-        total_reward = fused_rollout(
+        total_reward, steps = fused_rollout(
             current_state.x,
             current_state.goal,
             obs_xy,
@@ -294,15 +314,13 @@ class Mcts(Planner):
             self.rollout_eps,
         )
 
-        # The depth statistics cannot see inside the compiled call, so they
-        # record the budget the rollout was given. It is an upper bound: a
-        # rollout that reaches the goal or hits an obstacle stops early.
-        if depth > self.max_rollout_depth:
-            self.max_rollout_depth = depth
-        total_depth = curr_depth + depth
-        if total_depth > self.max_total_depth:
-            self.max_total_depth = total_depth
-
+        # `steps` is what the rollout actually ran, which is less than the
+        # budget whenever it reached the goal or hit an obstacle. These
+        # statistics used to record `depth` instead, and since the update is a
+        # maximum and every plan() call contains a rollout from depth 1, the
+        # reported rollout depth was the constant budget-minus-one in every run
+        # ever measured - it could not have shown anything else.
+        self._record_rollout(curr_depth, steps)
         return total_reward
 
     def rollout_python(self, current_state, curr_depth) -> Union[int, float]:
@@ -322,11 +340,7 @@ class Mcts(Planner):
 
         # starting_depth is already maintained by the loop above, so the rollout
         # length costs nothing extra: it is only read here, once per rollout.
-        if starting_depth > self.max_rollout_depth:
-            self.max_rollout_depth = starting_depth
-        total_depth = curr_depth + starting_depth
-        if total_depth > self.max_total_depth:
-            self.max_total_depth = total_depth
+        self._record_rollout(curr_depth, starting_depth)
 
         if self.collect_trajectories:
             self.info["trajectories"][-1] = np.vstack(

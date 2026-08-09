@@ -151,7 +151,7 @@ def predict_obstacles(robot_position, obstacles, dt):
     new_obstacles[:, 3] = obstacles[:, 3]
     return new_obstacles
 
-@jit('f8(f8[:], f8[:], f8[:, :], f8, f8, f8, f8, f8, i8, f8, f8)',
+@jit('Tuple((f8, i8))(f8[:], f8[:], f8[:, :], f8, f8, f8, f8, f8, i8, f8, f8)',
      nopython=True, cache=True, fastmath=FASTMATH)
 def fused_rollout(x0, goal, obs_xy, dt, max_angle_change, max_speed,
                   robot_radius, max_eudist, depth, discount, eps):
@@ -185,7 +185,11 @@ def fused_rollout(x0, goal, obs_xy, dt, max_angle_change, max_speed,
     :param obs_xy: (n, 2) obstacle positions, or (0, 2) to disable collisions
     :param depth: number of steps to simulate (budget minus current depth)
     :param eps: probability of the uniform-random branch of the rollout policy
-    :return: the discounted return of the rollout
+    :return: (discounted return, steps actually simulated). The step count is
+        returned rather than inferred because a rollout that reaches the goal or
+        hits an obstacle stops early, and the caller used to record the budget
+        instead - which made the reported rollout depth a constant equal to the
+        budget, and so incapable of showing anything at all.
     """
     x = x0[0]
     y = x0[1]
@@ -196,7 +200,9 @@ def fused_rollout(x0, goal, obs_xy, dt, max_angle_change, max_speed,
     gamma = 1.0
     two_pi = 2.0 * np.pi
 
+    steps = 0
     for _ in range(depth):
+        steps += 1
         # --- rollout policy: epsilon_uniform_uniform. min_speed is pinned to 0.0
         # exactly as the Python version does, so a rollout never reverses. The
         # draws are kept in the same order as the originals.
@@ -226,20 +232,20 @@ def fused_rollout(x0, goal, obs_xy, dt, max_angle_change, max_speed,
         dist_goal = np.sqrt((x - goal[0]) ** 2 + (y - goal[1]) ** 2)
         if dist_goal <= robot_radius:
             total_reward += gamma * 100.0
-            return total_reward
+            return total_reward, steps
 
         for i in range(n_obs):
             if np.sqrt((obs_xy[i, 0] - x) ** 2 +
                        (obs_xy[i, 1] - y) ** 2) <= robot_radius:
                 total_reward += gamma * -100.0
-                return total_reward
+                return total_reward, steps
 
         # out_boundaries is hard-coded False in step_check_coll, so the wall
         # reward is unreachable here and is deliberately not reproduced.
         total_reward += gamma * (-dist_goal / max_eudist)
         gamma *= discount
 
-    return total_reward
+    return total_reward, steps
 
 
 @jit('f8[:](f8, f8, i8)', nopython=True, cache=True, fastmath=FASTMATH)

@@ -29,7 +29,7 @@ try:
     from MCTS_VO.bettergym.better_gym import BetterGym
     from MCTS_VO.mcts_utils import get_intersections_vectorized
     from MCTS_VO.bettergym.agents.utils.vo import get_radii
-    from MCTS_VO.bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal, discrete_actions
+    from MCTS_VO.bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal, discrete_actions, discrete_actions_multi_range, unique_rows
 except ModuleNotFoundError:
     from bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from bettergym.agents.utils.vo import compute_safe_angle_space_fast, robot_trapped
@@ -37,7 +37,7 @@ except ModuleNotFoundError:
     from bettergym.better_gym import BetterGym
     from mcts_utils import get_intersections_vectorized
     from bettergym.agents.utils.vo import get_radii
-    from bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal, discrete_actions
+    from bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal, discrete_actions, discrete_actions_multi_range, unique_rows
 
 
 @dataclass(frozen=True)
@@ -468,6 +468,14 @@ class BetterEnv(BetterGym):
             self.gym_env.move_humans = self.gym_env.move_humans_nofixed
 
     def get_discrete_actions_multi_range(self, aspace, vspace, config):
+        return discrete_actions_multi_range(
+            np.asarray(aspace, dtype=np.float64).reshape(-1, 2),
+            np.asarray(vspace, dtype=np.float64).reshape(-1, 2),
+            config.n_angles, config.n_vel, RANGE_SIZE_WIDTH,
+        )
+
+    def get_discrete_actions_multi_range_python(self, aspace, vspace, config):
+        """Reference implementation of the above; kept for the equivalence test."""
         available_angles = self.get_discrete_space(aspace, config.n_angles)
         available_velocities = self.get_discrete_space(vspace, config.n_vel)
         actions = np.concatenate(
@@ -510,7 +518,7 @@ class BetterEnv(BetterGym):
             actions = self.get_discrete_actions_multi_range(
                 [[-math.pi, math.pi]], [[0.0, 0.0]], config
             )
-            return np.unique(actions, axis=0)
+            return unique_rows(actions)
 
         safe_angles_forward, any_vo = compute_safe_angle_space_fast(
             x, circle_obs_x, circle_obs_rad, config, config.max_speed
@@ -558,7 +566,7 @@ class BetterEnv(BetterGym):
             else:
                 actions = np.concatenate([actions_forward, actions_backward])
 
-            actions = np.unique(actions, axis=0)
+            actions = unique_rows(actions)
             if len(actions) > config.n_angles * config.n_vel:
                 actions = np.random.choice(actions, size=config.n_angles * config.n_vel, replace=False)
             return actions

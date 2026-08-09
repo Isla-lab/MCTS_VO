@@ -7,12 +7,12 @@ try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from MCTS_VO.mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball
+    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball
+    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges
     
 # def print_to_file(param):
 #     # with open("OUTPUT.txt", "a") as f:
@@ -350,9 +350,10 @@ def compute_safe_angle_space_fast(x, circle_obs_x, circle_obs_rad, config, vmax)
     Safe heading ranges for the tree's action pruning, at a given top speed.
 
     Same result as `get_radii` + `get_intersections_vectorized` +
-    `compute_safe_angle_space`, with the geometry done in one compiled call
-    (`vo_forbidden_ranges`) instead of a chain of small numpy operations, each
-    of whose dispatch cost dominated the arithmetic it performed.
+    `compute_safe_angle_space`, done in one compiled call (`vo_safe_ranges`)
+    instead of a chain of small numpy operations and Python list building, each
+    of whose dispatch cost dominated the arithmetic it performed. The reference
+    chain is kept below as `compute_safe_angle_space_fast_python`.
 
     Used only by `BetterEnv.get_actions_discrete_vo2`, i.e. the in-tree pruning
     that runs once per new node. The reactive VO-PLANNER keeps the original
@@ -365,6 +366,17 @@ def compute_safe_angle_space_fast(x, circle_obs_x, circle_obs_rad, config, vmax)
         whether any obstacle produced a velocity obstacle at all, which is what
         lets the caller skip pruning entirely.
     """
+    safe, any_vo = vo_safe_ranges(
+        x, circle_obs_x, circle_obs_rad, config.dt, config.robot_radius, vmax,
+        config.think_margin, config.max_angle_change, LEGACY_VO,
+    )
+    if not any_vo:
+        return safe, False
+    return (safe if len(safe) != 0 else None), True
+
+
+def compute_safe_angle_space_fast_python(x, circle_obs_x, circle_obs_rad, config, vmax):
+    """Reference implementation of the above; kept for the equivalence test."""
     r1, r0 = get_radii(
         circle_obs_x=circle_obs_x,
         circle_obs_rad=circle_obs_rad,

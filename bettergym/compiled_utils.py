@@ -266,6 +266,304 @@ def _linspace(start, stop, num):
     return out
 
 
+@jit('f8[:, :](f8[:, :])', nopython=True, cache=True, fastmath=FASTMATH)
+def unique_rows(actions):
+    """
+    np.unique(actions, axis=0) for the (n, 2) action set, at a twentieth of the
+    cost - it was 18 us, half of what a pruned node spent after the rest of the
+    path was compiled.
+
+    np.unique compares numerically rather than bitwise (it folds -0.0 into 0.0)
+    and returns rows in lexicographic order, so a stable sort on (v, angle)
+    keeping the first of each equal group reproduces it. n is at most a few
+    dozen, hence insertion sort.
+
+    The one divergence is which sign of zero survives when a column holds both
+    +0.0 and -0.0: over 20000 adversarial arrays the shapes and values always
+    matched and only signbit differed, and no action set out of 11500 sampled
+    states contained a negative zero at all. Velocities come from the config and
+    angles from a linspace over the safe ranges; -0.0 would need a range endpoint
+    to be exactly it.
+
+    Most of the duplicates are structural: the velocity interval of a pruned
+    range is a single point, so linspace hands back n_vel identical copies of it
+    and every angle appears n_vel times.
+    """
+    n = actions.shape[0]
+    if n == 0:
+        return actions
+
+    order = np.empty(n, dtype=np.int64)
+    for i in range(n):
+        order[i] = i
+    for i in range(1, n):
+        cur = order[i]
+        cv = actions[cur, 0]
+        ca = actions[cur, 1]
+        j = i - 1
+        while j >= 0:
+            pv = actions[order[j], 0]
+            pa = actions[order[j], 1]
+            if pv > cv or (pv == cv and pa > ca):
+                order[j + 1] = order[j]
+                j -= 1
+            else:
+                break
+        order[j + 1] = cur
+
+    out = np.empty((n, 2), dtype=np.float64)
+    m = 0
+    for i in range(n):
+        r = order[i]
+        if m > 0 and actions[r, 0] == out[m - 1, 0] and actions[r, 1] == out[m - 1, 1]:
+            continue
+        out[m, 0] = actions[r, 0]
+        out[m, 1] = actions[r, 1]
+        m += 1
+    return out[:m]
+
+
+@jit('Tuple((f8[:, :], b1))(f8[:], f8[:, :], f8[:], f8, f8, f8, f8, f8, b1)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def vo_safe_ranges(robot_state, obstacles, obs_rad, dt, robot_radius, vmax,
+                   think_margin, max_angle_change, legacy):
+    """
+    Heading ranges left after subtracting every velocity obstacle, in one call.
+
+    Fuses get_radii, vo_forbidden_ranges, get_robot_angles and
+    compute_ranges_difference, which together were 16 us per pruning pass and
+    ran twice per node - against 0.7 us for the geometry itself. All four are a
+    handful of arithmetic on at most a few intervals; the cost was numpy
+    dispatch and Python list building, not the work.
+
+    :return: (safe_ranges, any_vo). any_vo is False when no obstacle forbade
+        anything, in which case safe_ranges is the full reachable span. An empty
+        safe_ranges with any_vo True means no heading is safe.
+    """
+    two_pi = 2.0 * np.pi
+
+    # Reachable span, split when it straddles +-pi (get_robot_angles).
+    lo = (robot_state[2] - max_angle_change + np.pi) % two_pi - np.pi
+    hi = (robot_state[2] + max_angle_change + np.pi) % two_pi - np.pi
+    base = np.empty((2, 2), dtype=np.float64)
+    if lo > hi:
+        base[0, 0] = lo
+        base[0, 1] = np.pi
+        base[1, 0] = -np.pi
+        base[1, 1] = hi
+        n_base = 2
+    else:
+        base[0, 0] = lo
+        base[0, 1] = hi
+        n_base = 1
+
+    # Forbidden sectors, one or two per obstacle (vo_forbidden_ranges).
+    n = obstacles.shape[0]
+    forb = np.empty((2 * n, 2), dtype=np.float64)
+    nf = 0
+    rx = robot_state[0]
+    ry = robot_state[1]
+    trapped = False
+
+    for i in range(n):
+        r_ball = obstacles[i, 3] * (dt + think_margin) + obs_rad[i] + robot_radius
+        r_reach = r_ball + vmax * dt
+        if legacy:
+            # ball = r0 + r1, reach = 1.6 * (r0 + r1)
+            r_ball = r_reach
+            r_reach = 1.6 * r_ball
+
+        ox = obstacles[i, 0]
+        oy = obstacles[i, 1]
+        dx = ox - rx
+        dy = oy - ry
+        d = np.sqrt(dx * dx + dy * dy)
+
+        if d > r_reach:
+            continue
+        if d < r_ball or d == 0.0:
+            trapped = True
+            break
+
+        alpha = np.arctan2(ry - oy, rx - ox)
+        phi = np.arccos(r_ball / d)
+        ca = np.cos(alpha)
+        sa = np.sin(alpha)
+        cp = np.cos(phi)
+        sp = np.sin(phi)
+
+        a1 = np.arctan2(oy + r_ball * (sa * cp + ca * sp) - ry,
+                        ox + r_ball * (ca * cp - sa * sp) - rx)
+        a2 = np.arctan2(oy + r_ball * (sa * cp - ca * sp) - ry,
+                        ox + r_ball * (ca * cp + sa * sp) - rx)
+
+        if a1 <= a2:
+            forb[nf, 0] = a1
+            forb[nf, 1] = a2
+            nf += 1
+        else:
+            forb[nf, 0] = a1
+            forb[nf, 1] = np.pi
+            nf += 1
+            forb[nf, 0] = -np.pi
+            forb[nf, 1] = a2
+            nf += 1
+
+    if trapped:
+        return np.empty((0, 2), dtype=np.float64), True
+    if nf == 0:
+        return base[:n_base].copy(), False
+
+    # Drop the degenerate ones, as the numpy version's hi > lo filter did.
+    keep = np.empty((nf, 2), dtype=np.float64)
+    nk = 0
+    for i in range(nf):
+        if forb[i, 1] > forb[i, 0]:
+            keep[nk, 0] = forb[i, 0]
+            keep[nk, 1] = forb[i, 1]
+            nk += 1
+    if nk == 0:
+        return base[:n_base].copy(), True
+
+    # Stable sort by lower bound; nk is at most 2 * n_obstacles.
+    for i in range(1, nk):
+        klo = keep[i, 0]
+        khi = keep[i, 1]
+        j = i - 1
+        while j >= 0 and keep[j, 0] > klo:
+            keep[j + 1, 0] = keep[j, 0]
+            keep[j + 1, 1] = keep[j, 1]
+            j -= 1
+        keep[j + 1, 0] = klo
+        keep[j + 1, 1] = khi
+
+    # Union, so overlapping obstacles are subtracted once.
+    merged = np.empty((nk, 2), dtype=np.float64)
+    nm = 1
+    merged[0, 0] = keep[0, 0]
+    merged[0, 1] = keep[0, 1]
+    for i in range(1, nk):
+        if keep[i, 0] <= merged[nm - 1, 1]:
+            if keep[i, 1] > merged[nm - 1, 1]:
+                merged[nm - 1, 1] = keep[i, 1]
+        else:
+            merged[nm, 0] = keep[i, 0]
+            merged[nm, 1] = keep[i, 1]
+            nm += 1
+
+    out = np.empty((n_base * (nm + 1), 2), dtype=np.float64)
+    no = 0
+    for b in range(n_base):
+        b_lo = base[b, 0]
+        b_hi = base[b, 1]
+        if not (b_hi > b_lo):
+            continue
+        cursor = b_lo
+        for f in range(nm):
+            f_lo = merged[f, 0]
+            f_hi = merged[f, 1]
+            if f_hi <= cursor:
+                continue
+            if f_lo >= b_hi:
+                break
+            if f_lo > cursor:
+                # The numpy version deduplicated emitted pairs exactly; nm is
+                # small enough that a linear scan is the same thing.
+                dup = False
+                for k in range(no):
+                    if out[k, 0] == cursor and out[k, 1] == f_lo:
+                        dup = True
+                        break
+                if not dup:
+                    out[no, 0] = cursor
+                    out[no, 1] = f_lo
+                    no += 1
+            cursor = f_hi
+            if cursor >= b_hi:
+                break
+        if cursor < b_hi:
+            dup = False
+            for k in range(no):
+                if out[k, 0] == cursor and out[k, 1] == b_hi:
+                    dup = True
+                    break
+            if not dup:
+                out[no, 0] = cursor
+                out[no, 1] = b_hi
+                no += 1
+
+    return out[:no], True
+
+
+@jit('i8[:](f8[:, :], i8, b1)', nopython=True, cache=True, fastmath=FASTMATH)
+def _range_sample_counts(space, n_sample, use_width):
+    """
+    Split `n_sample` samples across the intervals of `space`, proportionally.
+
+    Reproduces BetterEnv.get_discrete_space exactly, including the 1e-6 floor
+    that keeps a degenerate interval from taking zero samples and the
+    floor-on-even / ceil-on-odd rounding. `use_width` selects the width metric
+    over the norm; see get_discrete_space for which results were made with which.
+    """
+    m = space.shape[0]
+    sizes = np.empty(m, dtype=np.float64)
+    for i in range(m):
+        if use_width:
+            sizes[i] = abs(space[i, 1] - space[i, 0]) + 1e-6
+        else:
+            sizes[i] = np.sqrt(space[i, 0] * space[i, 0]
+                               + space[i, 1] * space[i, 1]) + 1e-6
+
+    total = 0.0
+    for i in range(m):
+        total += sizes[i]
+
+    out = np.empty(m, dtype=np.int64)
+    for i in range(m):
+        d = (sizes[i] / total) * n_sample
+        out[i] = np.int64(np.floor(d) if i % 2 == 0 else np.ceil(d))
+    return out
+
+
+@jit('f8[:, :](f8[:, :], f8[:, :], i8, i8, b1)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def discrete_actions_multi_range(aspace, vspace, n_angles, n_vel, use_width):
+    """
+    The pruned action set: the (velocity, heading) grid over each safe range.
+
+    Compiled equivalent of BetterEnv.get_discrete_actions_multi_range, which at
+    36 us a call was 40% of a VO-pruned node - twenty times the cost of the
+    velocity-obstacle geometry it exists to consume. The work is two proportional
+    splits and an outer product over one to three intervals; all of it was numpy
+    dispatch on arrays of length 4 and 6.
+
+    Row order matches the tile/repeat it replaces: velocities vary fastest.
+    """
+    m = aspace.shape[0]
+    n_a = _range_sample_counts(aspace, n_angles, use_width)
+    n_v = _range_sample_counts(vspace, n_vel, use_width)
+
+    total = 0
+    for i in range(m):
+        total += n_a[i] * n_v[i]
+
+    out = np.empty((total, 2), dtype=np.float64)
+    k = 0
+    for i in range(m):
+        na = n_a[i]
+        nv = n_v[i]
+        if na <= 0 or nv <= 0:
+            continue
+        angles = _linspace(aspace[i, 0], aspace[i, 1], na)
+        vels = _linspace(vspace[i, 0], vspace[i, 1], nv)
+        for ai in range(na):
+            for vi in range(nv):
+                out[k, 0] = vels[vi]
+                out[k, 1] = angles[ai]
+                k += 1
+    return out[:k]
+
+
 @jit('f8[:, :](f8[:], f8, f8, f8, i8, i8)',
      nopython=True, cache=True, fastmath=FASTMATH)
 def discrete_actions(x, max_angle_change, min_speed, max_speed, n_angles, n_vel):

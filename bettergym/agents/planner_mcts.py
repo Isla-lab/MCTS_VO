@@ -19,13 +19,21 @@ except ModuleNotFoundError:
 _NO_OBSTACLES = np.empty((0, 2), dtype=np.float64)
 
 class ActionNode:
+    # One per action per node, so ~35 per new tree node and a few hundred
+    # thousand per plan: constructing them was the single largest cost in the
+    # planner. __slots__ drops the per-instance __dict__, and state_to_id starts
+    # as None because only the action actually expanded ever acquires a child -
+    # the other 34 used to allocate an empty dict each.
+    __slots__ = ("action", "state_to_id")
+
     def __init__(self, action: Any):
         self.action: Any = action
-        self.action_bytes = action.tobytes()
-        self.state_to_id: Dict[Any, int] = {}
+        self.state_to_id: Dict[Any, int] | None = None
 
     def __hash__(self):
-        return hash(self.action_bytes)
+        # Was a tobytes() cached at construction, on every node, for a hash
+        # nothing takes: ActionNodes are only ever indexed positionally.
+        return hash(self.action.tobytes())
 
     def __repr__(self):
         return np.array2string(self.action)
@@ -37,19 +45,24 @@ class ActionNode:
 
 
 class StateNode:
+    __slots__ = ("id", "state", "actions", "num_visits_actions", "a_values",
+                 "num_visits")
+
     def __init__(self, environment, state, node_id):
         self.id = node_id
         self.state = state
-        # if node_id == 0:
-        #     plot_vo(state, environment.gym_env.config)
         acts = environment.get_actions(state)
         self.actions = [ActionNode(a) for a in acts]
-        self.num_visits_actions = np.zeros_like(self.actions, dtype=np.float64)
-        self.a_values = np.zeros_like(self.actions, dtype=np.float64)
+        # np.zeros_like on a list of Python objects goes through an object
+        # array first; the length is all that was ever wanted.
+        self.num_visits_actions = np.zeros(len(acts), dtype=np.float64)
+        self.a_values = np.zeros(len(acts), dtype=np.float64)
         self.num_visits: int = 0
 
 
 class RolloutStateNode:
+    __slots__ = ("state",)
+
     def __init__(self, state):
         self.state = state
 
@@ -225,7 +238,8 @@ class Mcts(Planner):
         node.num_visits_actions[action_idx] += 1
 
         current_state, r, terminal, _, _ = self.environment.step(current_state, action)
-        new_state_id = action_node.state_to_id.get(current_state, None)
+        children = action_node.state_to_id
+        new_state_id = None if children is None else children.get(current_state)
         if self.collect_trajectories:
             self.info["trajectories"][-1] = np.vstack(
                 (
@@ -251,7 +265,10 @@ class Mcts(Planner):
             # Initialize State Data
             node = StateNode(self.environment, current_state, state_id)
             self.id_to_state_node[state_id] = node
-            action_node.state_to_id[current_state] = state_id
+            if children is None:
+                action_node.state_to_id = {current_state: state_id}
+            else:
+                children[current_state] = state_id
             node.num_visits += 1
             # Do Rollout
             # the value returned by the rollout is already discounted

@@ -24,7 +24,7 @@ def set_range_size_metric(use_width: bool) -> None:
 
 try:
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
-    from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space_fast
+    from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space_fast, robot_trapped
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles
     from MCTS_VO.bettergym.better_gym import BetterGym
     from MCTS_VO.mcts_utils import get_intersections_vectorized
@@ -32,7 +32,7 @@ try:
     from MCTS_VO.bettergym.compiled_utils import robot_dynamics, check_coll_vectorized, dist_to_goal, discrete_actions
 except ModuleNotFoundError:
     from bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
-    from bettergym.agents.utils.vo import compute_safe_angle_space_fast
+    from bettergym.agents.utils.vo import compute_safe_angle_space_fast, robot_trapped
     from bettergym.agents.utils.utils import get_robot_angles
     from bettergym.better_gym import BetterGym
     from mcts_utils import get_intersections_vectorized
@@ -500,6 +500,17 @@ class BetterEnv(BetterGym):
 
         if len(circle_obs_x) == 0:
             return self.get_actions_discrete(state)
+
+        # Trapped: the outcome is fixed before any geometry runs, so take it
+        # here rather than through two pruning passes that both end up with an
+        # empty span. Same action set as the fallback branch below, built the
+        # same way and put through the same np.unique, so this is a pure
+        # shortcut - it changes timings only, never a run.
+        if robot_trapped(x, circle_obs_x, circle_obs_rad, config):
+            actions = self.get_discrete_actions_multi_range(
+                [[-math.pi, math.pi]], [[0.0, 0.0]], config
+            )
+            return np.unique(actions, axis=0)
 
         safe_angles_forward, any_vo = compute_safe_angle_space_fast(
             x, circle_obs_x, circle_obs_rad, config, config.max_speed

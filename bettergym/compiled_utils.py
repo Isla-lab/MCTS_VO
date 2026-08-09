@@ -319,6 +319,29 @@ def discrete_actions(x, max_angle_change, min_speed, max_speed, n_angles, n_vel)
     return out
 
 
+@jit('b1(f8[:], f8[:, :], f8[:], f8, f8, f8, f8, b1)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def any_robot_inside_ball(robot_state, obstacles, obs_rad, dt, robot_radius,
+                          vmax, think_margin, legacy):
+    """
+    Algorithm 4 line 10, on its own: is the robot centre inside some B(p_i, r1)?
+
+    Same radius as `get_radii`, recomputed here rather than taking r1 as an
+    argument. Building that array first costs about 8 us of numpy dispatch per
+    call - more than this whole test, and more than the tangent geometry it is
+    meant to let the caller skip.
+    """
+    for i in range(obstacles.shape[0]):
+        r_ball = obstacles[i, 3] * (dt + think_margin) + obs_rad[i] + robot_radius
+        if legacy:
+            r_ball += vmax * dt
+        dx = obstacles[i, 0] - robot_state[0]
+        dy = obstacles[i, 1] - robot_state[1]
+        if dx * dx + dy * dy < r_ball * r_ball:
+            return True
+    return False
+
+
 @jit('f8[:, :](f8[:], f8[:, :], f8[:], f8[:])',
      nopython=True, cache=True, fastmath=FASTMATH)
 def vo_forbidden_ranges(robot_state, obstacles, r0, r1):

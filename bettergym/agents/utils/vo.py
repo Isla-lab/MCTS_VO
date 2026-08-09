@@ -7,12 +7,12 @@ try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from MCTS_VO.mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges
+    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges
+    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball
     
 # def print_to_file(param):
 #     # with open("OUTPUT.txt", "a") as f:
@@ -58,6 +58,28 @@ def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax, think_margin
         return r_sum, 0.6 * r_sum
 
     return r1, r0
+
+
+def robot_trapped(x, circle_obs_x, circle_obs_rad, config):
+    """
+    True when the robot centre is inside some obstacle ball B(p_i, r1).
+
+    Algorithm 4 line 10: that case sets A_c to the empty set and breaks, so the
+    answer is already known - no heading is safe and V_c = {0}. The tangents of
+    every other obstacle are then computed only to be subtracted from a span
+    that is empty regardless.
+
+    Speed does not enter r1 under the paper geometry, so one test covers both
+    the forward and the reverse pruning. LEGACY_VO folds r0 into the ball, and
+    r0 = vmax * dt does grow with the speed, so there the test is taken at the
+    smaller of the two: trapped at the smaller vmax implies trapped at the
+    larger, which is what makes skipping both passes sound.
+    """
+    return any_robot_inside_ball(
+        x, circle_obs_x, circle_obs_rad, config.dt, config.robot_radius,
+        min(config.max_speed, abs(config.min_speed)), config.think_margin,
+        LEGACY_VO,
+    )
 
 
 def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):

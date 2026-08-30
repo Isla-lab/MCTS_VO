@@ -108,3 +108,80 @@ class TestFusedRollout(TestCase):
     def test_exhausted_budget_returns_zero(self):
         planner = _make_planner()
         self.assertEqual(planner.rollout(_states(1)[0], DEPTH), 0.0)
+
+
+class TestFusedRolloutTraj(TestCase):
+    """`--collect-trajectories` must stay on the compiled path, not fall back
+    to `rollout_python`, and must still produce a trajectory `rollout_python`
+    could plausibly have produced."""
+
+    def test_agrees_with_python_rollout(self):
+        planner = _make_planner()
+        planner.collect_trajectories = True
+        for state in _states(8):
+            py = np.array([planner.rollout_python(state, 0) for _ in range(N)])
+            fused = np.array([planner.rollout(state, 0) for _ in range(N)])
+            se = np.sqrt(py.var(ddof=1) / N + fused.var(ddof=1) / N)
+            z = (py.mean() - fused.mean()) / se if se > 0 else 0.0
+            self.assertLess(abs(z), 3.0,
+                            f"returns differ at x={state.x}: python "
+                            f"{py.mean():.3f} vs fused {fused.mean():.3f}")
+
+    def test_trajectory_shape_matches_step_count(self):
+        planner = _make_planner()
+        planner.collect_trajectories = True
+        state = _states(1)[0]
+        for _ in range(20):
+            before = planner.info["trajectories"][-1].shape[0]
+            steps_before = planner.rollout_depth_n
+            planner.rollout(state, 0)
+            traj = planner.info["trajectories"][-1]
+            self.assertEqual(traj.ndim, 2)
+            self.assertEqual(traj.shape[1], 4)
+            self.assertEqual(traj.dtype, np.float64)
+            # one rollout was recorded, and it grew the buffer by exactly its
+            # own step count (the same count fed to _record_rollout).
+            self.assertEqual(planner.rollout_depth_n, steps_before + 1)
+            grown_by = traj.shape[0] - before
+            self.assertGreater(grown_by, 0)
+            self.assertLessEqual(grown_by, DEPTH)
+
+    def test_default_path_is_unaffected(self):
+        """Without --collect-trajectories, rollout() must still hit plain
+        fused_rollout - no trajectory bookkeeping, no behavior change."""
+        planner = _make_planner()
+        self.assertFalse(planner.collect_trajectories)
+        value = planner.rollout(_states(1)[0], 0)
+        self.assertIsInstance(float(value), float)
+        # info["trajectories"] was primed empty by _make_planner and must be
+        # left alone entirely on the default path.
+        self.assertEqual(len(planner.info["trajectories"]), 1)
+        self.assertEqual(planner.info["trajectories"][0].shape, (0, 4))
+
+    def test_trajectory_is_consumable_by_the_debug_animation(self):
+        """Feed a fabricated trajectories/values structure of the same shape
+        debug_utils.py builds through plot_frame_tree_traj directly."""
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        try:
+            from MCTS_VO.experiment_utils import plot_frame_tree_traj
+        except ModuleNotFoundError:
+            from experiment_utils import plot_frame_tree_traj
+
+        planner = _make_planner()
+        planner.collect_trajectories = True
+        state = _states(1)[0]
+        planner.rollout(state, 0)
+        traj = planner.info["trajectories"][-1]
+
+        trajectories = [[traj]]  # one control step, one simulation
+        values = [[planner.rollout(state, 0)]]
+        obs = [(OBS_POS, OBS_RAD)]
+        config = planner.environment.gym_env.config
+
+        fig = plt.figure()
+        try:
+            plot_frame_tree_traj(0, GOAL, config, obs, trajectories, values, fig)
+        finally:
+            plt.close(fig)

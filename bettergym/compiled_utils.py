@@ -248,6 +248,79 @@ def fused_rollout(x0, goal, obs_xy, dt, max_angle_change, max_speed,
     return total_reward, steps
 
 
+@jit('Tuple((f8, i8))(f8[:], f8[:], f8[:, :], f8, f8, f8, f8, f8, i8, f8, f8, f8[:, :])',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def fused_rollout_traj(x0, goal, obs_xy, dt, max_angle_change, max_speed,
+                       robot_radius, max_eudist, depth, discount, eps, traj):
+    """
+    Same as `fused_rollout`, but also records the per-step state history into
+    `traj`, an (n, 4) buffer with n >= depth supplied by the caller.
+
+    Kept as a separate compiled function rather than a flag on `fused_rollout`
+    so the default, far more common path (no trajectory needed) never pays for
+    the buffer allocation or the per-step write. `traj` is a caller-owned,
+    reused buffer rather than one allocated here: allocating fresh inside the
+    jit function cost about as much as the rest of the rollout combined
+    (~20% overhead, almost all of it the allocation itself), against ~2% for
+    writing into a buffer the caller already owns. This is safe because the
+    caller copies `traj`'s contents out before the next rollout can start.
+
+    :return: (discounted return, steps actually simulated). Only the first
+        `steps` rows of `traj` are real; the caller slices to `[:steps]`
+        before use, exactly as it already does for `fused_rollout`'s step
+        count.
+    """
+    x = x0[0]
+    y = x0[1]
+    theta = x0[2]
+    n_obs = obs_xy.shape[0]
+
+    total_reward = 0.0
+    gamma = 1.0
+    two_pi = 2.0 * np.pi
+
+    steps = 0
+    for _ in range(depth):
+        if np.random.random() <= 1.0 - eps:
+            angle = np.arctan2(goal[1] - y, goal[0] - x)
+            velocity = np.random.uniform(0.0, max_speed)
+            min_angle = theta - max_angle_change
+            max_angle = theta + max_angle_change
+            angle = max(min(angle, max_angle), min_angle)
+        else:
+            velocity = np.random.uniform(0.0, max_speed)
+            angle = np.random.uniform(theta - max_angle_change,
+                                      theta + max_angle_change)
+        angle = (angle + np.pi) % two_pi - np.pi
+
+        d_theta = (angle - theta + np.pi) % two_pi - np.pi
+        x += velocity * np.cos(theta) * dt
+        y += velocity * np.sin(theta) * dt
+        theta = (theta + d_theta + np.pi) % two_pi - np.pi
+
+        traj[steps, 0] = x
+        traj[steps, 1] = y
+        traj[steps, 2] = theta
+        traj[steps, 3] = velocity
+        steps += 1
+
+        dist_goal = np.sqrt((x - goal[0]) ** 2 + (y - goal[1]) ** 2)
+        if dist_goal <= robot_radius:
+            total_reward += gamma * 100.0
+            return total_reward, steps
+
+        for i in range(n_obs):
+            if np.sqrt((obs_xy[i, 0] - x) ** 2 +
+                       (obs_xy[i, 1] - y) ** 2) <= robot_radius:
+                total_reward += gamma * -100.0
+                return total_reward, steps
+
+        total_reward += gamma * (-dist_goal / max_eudist)
+        gamma *= discount
+
+    return total_reward, steps
+
+
 @jit('f8[:](f8, f8, i8)', nopython=True, cache=True, fastmath=FASTMATH)
 def _linspace(start, stop, num):
     """

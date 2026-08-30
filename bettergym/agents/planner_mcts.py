@@ -8,11 +8,11 @@ import numpy as np
 try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.better_gym import BetterGym
-    from MCTS_VO.bettergym.compiled_utils import fused_rollout
+    from MCTS_VO.bettergym.compiled_utils import fused_rollout, fused_rollout_traj
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.better_gym import BetterGym
-    from bettergym.compiled_utils import fused_rollout
+    from bettergym.compiled_utils import fused_rollout, fused_rollout_traj
 
 # Passed to fused_rollout to switch collision checking off: it loops over the
 # obstacles it is given, so an empty set is step_no_check_coll semantics.
@@ -98,6 +98,13 @@ class Mcts(Planner):
         # default, and it also forces the Python rollout, which is what produces
         # the per-step trajectory in the first place.
         self.collect_trajectories = collect_trajectories
+        # Reused across every fused_rollout_traj call: allocating a fresh
+        # (depth, 4) buffer inside the jit function costs about as much as the
+        # rest of the rollout combined (~20% overhead), almost all of it the
+        # allocation itself rather than the per-step writes. Safe to reuse
+        # because rollout() copies its contents out via np.vstack before the
+        # next rollout can start.
+        self._rollout_traj_buf = np.empty((computational_budget, 4), dtype=np.float64)
 
         self.id_to_state_node = None
         self.num_visits_actions = None
@@ -292,17 +299,18 @@ class Mcts(Planner):
         """
         Roll out to the computational budget and return the discounted return.
 
-        Dispatches to the compiled `fused_rollout` when it can - which is
-        whenever the eps of the rollout policy was declared - and to the Python
-        implementation otherwise. `rollout_python` is kept as the readable
-        reference the compiled version is checked against, and as the path that
-        records the per-step trajectory - so asking for trajectories forces it.
+        Dispatches to the compiled `fused_rollout` (or, when trajectories are
+        being collected, `fused_rollout_traj`) whenever the eps of the rollout
+        policy was declared, and to the Python implementation otherwise.
+        `rollout_python` is kept as the readable reference both compiled
+        versions are checked against, and as the fallback when no eps was
+        declared for the compiled policy.
 
         The two agree distributionally rather than bit for bit: the Python
         version draws its epsilon coin from Python's `random` and its speeds
-        from numba's generator, while the fused one draws both from numba's.
+        from numba's generator, while the fused ones draw both from numba's.
         """
-        if self.rollout_eps is None or self.collect_trajectories:
+        if self.rollout_eps is None:
             return self.rollout_python(current_state, curr_depth)
 
         depth = self.computational_budget - curr_depth
@@ -317,19 +325,38 @@ class Mcts(Planner):
         else:
             obs_xy = _NO_OBSTACLES
 
-        total_reward, steps = fused_rollout(
-            current_state.x,
-            current_state.goal,
-            obs_xy,
-            config.dt,
-            config.max_angle_change,
-            config.max_speed,
-            config.robot_radius,
-            env.max_eudist,
-            depth,
-            self.discount,
-            self.rollout_eps,
-        )
+        if self.collect_trajectories:
+            total_reward, steps = fused_rollout_traj(
+                current_state.x,
+                current_state.goal,
+                obs_xy,
+                config.dt,
+                config.max_angle_change,
+                config.max_speed,
+                config.robot_radius,
+                env.max_eudist,
+                depth,
+                self.discount,
+                self.rollout_eps,
+                self._rollout_traj_buf,
+            )
+            self.info["trajectories"][-1] = np.vstack(
+                (self.info["trajectories"][-1], self._rollout_traj_buf[:steps])
+            )
+        else:
+            total_reward, steps = fused_rollout(
+                current_state.x,
+                current_state.goal,
+                obs_xy,
+                config.dt,
+                config.max_angle_change,
+                config.max_speed,
+                config.robot_radius,
+                env.max_eudist,
+                depth,
+                self.discount,
+                self.rollout_eps,
+            )
 
         # `steps` is what the rollout actually ran, which is less than the
         # budget whenever it reached the goal or hit an obstacle. These

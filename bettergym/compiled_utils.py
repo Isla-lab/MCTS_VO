@@ -713,6 +713,67 @@ def any_robot_inside_ball(robot_state, obstacles, obs_rad, dt, robot_radius,
     return False
 
 
+@jit('Tuple((b1, f8))(f8[:], f8[:, :], f8[:], f8, f8, f8, f8, b1)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def trapped_escape_heading(robot_state, obstacles, obs_rad, dt, robot_radius,
+                            vmax, think_margin, legacy):
+    """
+    Single escape heading out of every B(p_i, r1) the robot centre is inside,
+    as a weighted vector sum of "away from obstacle i" - the ORIGINAL design
+    (`--trapped-escape blended`), kept only for reproducing/comparing against
+    that A/B arm; `--trapped-escape per-obstacle[-no-stop]` (below,
+    `trapped_escape_headings`, plural) replaced it as the default because
+    averaging "away from A" and "away from B" can point straight at a third,
+    non-trapping obstacle that neither term accounts for - measured as an 80%
+    voluntary-collision rate at gamma=0.25 on intention_complex.
+
+    Weight is penetration depth (r_ball_i - d_i): always > 0 for a trapping
+    obstacle, naturally maximal at d_i == 0 - no 1/clearance divide-by-zero
+    guard needed for the weight. The *direction* is still undefined at
+    d_i == 0, so it falls back to the reverse of the current heading there
+    (unlike the per-obstacle version, which excludes that obstacle instead -
+    a single blended direction cannot skip a contributor without changing
+    what "blended" means, so this earlier design keeps its original
+    fallback rather than adopting the newer function's fix).
+
+    If the weighted sum cancels out (near zero - e.g. two obstacles
+    straddling the robot on opposite sides at equal penetration), fall back
+    to heading + pi (back away from where the robot is currently facing) so
+    this never returns NaN.
+
+    :return: (any_trapped, escape_heading). escape_heading is meaningless
+        when any_trapped is False.
+    """
+    vx = 0.0
+    vy = 0.0
+    any_trapped = False
+    heading = robot_state[2]
+    for i in range(obstacles.shape[0]):
+        r_ball = obstacles[i, 3] * (dt + think_margin) + obs_rad[i] + robot_radius
+        if legacy:
+            r_ball += vmax * dt
+        dx = robot_state[0] - obstacles[i, 0]
+        dy = robot_state[1] - obstacles[i, 1]
+        d = math.sqrt(dx * dx + dy * dy)
+        if d < r_ball:
+            any_trapped = True
+            w = r_ball - d
+            if d < 1e-9:
+                ux = -math.cos(heading)
+                uy = -math.sin(heading)
+            else:
+                ux = dx / d
+                uy = dy / d
+            vx += w * ux
+            vy += w * uy
+    if not any_trapped:
+        return False, 0.0
+    norm = math.sqrt(vx * vx + vy * vy)
+    if norm < 1e-9:
+        return True, (heading + math.pi + math.pi) % (2 * math.pi) - math.pi
+    return True, math.atan2(vy, vx)
+
+
 @jit('Tuple((b1[:], f8[:]))(f8[:], f8[:, :], f8[:], f8, f8, f8, f8, b1)',
      nopython=True, cache=True, fastmath=FASTMATH)
 def trapped_escape_headings(robot_state, obstacles, obs_rad, dt, robot_radius,

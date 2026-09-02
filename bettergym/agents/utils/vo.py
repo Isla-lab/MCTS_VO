@@ -7,12 +7,12 @@ try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from MCTS_VO.mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_headings
+    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_heading, trapped_escape_headings
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_headings
+    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_heading, trapped_escape_headings
 
 # def print_to_file(param):
 #     # with open("OUTPUT.txt", "a") as f:
@@ -34,18 +34,48 @@ def set_legacy_vo(enabled: bool) -> None:
 
 
 # Set by loopHandler_copy.py's --trapped-escape, before any planning happens.
-# False (default) is today's Algorithm 4 behaviour: trapped forces a full
-# stop (every heading, v=0). True replaces that with a computed escape
-# action - see compute_trapped_escape. Orthogonal to LEGACY_VO: that knob
-# picks which geometry defines "trapped", this one picks what to do once
-# trapped, under either geometry.
-TRAPPED_ESCAPE = False
+# 'off' (default) is the original Algorithm 4 behaviour: trapped forces a
+# full stop (every heading, v=0), reproducing every prior campaign
+# unchanged. The other three are the design's A/B history, all still
+# reachable rather than only the one that happened to win, so any of them
+# can be relaunched/compared later:
+#   'blended'              - one direction, weighted vector sum across every
+#                             trapping obstacle, plus the old stop. First
+#                             design tried; can point at a third, non-trapping
+#                             obstacle neither term accounts for (measured:
+#                             80% voluntary-collision rate at gamma=0.25).
+#   'per-obstacle-no-stop'  - one forward/reverse pair PER trapping obstacle,
+#                             no stop candidate. Second design tried: fixed
+#                             the "points at a third obstacle" failure but,
+#                             on a real matched-seed test, collision% rose
+#                             from 10% to 50% and goal% fell back to the
+#                             no-escape baseline - stop was a real safety
+#                             valve some of the time, not just noise.
+#   'per-obstacle'          - per-obstacle pairs AND the old stop candidate.
+#                             Current default when escape is enabled.
+# Orthogonal to LEGACY_VO: that knob picks which geometry defines "trapped",
+# this one picks what to do once trapped, under either geometry.
+TRAPPED_ESCAPE_MODES = ('off', 'blended', 'per-obstacle', 'per-obstacle-no-stop')
+TRAPPED_ESCAPE_MODE = 'off'
 
 
-def set_trapped_escape(enabled: bool) -> None:
+def set_trapped_escape(mode: str) -> None:
     """Select the trapped fallback. Must be called before the first planning step."""
-    global TRAPPED_ESCAPE
-    TRAPPED_ESCAPE = enabled
+    global TRAPPED_ESCAPE_MODE
+    if mode not in TRAPPED_ESCAPE_MODES:
+        raise ValueError(f"trapped-escape mode must be one of {TRAPPED_ESCAPE_MODES}, got {mode!r}")
+    TRAPPED_ESCAPE_MODE = mode
+
+
+def trapped_escape_include_stop() -> bool:
+    """Whether env.py's trapped branch should offer the old forced-stop as a
+    further candidate alongside whatever compute_trapped_escape returns.
+    Irrelevant when mode is 'off' (compute_trapped_escape already returns no
+    candidates then, so the caller never reaches this check). A getter, not
+    a direct global import, for the same reason set_trapped_escape's
+    docstring on compute_trapped_escape gives: `from vo import X` captures
+    X's value at import time, not a live reference to it."""
+    return TRAPPED_ESCAPE_MODE != 'per-obstacle-no-stop'
 
 
 def _signed_angle_diff(a, b):
@@ -55,16 +85,29 @@ def _signed_angle_diff(a, b):
     return (a - b + math.pi) % (2 * math.pi) - math.pi
 
 
+def _fwd_rev_candidate(escape_heading, heading, mac):
+    """Turn a single escape heading into a (heading_fwd, heading_rev,
+    delta_fwd) candidate: the smallest on-cycle turn (bounded by mac =
+    config.max_angle_change) towards escape_heading forward, and towards its
+    antipode in reverse - whichever needs less turning is generally the
+    cheaper/faster way to reach safety, left for the caller to decide."""
+    delta_fwd = _signed_angle_diff(escape_heading, heading)
+    heading_fwd = heading + max(-mac, min(mac, delta_fwd))
+    heading_fwd = (heading_fwd + math.pi) % (2 * math.pi) - math.pi
+
+    reverse_target = (escape_heading + math.pi + math.pi) % (2 * math.pi) - math.pi
+    delta_rev = _signed_angle_diff(reverse_target, heading)
+    heading_rev = heading + max(-mac, min(mac, delta_rev))
+    heading_rev = (heading_rev + math.pi) % (2 * math.pi) - math.pi
+
+    return heading_fwd, heading_rev, delta_fwd
+
+
 def compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config):
     """
-    Forward/reverse escape candidates, one PAIR per trapping obstacle - not
-    one direction blended across all of them. A blended (weighted-sum)
-    direction was tried first and dropped: it can point straight at a third,
-    non-trapping obstacle that neither term accounts for (measured as an 80%
-    voluntary-collision rate at gamma=0.25 on intention_complex). Giving the
-    tree one clean "away from A" and one clean "away from B" candidate lets
-    it discard whichever is actually bad via rollout, which a single
-    averaged compromise never allows.
+    Forward/reverse escape candidates for the current TRAPPED_ESCAPE_MODE -
+    see that global's docstring for what each of the 4 modes computes and
+    why 'per-obstacle' (one pair per trapping obstacle) is the default.
 
     Two distinct speed quantities matter here, kept separate on purpose:
     - the ball-radius test itself (is the robot trapped at all) uses the
@@ -75,48 +118,49 @@ def compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config):
       config.min_speed - the robot's true forward/backward limits, not the
       min'd value.
 
-    :return: [] when the escape heuristic is disabled (TRAPPED_ESCAPE is
-        False) or the robot is not trapped by any obstacle with d > 0 (an
-        obstacle at d == 0 is already a physical collision, not a near-miss
-        to route an escape heading for - see trapped_escape_headings).
-        Otherwise a list of (heading_fwd, heading_rev, delta_fwd) tuples, one
-        per trapping obstacle - delta_fwd is the signed turn (from the
-        current heading) the forward candidate needs; callers use it to
-        tie-break which candidate is "better" (smaller turn) when they must
-        pick just one. Checking TRAPPED_ESCAPE here rather than at each call
+    :return: [] when TRAPPED_ESCAPE_MODE is 'off' or the robot is not
+        trapped by any obstacle with d > 0 (an obstacle at d == 0 is already
+        a physical collision, not a near-miss to route an escape heading
+        for). Otherwise a list of (heading_fwd, heading_rev, delta_fwd)
+        tuples - one entry for 'blended', one per trapping obstacle for
+        'per-obstacle'/'per-obstacle-no-stop'. delta_fwd is the signed turn
+        (from the current heading) the forward candidate needs; callers use
+        it to tie-break which candidate is "better" (smaller turn) when they
+        must pick just one. Checking the mode here rather than at each call
         site keeps every caller correct without importing the global itself -
-        `from vo import TRAPPED_ESCAPE` would capture its value at import
-        time, not a live reference, and set_trapped_escape() would then
-        silently fail to affect it anywhere but this module.
+        `from vo import TRAPPED_ESCAPE_MODE` would capture its value at
+        import time, not a live reference, and set_trapped_escape() would
+        then silently fail to affect it anywhere but this module.
     """
-    if not TRAPPED_ESCAPE:
+    if TRAPPED_ESCAPE_MODE == 'off':
         return []
     vmax_for_ball = min(config.max_speed, abs(config.min_speed))
+    heading = x[2]
+    mac = config.max_angle_change
+
+    if TRAPPED_ESCAPE_MODE == 'blended':
+        any_trapped, escape_heading = trapped_escape_heading(
+            x, circle_obs_x, circle_obs_rad, config.dt, config.robot_radius,
+            vmax_for_ball, config.think_margin, LEGACY_VO,
+        )
+        if not any_trapped:
+            return []
+        return [_fwd_rev_candidate(escape_heading, heading, mac)]
+
+    # 'per-obstacle' / 'per-obstacle-no-stop': trapped_escape_include_stop()
+    # (called from env.py) is what actually distinguishes the two - both
+    # build the same per-obstacle candidate list here.
     is_trapping, escape_headings = trapped_escape_headings(
         x, circle_obs_x, circle_obs_rad, config.dt, config.robot_radius,
         vmax_for_ball, config.think_margin, LEGACY_VO,
     )
     if not is_trapping.any():
         return []
-
-    heading = x[2]
-    mac = config.max_angle_change
-    candidates = []
-    for escape_heading, trapping in zip(escape_headings, is_trapping):
-        if not trapping:
-            continue
-
-        delta_fwd = _signed_angle_diff(escape_heading, heading)
-        heading_fwd = heading + max(-mac, min(mac, delta_fwd))
-        heading_fwd = (heading_fwd + math.pi) % (2 * math.pi) - math.pi
-
-        reverse_target = (escape_heading + math.pi + math.pi) % (2 * math.pi) - math.pi
-        delta_rev = _signed_angle_diff(reverse_target, heading)
-        heading_rev = heading + max(-mac, min(mac, delta_rev))
-        heading_rev = (heading_rev + math.pi) % (2 * math.pi) - math.pi
-
-        candidates.append((heading_fwd, heading_rev, delta_fwd))
-    return candidates
+    return [
+        _fwd_rev_candidate(escape_heading, heading, mac)
+        for escape_heading, trapping in zip(escape_headings, is_trapping)
+        if trapping
+    ]
 
 
 def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax, think_margin=0.1):
@@ -523,7 +567,7 @@ def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
         safe_angles, flip = vo_negative_speed(obstacles, x, config)
         if safe_angles is None:
             candidates = []
-            if TRAPPED_ESCAPE:
+            if TRAPPED_ESCAPE_MODE != 'off':
                 circle_obs_x, circle_obs_rad = obstacles[1]
                 if len(circle_obs_x) != 0:
                     candidates = compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config)

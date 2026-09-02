@@ -25,7 +25,7 @@ def set_range_size_metric(use_width: bool) -> None:
 try:
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space_fast, robot_trapped
-    from MCTS_VO.bettergym.agents.utils.vo import compute_trapped_escape
+    from MCTS_VO.bettergym.agents.utils.vo import compute_trapped_escape, trapped_escape_include_stop
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles
     from MCTS_VO.bettergym.better_gym import BetterGym
     from MCTS_VO.mcts_utils import get_intersections_vectorized
@@ -34,7 +34,7 @@ try:
 except ModuleNotFoundError:
     from bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from bettergym.agents.utils.vo import compute_safe_angle_space_fast, robot_trapped
-    from bettergym.agents.utils.vo import compute_trapped_escape
+    from bettergym.agents.utils.vo import compute_trapped_escape, trapped_escape_include_stop
     from bettergym.agents.utils.utils import get_robot_angles
     from bettergym.better_gym import BetterGym
     from mcts_utils import get_intersections_vectorized
@@ -517,28 +517,28 @@ class BetterEnv(BetterGym):
         if robot_trapped(x, circle_obs_x, circle_obs_rad, config):
             candidates = compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config)
             if candidates:
-                # A literal 2N+1 row action set (N trapping obstacles), not
+                # A literal action set built directly from `candidates`, not
                 # the usual discretized range: get_discrete_actions_multi_range
                 # exists to sample a *range*, but here exact target headings
-                # are already known - one forward/reverse pair PER trapping
-                # obstacle, not one direction blended across all of them, so
-                # the tree can weigh "escape from A" against "escape from B"
-                # instead of only ever seeing an averaged compromise.
+                # are already known - see compute_trapped_escape for what
+                # `candidates` holds under each TRAPPED_ESCAPE_MODE.
                 #
-                # The forced-stop stays in as a further candidate. It was
-                # dropped once (per-obstacle candidates only) on the theory
-                # that MCTS's ~9-11%-of-trapped-steps use of it, measured on
-                # earlier campaigns with the single-blended-direction design,
-                # was mostly under-exploration noise rather than a genuinely
-                # better choice - that theory did not survive a real
-                # matched-seed test: dropping it raised collision% from 10%
-                # to 50% and goal% fell back to the no-escape baseline (see
-                # git log). Stop is evidently a real safety valve in some
-                # fraction of trapped states, not just noise, even though it
-                # does grow the branching factor.
+                # Whether the old forced-stop is offered as a further
+                # candidate depends on the mode (trapped_escape_include_stop):
+                # dropping it entirely (mode 'per-obstacle-no-stop') was
+                # tried on the theory that MCTS's ~9-11%-of-trapped-steps use
+                # of it, measured on the 'blended' design, was mostly
+                # under-exploration noise rather than a genuinely better
+                # choice - that theory did not survive a real matched-seed
+                # test: dropping it raised collision% from 10% to 50% and
+                # goal% fell back to the no-escape baseline (see git log).
+                # Stop is evidently a real safety valve in some fraction of
+                # trapped states, not just noise, even though it does grow
+                # the branching factor - 'per-obstacle' keeps it by default.
                 rows = [[config.max_speed, hf] for hf, _, _ in candidates]
                 rows += [[config.min_speed, hr] for _, hr, _ in candidates]
-                rows.append([0.0, x[2]])
+                if trapped_escape_include_stop():
+                    rows.append([0.0, x[2]])
                 actions = np.array(rows, dtype=np.float64)
             else:
                 # Same action set the fallback branch below builds, put

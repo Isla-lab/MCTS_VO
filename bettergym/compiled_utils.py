@@ -713,6 +713,50 @@ def any_robot_inside_ball(robot_state, obstacles, obs_rad, dt, robot_radius,
     return False
 
 
+@jit('Tuple((b1[:], f8[:]))(f8[:], f8[:, :], f8[:], f8, f8, f8, f8, b1)',
+     nopython=True, cache=True, fastmath=FASTMATH)
+def trapped_escape_headings(robot_state, obstacles, obs_rad, dt, robot_radius,
+                             vmax, think_margin, legacy):
+    """
+    One escape heading per trapping obstacle (Algorithm 4's trapped case:
+    the robot centre inside some B(p_i, r1)), not a single blended direction.
+    A blended (weighted-vector-sum) direction was tried first and dropped:
+    averaging "away from A" and "away from B" can point straight at a THIRD,
+    non-trapping obstacle that neither term accounts for - observed directly
+    as an 80% voluntary-collision rate at gamma=0.25 on intention_complex.
+    Handing the tree one clean "away from A" and one clean "away from B"
+    candidate instead lets it discard whichever one is actually bad via
+    rollout, which a single averaged compromise never allows.
+
+    d_i == 0 (robot centre exactly on an obstacle centre) is not a near-miss
+    to route an escape heading for - it is already the physical collision
+    itself (the real robot_radius+obs_rad collision test fires long before
+    centre-to-centre distance reaches exactly 0). That obstacle contributes
+    no candidate at all here, same as a non-trapping one; if every trapping
+    obstacle is in this state the caller sees zero candidates and falls back
+    to the old forced stop, rather than a fabricated recovery direction.
+
+    :return: (is_trapping, heading) - both length obstacles.shape[0], one
+        row per input obstacle. is_trapping[i] is True only when obstacle i
+        traps the robot AND is not the d_i == 0 case; heading[i] is
+        meaningless where is_trapping[i] is False.
+    """
+    n = obstacles.shape[0]
+    is_trapping = np.zeros(n, dtype=np.bool_)
+    heading = np.zeros(n, dtype=np.float64)
+    for i in range(n):
+        r_ball = obstacles[i, 3] * (dt + think_margin) + obs_rad[i] + robot_radius
+        if legacy:
+            r_ball += vmax * dt
+        dx = robot_state[0] - obstacles[i, 0]
+        dy = robot_state[1] - obstacles[i, 1]
+        d = math.sqrt(dx * dx + dy * dy)
+        if d < r_ball and d >= 1e-9:
+            is_trapping[i] = True
+            heading[i] = math.atan2(dy, dx)
+    return is_trapping, heading
+
+
 @jit('f8[:, :](f8[:], f8[:, :], f8[:], f8[:])',
      nopython=True, cache=True, fastmath=FASTMATH)
 def vo_forbidden_ranges(robot_state, obstacles, r0, r1):

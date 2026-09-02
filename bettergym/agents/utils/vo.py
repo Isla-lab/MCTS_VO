@@ -7,13 +7,13 @@ try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from MCTS_VO.mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges
+    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_headings
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges
-    
+    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_headings
+
 # def print_to_file(param):
 #     # with open("OUTPUT.txt", "a") as f:
 #     #     f.write(str(param))
@@ -31,6 +31,92 @@ def set_legacy_vo(enabled: bool) -> None:
     """Select the VO geometry. Must be called before the first planning step."""
     global LEGACY_VO
     LEGACY_VO = enabled
+
+
+# Set by loopHandler_copy.py's --trapped-escape, before any planning happens.
+# False (default) is today's Algorithm 4 behaviour: trapped forces a full
+# stop (every heading, v=0). True replaces that with a computed escape
+# action - see compute_trapped_escape. Orthogonal to LEGACY_VO: that knob
+# picks which geometry defines "trapped", this one picks what to do once
+# trapped, under either geometry.
+TRAPPED_ESCAPE = False
+
+
+def set_trapped_escape(enabled: bool) -> None:
+    """Select the trapped fallback. Must be called before the first planning step."""
+    global TRAPPED_ESCAPE
+    TRAPPED_ESCAPE = enabled
+
+
+def _signed_angle_diff(a, b):
+    """Shortest signed difference a-b, wrapped to [-pi, pi]. angle_distance
+    (below) returns an unsigned difference - this project has no existing
+    signed version, needed here to pick a turn direction, not just a size."""
+    return (a - b + math.pi) % (2 * math.pi) - math.pi
+
+
+def compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config):
+    """
+    Forward/reverse escape candidates, one PAIR per trapping obstacle - not
+    one direction blended across all of them. A blended (weighted-sum)
+    direction was tried first and dropped: it can point straight at a third,
+    non-trapping obstacle that neither term accounts for (measured as an 80%
+    voluntary-collision rate at gamma=0.25 on intention_complex). Giving the
+    tree one clean "away from A" and one clean "away from B" candidate lets
+    it discard whichever is actually bad via rollout, which a single
+    averaged compromise never allows.
+
+    Two distinct speed quantities matter here, kept separate on purpose:
+    - the ball-radius test itself (is the robot trapped at all) uses the
+      symmetric vmax_for_ball = min(config.max_speed, abs(config.min_speed)),
+      exactly the reasoning `robot_trapped` already uses (trapped at the
+      smaller of the two implies trapped at the larger).
+    - the candidate escape speeds use the real, asymmetric config.max_speed /
+      config.min_speed - the robot's true forward/backward limits, not the
+      min'd value.
+
+    :return: [] when the escape heuristic is disabled (TRAPPED_ESCAPE is
+        False) or the robot is not trapped by any obstacle with d > 0 (an
+        obstacle at d == 0 is already a physical collision, not a near-miss
+        to route an escape heading for - see trapped_escape_headings).
+        Otherwise a list of (heading_fwd, heading_rev, delta_fwd) tuples, one
+        per trapping obstacle - delta_fwd is the signed turn (from the
+        current heading) the forward candidate needs; callers use it to
+        tie-break which candidate is "better" (smaller turn) when they must
+        pick just one. Checking TRAPPED_ESCAPE here rather than at each call
+        site keeps every caller correct without importing the global itself -
+        `from vo import TRAPPED_ESCAPE` would capture its value at import
+        time, not a live reference, and set_trapped_escape() would then
+        silently fail to affect it anywhere but this module.
+    """
+    if not TRAPPED_ESCAPE:
+        return []
+    vmax_for_ball = min(config.max_speed, abs(config.min_speed))
+    is_trapping, escape_headings = trapped_escape_headings(
+        x, circle_obs_x, circle_obs_rad, config.dt, config.robot_radius,
+        vmax_for_ball, config.think_margin, LEGACY_VO,
+    )
+    if not is_trapping.any():
+        return []
+
+    heading = x[2]
+    mac = config.max_angle_change
+    candidates = []
+    for escape_heading, trapping in zip(escape_headings, is_trapping):
+        if not trapping:
+            continue
+
+        delta_fwd = _signed_angle_diff(escape_heading, heading)
+        heading_fwd = heading + max(-mac, min(mac, delta_fwd))
+        heading_fwd = (heading_fwd + math.pi) % (2 * math.pi) - math.pi
+
+        reverse_target = (escape_heading + math.pi + math.pi) % (2 * math.pi) - math.pi
+        delta_rev = _signed_angle_diff(reverse_target, heading)
+        heading_rev = heading + max(-mac, min(mac, delta_rev))
+        heading_rev = (heading_rev + math.pi) % (2 * math.pi) - math.pi
+
+        candidates.append((heading_fwd, heading_rev, delta_fwd))
+    return candidates
 
 
 def get_radii(circle_obs_x, circle_obs_rad, dt, robot_radius, vmax, think_margin=0.1):
@@ -436,8 +522,35 @@ def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
     if safe_angles is None:
         safe_angles, flip = vo_negative_speed(obstacles, x, config)
         if safe_angles is None:
-            vspace = [0.0, 0.0]
-            safe_angles = [[-math.pi, math.pi]]
+            candidates = []
+            if TRAPPED_ESCAPE:
+                circle_obs_x, circle_obs_rad = obstacles[1]
+                if len(circle_obs_x) != 0:
+                    candidates = compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config)
+            if candidates:
+                # VO-PLANNER is reactive (no tree to weigh candidates against
+                # each other via rollout, unlike VO-TREE/env.py), so it must
+                # commit to one now. Pick whichever of every forward/reverse
+                # pair, across every trapping obstacle, needs the smallest
+                # turn from the current heading - the same "less turning is
+                # better" reasoning a single candidate's own tie-break uses,
+                # just extended to compare across obstacles too.
+                best_heading, best_speed, best_abs_delta = None, None, None
+                for heading_fwd, heading_rev, delta_fwd in candidates:
+                    delta_rev = _signed_angle_diff(heading_rev, x[2])
+                    if best_abs_delta is None or abs(delta_fwd) < best_abs_delta:
+                        best_heading, best_speed, best_abs_delta = heading_fwd, config.max_speed, abs(delta_fwd)
+                    if abs(delta_rev) < best_abs_delta:
+                        best_heading, best_speed, best_abs_delta = heading_rev, config.min_speed, abs(delta_rev)
+                # Headings here are already absolute (computed straight from
+                # x[2]), unlike vo_negative_speed's flip-frame output above -
+                # reusing flip=True here would double-add pi downstream.
+                flip = False
+                vspace = [best_speed, best_speed]
+                safe_angles = [[best_heading, best_heading]]
+            else:
+                vspace = [0.0, 0.0]
+                safe_angles = [[-math.pi, math.pi]]
         else:
             vspace = [config.min_speed, config.min_speed]
             # if flip:

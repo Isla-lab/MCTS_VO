@@ -25,6 +25,7 @@ def set_range_size_metric(use_width: bool) -> None:
 try:
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from MCTS_VO.bettergym.agents.utils.vo import compute_safe_angle_space_fast, robot_trapped
+    from MCTS_VO.bettergym.agents.utils.vo import compute_trapped_escape
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles
     from MCTS_VO.bettergym.better_gym import BetterGym
     from MCTS_VO.mcts_utils import get_intersections_vectorized
@@ -33,6 +34,7 @@ try:
 except ModuleNotFoundError:
     from bettergym.agents.utils.vo import compute_safe_angle_space, vo_negative_speed
     from bettergym.agents.utils.vo import compute_safe_angle_space_fast, robot_trapped
+    from bettergym.agents.utils.vo import compute_trapped_escape
     from bettergym.agents.utils.utils import get_robot_angles
     from bettergym.better_gym import BetterGym
     from mcts_utils import get_intersections_vectorized
@@ -511,13 +513,40 @@ class BetterEnv(BetterGym):
 
         # Trapped: the outcome is fixed before any geometry runs, so take it
         # here rather than through two pruning passes that both end up with an
-        # empty span. Same action set as the fallback branch below, built the
-        # same way and put through the same np.unique, so this is a pure
-        # shortcut - it changes timings only, never a run.
+        # empty span.
         if robot_trapped(x, circle_obs_x, circle_obs_rad, config):
-            actions = self.get_discrete_actions_multi_range(
-                [[-math.pi, math.pi]], [[0.0, 0.0]], config
-            )
+            candidates = compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config)
+            if candidates:
+                # A literal 2N+1 row action set (N trapping obstacles), not
+                # the usual discretized range: get_discrete_actions_multi_range
+                # exists to sample a *range*, but here exact target headings
+                # are already known - one forward/reverse pair PER trapping
+                # obstacle, not one direction blended across all of them, so
+                # the tree can weigh "escape from A" against "escape from B"
+                # instead of only ever seeing an averaged compromise.
+                #
+                # The forced-stop stays in as a further candidate. It was
+                # dropped once (per-obstacle candidates only) on the theory
+                # that MCTS's ~9-11%-of-trapped-steps use of it, measured on
+                # earlier campaigns with the single-blended-direction design,
+                # was mostly under-exploration noise rather than a genuinely
+                # better choice - that theory did not survive a real
+                # matched-seed test: dropping it raised collision% from 10%
+                # to 50% and goal% fell back to the no-escape baseline (see
+                # git log). Stop is evidently a real safety valve in some
+                # fraction of trapped states, not just noise, even though it
+                # does grow the branching factor.
+                rows = [[config.max_speed, hf] for hf, _, _ in candidates]
+                rows += [[config.min_speed, hr] for _, hr, _ in candidates]
+                rows.append([0.0, x[2]])
+                actions = np.array(rows, dtype=np.float64)
+            else:
+                # Same action set the fallback branch below builds, put
+                # through the same np.unique, so absent the escape flag this
+                # is a pure shortcut - it changes timings only, never a run.
+                actions = self.get_discrete_actions_multi_range(
+                    [[-math.pi, math.pi]], [[0.0, 0.0]], config
+                )
             return unique_rows(actions)
 
         safe_angles_forward, any_vo = compute_safe_angle_space_fast(

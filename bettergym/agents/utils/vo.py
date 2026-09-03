@@ -71,6 +71,15 @@ def set_legacy_vo(enabled: bool) -> None:
 #                             clean (not averaged) direction, so whichever of
 #                             the two still wins tells you which explanation
 #                             holds.
+# VO-TREE only - see get_actions_discrete_vo2 (env.py). Plain MCTS has no VO
+# pruning and therefore no "trapped" concept to change. VO-PLANNER
+# (new_get_spaces, below) stays vanilla VO regardless of this mode: it is
+# reactive (no tree to weigh candidates against each other via rollout), so
+# it would have to commit to a single candidate via a tie-break, and the
+# obvious one (least turning wins) is wrong on its own terms - it ignores
+# that config.max_speed and config.min_speed can differ substantially in
+# magnitude, so "less turning" does not necessarily mean "faster escape".
+#
 # Orthogonal to LEGACY_VO: that knob picks which geometry defines "trapped",
 # this one picks what to do once trapped, under either geometry.
 TRAPPED_ESCAPE_MODES = ('off', 'blended', 'per-obstacle', 'per-obstacle-no-stop', 'per-obstacle-nearest')
@@ -600,35 +609,21 @@ def new_get_spaces(obstacles, x, config, intersection_points, wall_angles):
     if safe_angles is None:
         safe_angles, flip = vo_negative_speed(obstacles, x, config)
         if safe_angles is None:
-            candidates = []
-            if TRAPPED_ESCAPE_MODE != 'off':
-                circle_obs_x, circle_obs_rad = obstacles[1]
-                if len(circle_obs_x) != 0:
-                    candidates = compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config)
-            if candidates:
-                # VO-PLANNER is reactive (no tree to weigh candidates against
-                # each other via rollout, unlike VO-TREE/env.py), so it must
-                # commit to one now. Pick whichever of every forward/reverse
-                # pair, across every trapping obstacle, needs the smallest
-                # turn from the current heading - the same "less turning is
-                # better" reasoning a single candidate's own tie-break uses,
-                # just extended to compare across obstacles too.
-                best_heading, best_speed, best_abs_delta = None, None, None
-                for heading_fwd, heading_rev, delta_fwd in candidates:
-                    delta_rev = _signed_angle_diff(heading_rev, x[2])
-                    if best_abs_delta is None or abs(delta_fwd) < best_abs_delta:
-                        best_heading, best_speed, best_abs_delta = heading_fwd, config.max_speed, abs(delta_fwd)
-                    if abs(delta_rev) < best_abs_delta:
-                        best_heading, best_speed, best_abs_delta = heading_rev, config.min_speed, abs(delta_rev)
-                # Headings here are already absolute (computed straight from
-                # x[2]), unlike vo_negative_speed's flip-frame output above -
-                # reusing flip=True here would double-add pi downstream.
-                flip = False
-                vspace = [best_speed, best_speed]
-                safe_angles = [[best_heading, best_heading]]
-            else:
-                vspace = [0.0, 0.0]
-                safe_angles = [[-math.pi, math.pi]]
+            # VO-PLANNER stays vanilla VO here regardless of TRAPPED_ESCAPE_MODE:
+            # it is reactive (no tree to weigh candidates against each other via
+            # rollout, unlike VO-TREE/env.py), so it would have to commit to a
+            # single candidate immediately via a tie-break - and the obvious
+            # "least turning wins" tie-break is wrong on its own terms, since it
+            # ignores that config.max_speed and config.min_speed can differ
+            # substantially in magnitude (a smaller turn at the slower speed can
+            # still cover less distance away from the obstacle per cycle than a
+            # larger turn at the faster speed). Getting that right needs
+            # comparing projected escape speed - vmax*cos(residual angle) - not
+            # angle alone; not worth solving for a planner the escape design
+            # was never really aimed at. The trapped-escape heuristic is
+            # VO-TREE only.
+            vspace = [0.0, 0.0]
+            safe_angles = [[-math.pi, math.pi]]
         else:
             vspace = [config.min_speed, config.min_speed]
             # if flip:

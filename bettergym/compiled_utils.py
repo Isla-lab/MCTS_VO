@@ -774,7 +774,7 @@ def trapped_escape_heading(robot_state, obstacles, obs_rad, dt, robot_radius,
     return True, math.atan2(vy, vx)
 
 
-@jit('Tuple((b1[:], f8[:]))(f8[:], f8[:, :], f8[:], f8, f8, f8, f8, b1)',
+@jit('Tuple((b1[:], f8[:], f8[:]))(f8[:], f8[:, :], f8[:], f8, f8, f8, f8, b1)',
      nopython=True, cache=True, fastmath=FASTMATH)
 def trapped_escape_headings(robot_state, obstacles, obs_rad, dt, robot_radius,
                              vmax, think_margin, legacy):
@@ -797,14 +797,19 @@ def trapped_escape_headings(robot_state, obstacles, obs_rad, dt, robot_radius,
     obstacle is in this state the caller sees zero candidates and falls back
     to the old forced stop, rather than a fabricated recovery direction.
 
-    :return: (is_trapping, heading) - both length obstacles.shape[0], one
-        row per input obstacle. is_trapping[i] is True only when obstacle i
-        traps the robot AND is not the d_i == 0 case; heading[i] is
-        meaningless where is_trapping[i] is False.
+    :return: (is_trapping, heading, penetration) - all length
+        obstacles.shape[0], one row per input obstacle. is_trapping[i] is
+        True only when obstacle i traps the robot AND is not the d_i == 0
+        case; heading[i] and penetration[i] are meaningless where
+        is_trapping[i] is False. penetration[i] = r_ball_i - d_i (same
+        weight `blended` sums over every trapping obstacle) is exposed so a
+        caller can single out the most urgent one instead of using all of
+        them - see TRAPPED_ESCAPE_MODE 'per-obstacle-nearest' in vo.py.
     """
     n = obstacles.shape[0]
     is_trapping = np.zeros(n, dtype=np.bool_)
     heading = np.zeros(n, dtype=np.float64)
+    penetration = np.zeros(n, dtype=np.float64)
     for i in range(n):
         r_ball = obstacles[i, 3] * (dt + think_margin) + obs_rad[i] + robot_radius
         if legacy:
@@ -815,7 +820,8 @@ def trapped_escape_headings(robot_state, obstacles, obs_rad, dt, robot_radius,
         if d < r_ball and d >= 1e-9:
             is_trapping[i] = True
             heading[i] = math.atan2(dy, dx)
-    return is_trapping, heading
+            penetration[i] = r_ball - d
+    return is_trapping, heading, penetration
 
 
 @jit('f8[:, :](f8[:], f8[:, :], f8[:], f8[:])',

@@ -36,7 +36,7 @@ def set_legacy_vo(enabled: bool) -> None:
 # Set by loopHandler_copy.py's --trapped-escape, before any planning happens.
 # 'off' (default) is the original Algorithm 4 behaviour: trapped forces a
 # full stop (every heading, v=0), reproducing every prior campaign
-# unchanged. The other three are the design's A/B history, all still
+# unchanged. The other four are the design's A/B history, all still
 # reachable rather than only the one that happened to win, so any of them
 # can be relaunched/compared later:
 #   'blended'              - one direction, weighted vector sum across every
@@ -44,6 +44,11 @@ def set_legacy_vo(enabled: bool) -> None:
 #                             design tried; can point at a third, non-trapping
 #                             obstacle neither term accounts for (measured:
 #                             80% voluntary-collision rate at gamma=0.25).
+#                             Despite that, this is the best-scoring mode
+#                             measured so far (n=50, gamma=0.03: 38% goal vs
+#                             12% for 'per-obstacle') - see 'per-obstacle-
+#                             nearest' below for why that win is suspected to
+#                             be about candidate COUNT, not direction quality.
 #   'per-obstacle-no-stop'  - one forward/reverse pair PER trapping obstacle,
 #                             no stop candidate. Second design tried: fixed
 #                             the "points at a third obstacle" failure but,
@@ -52,10 +57,23 @@ def set_legacy_vo(enabled: bool) -> None:
 #                             no-escape baseline - stop was a real safety
 #                             valve some of the time, not just noise.
 #   'per-obstacle'          - per-obstacle pairs AND the old stop candidate.
-#                             Current default when escape is enabled.
+#   'per-obstacle-nearest'  - like 'per-obstacle', but only for the single
+#                             MOST urgent trapping obstacle (highest
+#                             penetration r_ball_i - d_i), not all of them -
+#                             exactly 3 candidates (fwd, rev, stop), matching
+#                             'blended's count. Built to separate two
+#                             confounded explanations for 'blended' winning:
+#                             either its direction is genuinely better, or it
+#                             simply offers fewer candidates so MCTS's fixed
+#                             per-decision simulation budget goes further on
+#                             each one. This mode keeps candidate count equal
+#                             to 'blended' while keeping a geometrically
+#                             clean (not averaged) direction, so whichever of
+#                             the two still wins tells you which explanation
+#                             holds.
 # Orthogonal to LEGACY_VO: that knob picks which geometry defines "trapped",
 # this one picks what to do once trapped, under either geometry.
-TRAPPED_ESCAPE_MODES = ('off', 'blended', 'per-obstacle', 'per-obstacle-no-stop')
+TRAPPED_ESCAPE_MODES = ('off', 'blended', 'per-obstacle', 'per-obstacle-no-stop', 'per-obstacle-nearest')
 TRAPPED_ESCAPE_MODE = 'off'
 
 
@@ -122,8 +140,9 @@ def compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config):
         trapped by any obstacle with d > 0 (an obstacle at d == 0 is already
         a physical collision, not a near-miss to route an escape heading
         for). Otherwise a list of (heading_fwd, heading_rev, delta_fwd)
-        tuples - one entry for 'blended', one per trapping obstacle for
-        'per-obstacle'/'per-obstacle-no-stop'. delta_fwd is the signed turn
+        tuples - one entry for 'blended'/'per-obstacle-nearest', one per
+        trapping obstacle for 'per-obstacle'/'per-obstacle-no-stop'.
+        delta_fwd is the signed turn
         (from the current heading) the forward candidate needs; callers use
         it to tie-break which candidate is "better" (smaller turn) when they
         must pick just one. Checking the mode here rather than at each call
@@ -147,15 +166,30 @@ def compute_trapped_escape(x, circle_obs_x, circle_obs_rad, config):
             return []
         return [_fwd_rev_candidate(escape_heading, heading, mac)]
 
-    # 'per-obstacle' / 'per-obstacle-no-stop': trapped_escape_include_stop()
-    # (called from env.py) is what actually distinguishes the two - both
-    # build the same per-obstacle candidate list here.
-    is_trapping, escape_headings = trapped_escape_headings(
+    # 'per-obstacle' / 'per-obstacle-no-stop' / 'per-obstacle-nearest':
+    # trapped_escape_include_stop() (called from env.py) is what actually
+    # distinguishes 'per-obstacle' from 'per-obstacle-no-stop' - all three
+    # start from the same per-obstacle heading/penetration arrays here.
+    is_trapping, escape_headings, penetration = trapped_escape_headings(
         x, circle_obs_x, circle_obs_rad, config.dt, config.robot_radius,
         vmax_for_ball, config.think_margin, LEGACY_VO,
     )
     if not is_trapping.any():
         return []
+
+    if TRAPPED_ESCAPE_MODE == 'per-obstacle-nearest':
+        # argmax over penetration, restricted to trapping obstacles - a
+        # plain argmax over the whole array could pick a non-trapping row
+        # (penetration 0 there, but 0 could still be the max if every
+        # trapping obstacle somehow had exactly 0, which cannot happen since
+        # is_trapping.any() is already True and trapped_escape_headings only
+        # sets penetration > 0 where is_trapping is True).
+        best_i = max(
+            (i for i in range(len(is_trapping)) if is_trapping[i]),
+            key=lambda i: penetration[i],
+        )
+        return [_fwd_rev_candidate(escape_headings[best_i], heading, mac)]
+
     return [
         _fwd_rev_candidate(escape_heading, heading, mac)
         for escape_heading, trapping in zip(escape_headings, is_trapping)

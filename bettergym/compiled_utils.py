@@ -55,6 +55,25 @@ def compute_uniform_towards_goal_jit(
     angle = (angle + math.pi) % (2 * math.pi) - math.pi
     return np.array([linear_velocity, angle])
 
+@jit('f8[:](f8[:], f8[:], f8, f8, f8, f8)', nopython=True, cache=True, fastmath=FASTMATH)
+def compute_uniform_towards_goal_maxspeed_jit(
+        x: np.ndarray,
+        goal: np.ndarray,
+        max_angle_change: float,
+        min_speed: float,
+        max_speed: float,
+        amplitude: float,
+):
+    mean_angle = np.arctan2(goal[1] - x[1], goal[0] - x[0])
+    linear_velocity = max_speed
+    # Make sure angle is within range of -π to π
+    min_angle = x[2] - max_angle_change
+    max_angle = x[2] + max_angle_change
+    # angle = np.random.uniform(low=mean_angle - amplitude, high=mean_angle + amplitude)
+    angle = mean_angle
+    angle = max(min(angle, max_angle), min_angle)
+    angle = (angle + math.pi) % (2 * math.pi) - math.pi
+    return np.array([linear_velocity, angle])
 
 
 @jit('f8[:](f8[:], f8[:], f8)', nopython=True, cache=True, fastmath=FASTMATH)

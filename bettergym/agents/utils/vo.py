@@ -7,12 +7,12 @@ try:
     from MCTS_VO.bettergym.agents.planner import Planner
     from MCTS_VO.bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from MCTS_VO.mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_heading, trapped_escape_headings
+    from MCTS_VO.bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_heading, trapped_escape_headings, compute_uniform_towards_goal_maxspeed_jit
 except ModuleNotFoundError:
     from bettergym.agents.planner import Planner
     from bettergym.agents.utils.utils import get_robot_angles, compute_uniform_towards_goal_jit
     from mcts_utils import get_intersections_vectorized, angle_distance_vector
-    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_heading, trapped_escape_headings
+    from bettergym.compiled_utils import uniform_random, vo_forbidden_ranges, any_robot_inside_ball, vo_safe_ranges, trapped_escape_heading, trapped_escape_headings, compute_uniform_towards_goal_maxspeed_jit
 
 # def print_to_file(param):
 #     # with open("OUTPUT.txt", "a") as f:
@@ -254,6 +254,84 @@ def robot_trapped(x, circle_obs_x, circle_obs_rad, config):
         LEGACY_VO,
     )
 
+
+def uniform_towards_goal_vo_speed(node: Any, planner: Planner, std_angle_rollout: float):
+    config = planner.environment.gym_env.config
+    x = node.state.x
+
+    if len(node.state.obstacles) == 0:
+        return compute_uniform_towards_goal_maxspeed_jit(
+            x=x,
+            goal=node.state.goal,
+            max_angle_change=config.max_angle_change,
+            amplitude=std_angle_rollout,
+            min_speed=0.0,
+            max_speed=config.max_speed,
+        )
+
+    # Extract robot information
+    dt = config.dt
+    ROBOT_RADIUS = config.robot_radius
+    VMAX = config.max_speed
+
+    # Extract obstacle information
+    circle_obs_x, circle_obs_rad = node.state.obstacles
+    intersection_points = np.empty((0, 4), dtype=np.float64)
+
+    if len(circle_obs_x) != 0:
+        # Calculate radii
+        r1, r0 = get_radii(circle_obs_x, circle_obs_rad, dt, ROBOT_RADIUS, VMAX,
+                           think_margin=config.think_margin)
+        # Calculate intersection points
+        intersection_points, dist, mask = get_intersections_vectorized(x, circle_obs_x, r0, r1)
+
+
+    # CASE 1 no obs intersection and no wall intersection
+    if np.isnan(intersection_points).all():
+        return compute_uniform_towards_goal_maxspeed_jit(
+            x=x,
+            goal=node.state.goal,
+            max_angle_change=config.max_angle_change,
+            amplitude=std_angle_rollout,
+            min_speed=0.0,
+            max_speed=config.max_speed,
+        )
+    # CASE 2 only wall intersection
+    # CASE 3 only obs intersection
+    # CASE 4 both wall and obs intersection
+    else:
+        angle_space, velocity_space, flip = new_get_spaces([None, (circle_obs_x, circle_obs_rad), None], x, config, intersection_points, wall_angles=None)
+        mean_angle = np.arctan2(node.state.goal[1] - x[1], node.state.goal[0] - x[0])
+        in_space = False
+        for a_space in angle_space:
+            if a_space[0] <= mean_angle <= a_space[1]:
+                in_space = True
+                break
+        
+        if not in_space:
+            angle_space = np.array(angle_space)
+            angles = np.random.uniform(low=mean_angle - std_angle_rollout, high=mean_angle + std_angle_rollout, size=20)
+            if flip:
+                angles_copy = (angles + math.pi + math.pi) % (2 * math.pi) - math.pi
+                in_range = (angle_space[:, 0] <= angles_copy[:, np.newaxis]) & (angle_space[:, 1] >= angles_copy[:, np.newaxis])
+            else:
+                in_range = (angle_space[:, 0] <= angles[:, np.newaxis]) & (angle_space[:, 1] >= angles[:, np.newaxis])
+            if not np.any(in_range):
+                action = sample_multiple_spaces(center=None, a_space=angle_space, v_space=velocity_space, number=1)[0]
+                if action[0] < 0 and flip:
+                    action[1] = action[1] + math.pi
+                    action[1] = (action[1] + math.pi) % (2 * math.pi) - math.pi
+                return action
+            else:
+                idx_angles, idx_ranges = np.where(in_range)
+                idx = random.randint(0, len(idx_angles) - 1)
+                angle = angles[idx_angles[idx]]
+                velocity = np.random.uniform(low=velocity_space[idx_ranges[idx]][0], high=velocity_space[idx_ranges[idx]][1])
+        else:
+            velocity = velocity_space[0][1]
+            angle = mean_angle
+            
+        return np.array([velocity, angle])
 
 def uniform_towards_goal_vo(node: Any, planner: Planner, std_angle_rollout: float):
     config = planner.environment.gym_env.config
@@ -694,5 +772,14 @@ def epsilon_uniform_uniform_vo(
     prob = random.random()
     if prob <= 1 - eps:
         return uniform_towards_goal_vo(node, planner, std_angle_rollout)
+    else:
+        return uniform_random_vo(node, planner)
+
+def vo_speed(
+        node: Any, planner: Planner, std_angle_rollout: float, eps=0.1
+):
+    prob = random.random()
+    if prob <= 1 - eps:
+        return uniform_towards_goal_vo_speed(node, planner, std_angle_rollout)
     else:
         return uniform_random_vo(node, planner)
